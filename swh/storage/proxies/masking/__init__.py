@@ -61,6 +61,10 @@ class MaskingProxyStorage:
             min_pool_conns, max_pool_conns, masking_db
         )
 
+        # Generate the method dictionaries once per instantiation, instead of
+        # doing it on every (first) __getattr__ call.
+        self._gen_method_dicts()
+
     @contextmanager
     def _masking_query(self) -> Iterator[MaskingQuery]:
         ret = None
@@ -173,77 +177,94 @@ class MaskingProxyStorage:
             raise MaskedObjectException(masked)
 
     def __getattr__(self, key):
-        method = self._get_method(key)
-        # Don't go through the lookup in the next calls to self.key
-        setattr(self, key, method)
-        return method
+        method = None
 
-    def _get_method(self, key):
-        if key == "journal_writer":
-            # Useful for tests
-            return self.storage.journal_writer
-        elif key.endswith("_add") or key in ("content_update", "content_add_metadata"):
-            return getattr(self.storage, key)
-        elif key in ("extid_get_from_extid",):
-            return getattr(self.storage, key)
-        elif key in ("refresh_stat_counters", "stat_counters", "origin_count"):
-            return getattr(self.storage, key)
-        elif key in ("check_config",):
-            return getattr(self.storage, key)
-        elif key in ("clear_buffers", "flush"):
-            return getattr(self.storage, key)
-        elif key in (
-            "object_find_recent_references",
-            "metadata_authority_get",
-            "metadata_fetcher_get",
-            "object_find_by_sha1_git",
-        ):
-            return getattr(self.storage, key)
-        elif key in (
-            "snapshot_get",
-            "origin_visit_find_by_date",
-            "origin_visit_get_by",
-            "origin_visit_status_get_latest",
-            "origin_visit_get_latest",
-        ):
-            return self._getter_optional(key)
-        elif key in (
-            "directory_entry_get_by_path",
-            "directory_get_entries",
-            "directory_get_raw_manifest",
-            "directory_ls",
-            "raw_extrinsic_metadata_get_authorities",
-            "snapshot_branch_get_by_name",
-            "snapshot_count_branches",
-            "snapshot_get_branches",
-            "origin_snapshot_get_all",
-        ):
-            return self._getter_filtering_arguments(key)
-        elif key in (
-            "origin_list",
-            "origin_visit_get",
-            "origin_search",
-            "raw_extrinsic_metadata_get",
-            "origin_visit_get_with_statuses",
-            "origin_visit_status_get",
-        ) or key.endswith("_partition"):
-            return self._getter_pagedresult(key)
-        elif key.endswith("_get") or key in (
-            "origin_get_by_sha1",
-            "content_find",
-            "skipped_content_find",
-            "revision_log",
-            "revision_shortlog",
-            "extid_get_from_target",
-            "raw_extrinsic_metadata_get_by_ids",
-        ):
-            return self._getter_list(key)
-        elif key.endswith("_get_random"):
-            return self._getter_random(key)
-        elif key.endswith("_missing") or key.startswith("content_missing_"):
-            return getattr(self.storage, key)
+        if key in self._methods_by_name:
+            method = self._methods_by_name[key](key)
         else:
-            raise NotImplementedError(key)
+            suffix = key.rsplit("_", 1)[-1]
+
+            if suffix in self._methods_by_suffix:
+                method = self._methods_by_suffix[suffix](key)
+
+        if method:
+            # Avoid going through __getattr__ again next time
+            setattr(self, key, method)
+            return method
+
+        # Raise a NotImplementedError to make sure we don't forget to add
+        # masking to any new storage functions
+        raise NotImplementedError(key)
+
+    def _gen_method_dicts(self):
+        """Generate the :attr:`_methods_by_name` and :attr:`_methods_by_suffix`
+        used by :meth:`__getattr__`"""
+        _passthrough = functools.partial(getattr, self.storage)
+
+        self._methods_by_name = {
+            # Returns a single object
+            "snapshot_get": self._getter_optional,
+            "origin_visit_find_by_date": self._getter_optional,
+            "origin_visit_get_by": self._getter_optional,
+            "origin_visit_status_get_latest": self._getter_optional,
+            "origin_visit_get_latest": self._getter_optional,
+            # Returns a PagedResult
+            "origin_list": self._getter_pagedresult,
+            "origin_visit_get": self._getter_pagedresult,
+            "origin_search": self._getter_pagedresult,
+            "raw_extrinsic_metadata_get": self._getter_pagedresult,
+            "origin_visit_get_with_statuses": self._getter_pagedresult,
+            "origin_visit_status_get": self._getter_pagedresult,
+            # Returns a list of (optional) objects
+            "origin_get_by_sha1": self._getter_list,
+            "content_find": self._getter_list,
+            "skipped_content_find": self._getter_list,
+            "revision_log": self._getter_list,
+            "revision_shortlog": self._getter_list,
+            "extid_get_from_target": self._getter_list,
+            "raw_extrinsic_metadata_get_by_ids": self._getter_list,
+            # Filter arguments
+            "directory_entry_get_by_path": self._getter_filtering_arguments,
+            "directory_get_entries": self._getter_filtering_arguments,
+            "directory_get_raw_manifest": self._getter_filtering_arguments,
+            "directory_ls": self._getter_filtering_arguments,
+            "raw_extrinsic_metadata_get_authorities": self._getter_filtering_arguments,
+            "snapshot_branch_get_by_name": self._getter_filtering_arguments,
+            "snapshot_count_branches": self._getter_filtering_arguments,
+            "snapshot_get_branches": self._getter_filtering_arguments,
+            "origin_snapshot_get_all": self._getter_filtering_arguments,
+            # Content functions that don't match common getter or adder suffixes
+            "content_add_metadata": _passthrough,
+            "content_missing_per_sha1": _passthrough,
+            "content_missing_per_sha1_git": _passthrough,
+            "content_update": _passthrough,
+            # These objects aren't maskable
+            "extid_get_from_extid": _passthrough,
+            "object_find_by_sha1_git": _passthrough,
+            "object_find_recent_references": _passthrough,
+            "metadata_authority_get": _passthrough,
+            "metadata_fetcher_get": _passthrough,
+            # Utility methods
+            "check_config": _passthrough,
+            "clear_buffers": _passthrough,
+            "flush": _passthrough,
+            "origin_count": _passthrough,
+            "refresh_stat_counters": _passthrough,
+            "stat_counters": _passthrough,
+            # For tests
+            "journal_writer": _passthrough,
+        }
+
+        self._methods_by_suffix = {
+            # These methods will never need do any masking
+            "add": _passthrough,
+            "missing": _passthrough,
+            # Partitions return PagedResults
+            "partition": self._getter_pagedresult,
+            # Getters return lists of optional objects
+            "get": self._getter_list,
+            "random": self._getter_random,
+        }
 
     def content_get_data(self, content: Union[HashDict, Sha1]) -> Optional[bytes]:
         ret = self.storage.content_get_data(content)
