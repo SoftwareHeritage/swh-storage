@@ -1,4 +1,4 @@
-# Copyright (C) 2018-2022  The Software Heritage developers
+# Copyright (C) 2018-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -11,7 +11,7 @@ import dataclasses
 import heapq
 from typing import TYPE_CHECKING, Any, Dict, Optional, Set, TypeVar
 
-from swh.model.model import Sha1Git
+from swh.model.model import Revision, Sha1Git
 
 if TYPE_CHECKING:
     from swh.storage.interface import StorageInterface
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 class State:
     done: Set[Sha1Git] = dataclasses.field(default_factory=set)
     revs_to_visit: Any = dataclasses.field(default_factory=list)
-    last_rev: Optional[Dict] = None
+    last_rev: Optional[Revision] = None
     num_revs: int = 0
     missing_revs: Set[Sha1Git] = dataclasses.field(default_factory=set)
 
@@ -86,7 +86,7 @@ class RevisionsWalker(metaclass=_RevisionsWalkerMetaClass):
         state: Optional[State] = None,
         ignore_displayname: bool = False,
     ):
-        self._revs: Dict[Sha1Git, Dict] = {}
+        self._revs: Dict[Sha1Git, Revision] = {}
         self._max_revs = max_revs
         self._state = state or State()
         self.storage = storage
@@ -117,7 +117,7 @@ class RevisionsWalker(metaclass=_RevisionsWalkerMetaClass):
         """
         pass
 
-    def process_parent_revs(self, rev: Dict) -> None:
+    def process_parent_revs(self, rev: Revision) -> None:
         """
         Process the parents of a revision when it is iterated.
         The default implementation simply calls :meth:`process_rev`
@@ -127,16 +127,16 @@ class RevisionsWalker(metaclass=_RevisionsWalkerMetaClass):
             rev (dict): A dict describing a revision as returned by
                 :meth:`swh.storage.interface.StorageInterface.revision_get`
         """
-        for parent_id in rev["parents"]:
+        for parent_id in rev.parents:
             self.process_rev(parent_id)
 
-    def should_return(self, rev: Dict) -> bool:
+    def should_return(self, rev: Revision) -> bool:
         """
         Filter out a revision to return if needed.
         Default implementation returns all iterated revisions.
 
         Args:
-            rev (dict): A dict describing a revision as returned by
+            rev: A revision object as returned by
                 :meth:`swh.storage.interface.StorageInterface.revision_get`
 
         Returns:
@@ -158,18 +158,25 @@ class RevisionsWalker(metaclass=_RevisionsWalkerMetaClass):
             return True
         return False
 
-    def _get_rev(self, rev_id: Sha1Git) -> Optional[Dict]:
+    def _get_rev(self, rev_id: Sha1Git) -> Optional[Revision]:
         rev = self._revs.get(rev_id)
         if rev is None:
             # cache some revisions in advance to avoid sending too much
             # requests to storage and thus speedup the revisions walk
-            for rev in self.storage.revision_log(
+            for rev_d in self.storage.revision_log(
                 [rev_id], limit=100, ignore_displayname=self.ignore_displayname
             ):
                 # revision data is missing, returned history will be truncated
-                if rev is None:
+                if rev_d is None:
                     continue
-                self._revs[rev["id"]] = rev
+                elif isinstance(rev_d, Revision):
+                    # TODO: Remove this conditional after swh-storage has fully
+                    # migrated to returning revision objects from revision_log
+                    rev = rev_d
+                else:
+                    rev = Revision.from_dict(rev_d)
+                assert rev is not None  # for mypy
+                self._revs[rev.id] = rev
         return self._revs.get(rev_id)
 
     def missing_revisions(self) -> Set[Sha1Git]:
@@ -204,7 +211,7 @@ class RevisionsWalker(metaclass=_RevisionsWalkerMetaClass):
         """
         return self._state
 
-    def __next__(self) -> Dict:
+    def __next__(self) -> Revision:
         if self.is_finished():
             raise StopIteration
         while self._state.revs_to_visit:
@@ -247,8 +254,8 @@ class CommitterDateRevisionsWalker(RevisionsWalker):
             rev = self._get_rev(rev_id)
             if rev is not None:
                 commit_time = (
-                    rev["committer_date"]["timestamp"]["seconds"]
-                    if rev["committer_date"]
+                    rev.committer_date.timestamp.seconds
+                    if rev.committer_date
                     # allows to avoid failure with a revision without commit date
                     # and iterate on such revision before its parents
                     else len(self._state.revs_to_visit)
@@ -347,7 +354,7 @@ class DFSRevisionsWalker(DFSPostRevisionsWalker):
 
     rw_type = "dfs"
 
-    def process_parent_revs(self, rev: Dict) -> None:
+    def process_parent_revs(self, rev: Revision) -> None:
         """
         Process the parents of a revision when it is iterated in
         the reversed order they are declared.
@@ -356,7 +363,7 @@ class DFSRevisionsWalker(DFSPostRevisionsWalker):
             rev (dict): A dict describing a revision as returned by
                 :meth:`swh.storage.interface.StorageInterface.revision_get`
         """
-        for parent_id in reversed(rev["parents"]):
+        for parent_id in reversed(rev.parents):
             self.process_rev(parent_id)
 
 

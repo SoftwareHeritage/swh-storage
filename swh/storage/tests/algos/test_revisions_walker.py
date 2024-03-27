@@ -366,9 +366,7 @@ def check_revisions_ordering(
         rev_walker_type, storage, hash_to_bytes(_rev_start)
     )
 
-    assert list(map(hash_to_bytes, expected_result)) == [
-        rev["id"] for rev in revs_walker
-    ]
+    assert list(map(hash_to_bytes, expected_result)) == [rev.id for rev in revs_walker]
 
     assert revs_walker.is_history_truncated() == truncated_history
 
