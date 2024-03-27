@@ -57,21 +57,21 @@ class MaskingProxyStorage:
             get_storage(**storage) if isinstance(storage, dict) else storage
         )
 
-        self.masking_pool = psycopg2.pool.ThreadedConnectionPool(
+        self._masking_pool = psycopg2.pool.ThreadedConnectionPool(
             min_pool_conns, max_pool_conns, masking_db
         )
 
     @contextmanager
-    def masking_query(self) -> Iterator[MaskingQuery]:
+    def _masking_query(self) -> Iterator[MaskingQuery]:
         ret = None
         try:
-            ret = MaskingQuery.from_pool(self.masking_pool)
+            ret = MaskingQuery.from_pool(self._masking_pool)
             yield ret
         finally:
             if ret:
                 ret.put_conn()
 
-    def get_swhids_for_result_of_method(
+    def _get_swhids_in_result(
         self, method_name: str, result: Any
     ) -> List[ExtendedSWHID]:
         if result is None:
@@ -79,7 +79,7 @@ class MaskingProxyStorage:
 
         result_type = getattr(result, "object_type", None)
         if result_type == "raw_extrinsic_metadata":
-            # they have a swhid, we need to add the extra target first
+            # Raw Extrinsic Metadata have a swhid, but we also mask them if the target is masked
             return [result.swhid(), result.target]
 
         if hasattr(result, "swhid"):
@@ -150,42 +150,27 @@ class MaskingProxyStorage:
 
         raise ValueError(f"Cannot get swhid for result of method {method_name}")
 
-    def raise_if_masked(self, swhids: List[ExtendedSWHID]) -> None:
-        with self.masking_query() as q:
+    def _masked_result(
+        self, method_name: str, result: Any
+    ) -> Optional[Dict[ExtendedSWHID, List[MaskedStatus]]]:
+        """Find the SWHIDs of the ``result`` object, and check if any of them is
+        masked, returning the associated masking information."""
+        with self._masking_query() as q:
+            return q.swhids_are_masked(self._get_swhids_in_result(method_name, result))
+
+    def _raise_if_masked_result(self, method_name: str, result: Any) -> None:
+        """Raise a :exc:`MaskedObjectException` if ``result`` is masked."""
+        masked = self._masked_result(method_name, result)
+        if masked:
+            raise MaskedObjectException(masked)
+
+    def _raise_if_masked_swhids(self, swhids: List[ExtendedSWHID]) -> None:
+        """Raise a :exc:`MaskedObjectException` if any SWHID is masked."""
+        with self._masking_query() as q:
             masked = q.swhids_are_masked(swhids)
 
         if masked:
             raise MaskedObjectException(masked)
-
-    def masked_result(
-        self, method_name: str, result: Any
-    ) -> Optional[Dict[ExtendedSWHID, List[MaskedStatus]]]:
-        """Check if the result object is masked, returning the associated information."""
-        with self.masking_query() as q:
-            return q.swhids_are_masked(
-                self.get_swhids_for_result_of_method(method_name, result)
-            )
-
-    def raise_if_masked_result(self, method_name: str, result: Any) -> None:
-        """Raise a :exc:`MaskedObjectException` if result is masked."""
-        if masked := self.masked_result(method_name, result):
-            raise MaskedObjectException(masked)
-
-    def raise_if_masked_results(self, method_name: str, results: Iterable[Any]) -> None:
-        """Raise a :exc:`MaskedObjectException` if any object in `results` is masked."""
-        result_swhids = set()
-        for result in results:
-            if result is not None:
-                result_swhids.update(
-                    self.get_swhids_for_result_of_method(method_name, result)
-                )
-
-        if result_swhids:
-            with self.masking_query() as q:
-                masked = q.swhids_are_masked(list(result_swhids))
-
-            if masked:
-                raise MaskedObjectException(masked)
 
     def __getattr__(self, key):
         method = self._get_method(key)
@@ -252,7 +237,7 @@ class MaskingProxyStorage:
             "extid_get_from_target",
             "raw_extrinsic_metadata_get_by_ids",
         ):
-            return self._getter_list_optional(key)
+            return self._getter_list(key)
         elif key.endswith("_get_random"):
             return self._getter_random(key)
         elif key.endswith("_missing") or key.startswith("content_missing_"):
@@ -266,7 +251,7 @@ class MaskingProxyStorage:
             return None
 
         if isinstance(content, dict) and "sha1_git" in content:
-            self.raise_if_masked(
+            self._raise_if_masked_swhids(
                 [
                     ExtendedSWHID(
                         object_type=ExtendedObjectType.CONTENT,
@@ -276,8 +261,9 @@ class MaskingProxyStorage:
             )
 
         else:
-            # Hash the content again
-            self.raise_if_masked(
+            # We did not get the SWHID of the object as argument, so we need to
+            # hash the resulting content to check if its SWHID was masked.
+            self._raise_if_masked_swhids(
                 [
                     ExtendedSWHID(
                         object_type=ExtendedObjectType.CONTENT,
@@ -290,9 +276,16 @@ class MaskingProxyStorage:
 
         return ret
 
-    def _get_swhids_for_method_args(
+    def _get_swhids_in_args(
         self, method_name: str, parsed_args: Dict[str, Any]
     ) -> List[ExtendedSWHID]:
+        """Extract SWHIDs from the parsed arguments of ``method_name``.
+
+        Arguments:
+          method_name: name of the called method
+          parsed_args: arguments of the method parsed with :func:`inspect.getcallargs`
+        """
+
         if method_name in ("directory_entry_get_by_path", "directory_ls"):
             return [
                 ExtendedSWHID(
@@ -330,9 +323,10 @@ class MaskingProxyStorage:
             raise ValueError(f"Cannot get swhid for arguments of method {method_name}")
 
     def _getter_filtering_arguments(self, method_name: str):
-        """Generates a function which takes some arguments, calls the underlying
-        storage with them, then, if the underlying storage returns any data,
-        raises :exc:`MaskedObjectException` if the requested object is masked"""
+        """Handles methods that should filter on their argument, instead of the
+        returned value. If the underlying storage returns :const:`None`, return
+        it, else, raise :exc:`MaskedObjectException` if the requested object is
+        masked"""
 
         @functools.wraps(getattr(self.storage, method_name))
         def newf(*args, **kwargs):
@@ -342,36 +336,38 @@ class MaskingProxyStorage:
                 return None
 
             parsed_args = inspect.getcallargs(method, *args, **kwargs)
-            self.raise_if_masked(
-                self._get_swhids_for_method_args(method_name, parsed_args)
+            self._raise_if_masked_swhids(
+                self._get_swhids_in_args(method_name, parsed_args)
             )
 
             return result
 
         return newf
 
-    def _getter_random(self, method_name: str):
-        """Generates a function calls the underlying method until it returns an object
-        that is not masked"""
+    RANDOM_ATTEMPTS = 5
 
-        RANDOM_ATTEMPTS = 5
+    def _getter_random(self, method_name: str):
+        """Handles methods returning a random object. Try
+        :const:`RANDOM_ATTEMPTS` times for a non-masked object, and return it,
+        else return :const:`None`."""
 
         @functools.wraps(getattr(self.storage, method_name))
         def newf(*args, **kwargs):
             method = getattr(self.storage, method_name)
-            for _ in range(RANDOM_ATTEMPTS):
+            for _ in range(self.RANDOM_ATTEMPTS):
                 result = method(*args, **kwargs)
                 if result is None:
                     return None
 
-                if not self.masked_result(method_name, result):
+                if not self._masked_result(method_name, result):
                     return result
 
         return newf
 
     def _getter_optional(self, method_name: str):
-        """Generates a function which take an id and return, queries underlying
-        storages in order until one returns a non-None value"""
+        """Handles methods returning an optional object: if the return value is
+        :const:`None`, return it, else, raise a :exc:`MaskedObjectException` if
+        the return value should be masked."""
 
         @functools.wraps(getattr(self.storage, method_name))
         def newf(*args, **kwargs):
@@ -380,19 +376,32 @@ class MaskingProxyStorage:
             if result is None:
                 return None
 
-            self.raise_if_masked_result(method_name, result)
+            self._raise_if_masked_result(method_name, result)
 
             return result
 
         return newf
 
-    def _getter_list_optional(
+    def _raise_if_masked_result_in_list(
+        self, method_name: str, results: Iterable[Any]
+    ) -> None:
+        """Raise a :exc:`MaskedObjectException` if any non-:const:`None` object
+        in ``results`` is masked."""
+        result_swhids = set()
+        for result in results:
+            if result is not None:
+                result_swhids.update(self._get_swhids_in_result(method_name, result))
+
+        if result_swhids:
+            self._raise_if_masked_swhids(list(result_swhids))
+
+    def _getter_list(
         self,
         method_name: str,
     ):
-        """Generates a function which take a list of ids and return a list of
-        optional objects in the same order, raising :exc:`MaskedObjectException`
-        if some objects in the batch are masked."""
+        """Handle methods returning a list (or a generator) of optional objects,
+        raising :exc:`MaskedObjectException` for all the masked objects in the
+        batch."""
 
         @functools.wraps(getattr(self.storage, method_name))
         def newf(*args, **kwargs):
@@ -400,18 +409,22 @@ class MaskingProxyStorage:
 
             results = list(method(*args, **kwargs))
 
-            self.raise_if_masked_results(method_name, results)
+            self._raise_if_masked_result_in_list(method_name, results)
             return results
 
         return newf
 
     def _getter_pagedresult(self, method_name: str) -> Callable[..., PagedResult]:
+        """Handle methods returning a :cls:`PagedResult`, raising
+        :exc:`MaskedObjectException` if some objects in the returned page are
+        masked."""
+
         @functools.wraps(getattr(self.storage, method_name))
         def newf(*args, **kwargs) -> PagedResult:
             method = getattr(self.storage, method_name)
             results = method(*args, **kwargs)
 
-            self.raise_if_masked_results(method_name, results.results)
+            self._raise_if_masked_result_in_list(method_name, results.results)
 
             return results
 
