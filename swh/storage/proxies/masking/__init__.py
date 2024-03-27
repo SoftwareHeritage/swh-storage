@@ -75,9 +75,8 @@ class MaskingProxyStorage:
             if ret:
                 ret.put_conn()
 
-    def _get_swhids_in_result(
-        self, method_name: str, result: Any
-    ) -> List[ExtendedSWHID]:
+    @staticmethod
+    def _get_swhids_in_result(method_name: str, result: Any) -> List[ExtendedSWHID]:
         if result is None:
             raise TypeError(f"Filtering of Nones missing in {method_name}")
 
