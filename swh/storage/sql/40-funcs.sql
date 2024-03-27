@@ -1052,4 +1052,5 @@ create trigger update_counts_from_bucketed
   when (NEW.line % 256 = 0)
   execute procedure swh_update_counters_from_buckets();
 
-\endif  -- :dbflavor_not_only_masking
+-- :dbflavor_not_only_masking
+\endif
