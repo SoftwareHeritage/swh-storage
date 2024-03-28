@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from unittest.mock import call
 import uuid
 
 import pytest
@@ -120,3 +121,50 @@ def test_swhid_lifecycle(masking_admin: MaskingAdmin, masking_query: MaskingQuer
         del expected[swhid]
 
     assert masking_query.swhids_are_masked(all_swhids) == expected
+
+
+def test_query_metrics(
+    masking_admin: MaskingAdmin, masking_query: MaskingQuery, mocker
+):
+    increment = mocker.patch("swh.core.statsd.statsd.increment")
+
+    # Create a request
+    request = masking_admin.create_request(slug="foo", reason="bar")
+
+    masked_swhids = [
+        StorageData.content.swhid().to_extended(),
+        StorageData.directory.swhid().to_extended(),
+        StorageData.revision.swhid().to_extended(),
+        StorageData.release.swhid().to_extended(),
+        StorageData.snapshot.swhid().to_extended(),
+        StorageData.origin.swhid(),
+    ]
+
+    all_swhids = masked_swhids + [
+        StorageData.content2.swhid().to_extended(),
+        StorageData.directory2.swhid().to_extended(),
+        StorageData.revision2.swhid().to_extended(),
+        StorageData.release2.swhid().to_extended(),
+        StorageData.empty_snapshot.swhid().to_extended(),
+        StorageData.origin2.swhid(),
+    ]
+
+    assert masking_query.swhids_are_masked(all_swhids) == {}
+    increment.assert_called_once_with(
+        "swh_storage_masking_queried_total", len(all_swhids)
+    )
+    increment.reset_mock()
+
+    masking_admin.set_object_state(
+        request_id=request.id,
+        new_state=MaskedState.DECISION_PENDING,
+        swhids=masked_swhids,
+    )
+
+    assert len(masking_query.swhids_are_masked(all_swhids)) == len(masked_swhids)
+    increment.assert_has_calls(
+        [
+            call("swh_storage_masking_queried_total", len(all_swhids)),
+            call("swh_storage_masking_masked_total", len(masked_swhids)),
+        ]
+    )

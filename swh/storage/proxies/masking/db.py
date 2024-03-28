@@ -13,8 +13,12 @@ import psycopg2.errors
 from psycopg2.extras import execute_values
 
 from swh.core.db import BaseDb
+from swh.core.statsd import statsd
 from swh.model.swhids import ExtendedObjectType, ExtendedSWHID
 from swh.storage.exc import StorageArgumentException
+
+METRIC_QUERY_TOTAL = "swh_storage_masking_queried_total"
+METRIC_MASKED_TOTAL = "swh_storage_masking_masked_total"
 
 
 class DuplicateRequest(StorageArgumentException):
@@ -207,6 +211,8 @@ class MaskingQuery(MaskingDb):
 
         cur = self.cursor()
 
+        statsd.increment(METRIC_QUERY_TOTAL, len(swhids))
+
         ret: Dict[ExtendedSWHID, List[MaskedStatus]] = {}
 
         for object_id, object_type, request_id, state in psycopg2.extras.execute_values(
@@ -239,4 +245,6 @@ class MaskingQuery(MaskingDb):
                 MaskedStatus(request=request_id, state=MaskedState[state.upper()])
             )
 
+        if ret:
+            statsd.increment(METRIC_MASKED_TOTAL, len(ret))
         return ret
