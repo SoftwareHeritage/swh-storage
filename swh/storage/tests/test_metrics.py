@@ -28,7 +28,7 @@ def test_send_metric_no_unit(mock_statsd):
         OPERATIONS_METRIC,
         10,
         tags={
-            "endpoint": "content_add",
+            "method": "content_add",
             "object_type": "content",
             "operation": "add",
         },
@@ -47,7 +47,7 @@ def test_send_metric_unit(mock_statsd):
         expected_metric,
         100,
         tags={
-            "endpoint": "c_add",
+            "method": "c_add",
             "object_type": "c",
             "operation": "add",
         },
