@@ -17,9 +17,17 @@ from swh.model.swhids import ExtendedObjectType, ExtendedSWHID
 from swh.storage import get_storage
 from swh.storage.exc import MaskedObjectException
 from swh.storage.interface import HashDict, Sha1, StorageInterface
+from swh.storage.metrics import DifferentialTimer
 from swh.storage.proxies.masking.db import MaskedStatus
 
 from .db import MaskingQuery
+
+MASKING_OVERHEAD_METRIC = "swh_storage_masking_overhead_seconds"
+
+
+def masking_overhead_timer(method_name: str) -> DifferentialTimer:
+    """Return a properly setup DifferentialTimer for ``method_name`` of the storage"""
+    return DifferentialTimer(MASKING_OVERHEAD_METRIC, tags={"method": method_name})
 
 
 class MaskingProxyStorage:
@@ -266,35 +274,38 @@ class MaskingProxyStorage:
         }
 
     def content_get_data(self, content: Union[HashDict, Sha1]) -> Optional[bytes]:
-        ret = self.storage.content_get_data(content)
-        if ret is None:
-            return None
+        with masking_overhead_timer("content_get_data") as t:
+            with t.inner():
+                ret = self.storage.content_get_data(content)
 
-        if isinstance(content, dict) and "sha1_git" in content:
-            self._raise_if_masked_swhids(
-                [
-                    ExtendedSWHID(
-                        object_type=ExtendedObjectType.CONTENT,
-                        object_id=content["sha1_git"],
-                    )
-                ]
-            )
+            if ret is None:
+                return None
 
-        else:
-            # We did not get the SWHID of the object as argument, so we need to
-            # hash the resulting content to check if its SWHID was masked.
-            self._raise_if_masked_swhids(
-                [
-                    ExtendedSWHID(
-                        object_type=ExtendedObjectType.CONTENT,
-                        object_id=MultiHash.from_data(ret, ["sha1_git"]).digest()[
-                            "sha1_git"
-                        ],
-                    )
-                ]
-            )
+            if isinstance(content, dict) and "sha1_git" in content:
+                self._raise_if_masked_swhids(
+                    [
+                        ExtendedSWHID(
+                            object_type=ExtendedObjectType.CONTENT,
+                            object_id=content["sha1_git"],
+                        )
+                    ]
+                )
 
-        return ret
+            else:
+                # We did not get the SWHID of the object as argument, so we need to
+                # hash the resulting content to check if its SWHID was masked.
+                self._raise_if_masked_swhids(
+                    [
+                        ExtendedSWHID(
+                            object_type=ExtendedObjectType.CONTENT,
+                            object_id=MultiHash.from_data(ret, ["sha1_git"]).digest()[
+                                "sha1_git"
+                            ],
+                        )
+                    ]
+                )
+
+            return ret
 
     def _get_swhids_in_args(
         self, method_name: str, parsed_args: Dict[str, Any]
@@ -350,17 +361,21 @@ class MaskingProxyStorage:
 
         @functools.wraps(getattr(self.storage, method_name))
         def newf(*args, **kwargs):
-            method = getattr(self.storage, method_name)
-            result = method(*args, **kwargs)
-            if result is None:
-                return None
+            with masking_overhead_timer(method_name) as t:
+                method = getattr(self.storage, method_name)
 
-            parsed_args = inspect.getcallargs(method, *args, **kwargs)
-            self._raise_if_masked_swhids(
-                self._get_swhids_in_args(method_name, parsed_args)
-            )
+                with t.inner():
+                    result = method(*args, **kwargs)
 
-            return result
+                if result is None:
+                    return None
+
+                parsed_args = inspect.getcallargs(method, *args, **kwargs)
+                self._raise_if_masked_swhids(
+                    self._get_swhids_in_args(method_name, parsed_args)
+                )
+
+                return result
 
         return newf
 
@@ -373,14 +388,17 @@ class MaskingProxyStorage:
 
         @functools.wraps(getattr(self.storage, method_name))
         def newf(*args, **kwargs):
-            method = getattr(self.storage, method_name)
-            for _ in range(self.RANDOM_ATTEMPTS):
-                result = method(*args, **kwargs)
-                if result is None:
-                    return None
+            with masking_overhead_timer(method_name) as t:
+                method = getattr(self.storage, method_name)
+                for _ in range(self.RANDOM_ATTEMPTS):
+                    with t.inner():
+                        result = method(*args, **kwargs)
 
-                if not self._masked_result(method_name, result):
-                    return result
+                    if result is None:
+                        return None
+
+                    if not self._masked_result(method_name, result):
+                        return result
 
         return newf
 
@@ -391,14 +409,16 @@ class MaskingProxyStorage:
 
         @functools.wraps(getattr(self.storage, method_name))
         def newf(*args, **kwargs):
-            method = getattr(self.storage, method_name)
-            result = method(*args, **kwargs)
-            if result is None:
-                return None
+            with masking_overhead_timer(method_name) as t:
+                method = getattr(self.storage, method_name)
+                with t.inner():
+                    result = method(*args, **kwargs)
+                if result is None:
+                    return None
 
-            self._raise_if_masked_result(method_name, result)
+                self._raise_if_masked_result(method_name, result)
 
-            return result
+                return result
 
         return newf
 
@@ -425,12 +445,14 @@ class MaskingProxyStorage:
 
         @functools.wraps(getattr(self.storage, method_name))
         def newf(*args, **kwargs):
-            method = getattr(self.storage, method_name)
+            with masking_overhead_timer(method_name) as t:
+                method = getattr(self.storage, method_name)
 
-            results = list(method(*args, **kwargs))
+                with t.inner():
+                    results = list(method(*args, **kwargs))
 
-            self._raise_if_masked_result_in_list(method_name, results)
-            return results
+                self._raise_if_masked_result_in_list(method_name, results)
+                return results
 
         return newf
 
@@ -441,11 +463,13 @@ class MaskingProxyStorage:
 
         @functools.wraps(getattr(self.storage, method_name))
         def newf(*args, **kwargs) -> PagedResult:
-            method = getattr(self.storage, method_name)
-            results = method(*args, **kwargs)
+            with masking_overhead_timer(method_name) as t:
+                method = getattr(self.storage, method_name)
+                with t.inner():
+                    results = method(*args, **kwargs)
 
-            self._raise_if_masked_result_in_list(method_name, results.results)
+                self._raise_if_masked_result_in_list(method_name, results.results)
 
-            return results
+                return results
 
         return newf

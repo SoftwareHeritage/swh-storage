@@ -4,7 +4,7 @@
 # See top-level LICENSE file for more information
 
 import datetime
-from typing import Iterable
+from typing import Iterable, cast
 
 import attr
 import pytest
@@ -24,6 +24,7 @@ from swh.model.model import Directory, DirectoryEntry, ExtID
 from swh.model.model import ObjectType as ModelObjectType
 from swh.model.swhids import CoreSWHID, ExtendedObjectType, ExtendedSWHID, ObjectType
 from swh.storage.exc import MaskedObjectException
+from swh.storage.interface import HashDict
 from swh.storage.proxies.masking import MaskingProxyStorage
 from swh.storage.proxies.masking.db import MaskedState
 from swh.storage.tests.storage_data import StorageData
@@ -936,4 +937,34 @@ def test_raw_extrinsic_metadata(swh_storage, set_object_visibility):
     assert (
         swh_storage.raw_extrinsic_metadata_get_authorities(origin.swhid())
         == found_authorities
+    )
+
+
+def test_proxy_overhead_metric(swh_storage: MaskingProxyStorage, mocker) -> None:
+    timing = mocker.patch("swh.core.statsd.statsd.timing")
+    monotonic = mocker.patch("swh.storage.metrics.monotonic")
+    monotonic.side_effect = [
+        15.0,  # outer start
+        17.0,  # inner start
+        17.7,  # inner finished (0.7s elapsed)
+        18.2,  # outer finished (3.2s elapsed)
+        Exception("Should not have been called again!"),
+    ]
+
+    swh_storage.content_add([StorageData.content, StorageData.content2])
+    for call in timing.call_args_list:
+        assert (
+            call.args[0] != "swh_storage_masking_overhead_seconds"
+        ), "Overhead metric sent unexpectedly"
+
+    assert (
+        swh_storage.content_get_data(cast(HashDict, StorageData.content.hashes()))
+        is not None
+    )
+
+    timing.assert_any_call(
+        "swh_storage_masking_overhead_seconds",
+        # 3.2 s total - 0.7 s inner = 2500 ms overhead
+        pytest.approx(2500.0),
+        tags={"method": "content_get_data"},
     )
