@@ -24,7 +24,7 @@ def timed(f):
 
     @wraps(f)
     def d(*a, **kw):
-        with statsd.timed(DURATION_METRIC, tags={"method": f.__name__}):
+        with statsd.timed(DURATION_METRIC, tags={"endpoint": f.__name__}):
             return f(*a, **kw)
 
     return d
@@ -146,7 +146,7 @@ def send_metric(metric, count, method_name):
         metric_name,
         count,
         tags={
-            "method": method_name,
+            "endpoint": method_name,
             "object_type": object_type,
             "operation": operation,
         },

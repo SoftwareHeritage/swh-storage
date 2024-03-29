@@ -966,5 +966,5 @@ def test_proxy_overhead_metric(swh_storage: MaskingProxyStorage, mocker) -> None
         "swh_storage_masking_overhead_seconds",
         # 3.2 s total - 0.7 s inner = 2500 ms overhead
         pytest.approx(2500.0),
-        tags={"method": "content_get_data"},
+        tags={"endpoint": "content_get_data"},
     )
