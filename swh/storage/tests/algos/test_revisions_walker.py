@@ -90,13 +90,11 @@ _revisions_list = [
         "author": {
             "email": b"adam.janicki@roche.com",  # noqa
             "fullname": b"Adam <adam.janicki@roche.com>",
-            "id": 8040905,
             "name": b"Adam",
         },
         "committer": {
             "email": b"adam.janicki@roche.com",
             "fullname": b"Adam <adam.janicki@roche.com>",
-            "id": 8040905,
             "name": b"Adam",
         },
         "committer_date": {
@@ -122,13 +120,11 @@ _revisions_list = [
         "author": {
             "email": b"adam.janicki@roche.com",
             "fullname": b"Adam <adam.janicki@roche.com>",
-            "id": 8040905,
             "name": b"Adam",
         },
         "committer": {
             "email": b"adam.janicki@roche.com",
             "fullname": b"Adam <adam.janicki@roche.com>",
-            "id": 8040905,
             "name": b"Adam",
         },
         "committer_date": {
@@ -153,13 +149,11 @@ _revisions_list = [
         "author": {
             "email": b"adam.janicki@roche.com",
             "fullname": b"Adam <adam.janicki@roche.com>",
-            "id": 8040905,
             "name": b"Adam",
         },
         "committer": {
             "email": b"adam.janicki@roche.com",
             "fullname": b"Adam <adam.janicki@roche.com>",
-            "id": 8040905,
             "name": b"Adam",
         },
         "committer_date": {
@@ -182,13 +176,11 @@ _revisions_list = [
         "author": {
             "email": b"janickia",
             "fullname": b"Adam Janicki <janickia>",
-            "id": 8040906,
             "name": b"Adam Janicki",
         },
         "committer": {
             "email": b"janickia",
             "fullname": b"Adam Janicki <janickia>",
-            "id": 8040906,
             "name": b"Adam Janicki",
         },
         "committer_date": {
@@ -211,13 +203,11 @@ _revisions_list = [
         "author": {
             "email": b"adam.janicki@roche.com",
             "fullname": b"Adam <adam.janicki@roche.com>",
-            "id": 8040905,
             "name": b"Adam",
         },
         "committer": {
             "email": b"adam.janicki@roche.com",
             "fullname": b"Adam <adam.janicki@roche.com>",
-            "id": 8040905,
             "name": b"Adam",
         },
         "committer_date": {
@@ -241,13 +231,11 @@ _revisions_list = [
         "author": {
             "email": b"janickia",
             "fullname": b"Adam Janicki <janickia>",
-            "id": 8040906,
             "name": b"Adam Janicki",
         },
         "committer": {
             "email": b"janickia",
             "fullname": b"Adam Janicki <janickia>",
-            "id": 8040906,
             "name": b"Adam Janicki",
         },
         "committer_date": {
@@ -270,13 +258,11 @@ _revisions_list = [
         "author": {
             "email": b"janickia",
             "fullname": b"Adam Janicki <janickia>",
-            "id": 8040906,
             "name": b"Adam Janicki",
         },
         "committer": {
             "email": b"janickia",
             "fullname": b"Adam Janicki <janickia>",
-            "id": 8040906,
             "name": b"Adam Janicki",
         },
         "committer_date": {
@@ -299,13 +285,11 @@ _revisions_list = [
         "author": {
             "email": b"adam.janicki@roche.com",
             "fullname": b"Adam <adam.janicki@roche.com>",
-            "id": 8040905,
             "name": b"Adam",
         },
         "committer": {
             "email": b"adam.janicki@roche.com",
             "fullname": b"Adam <adam.janicki@roche.com>",
-            "id": 8040905,
             "name": b"Adam",
         },
         "committer_date": {
@@ -328,13 +312,11 @@ _revisions_list = [
         "author": {
             "email": b"adam.janicki@roche.com",
             "fullname": b"Adam <adam.janicki@roche.com>",
-            "id": 8040905,
             "name": b"Adam",
         },
         "committer": {
             "email": b"adam.janicki@roche.com",
             "fullname": b"Adam <adam.janicki@roche.com>",
-            "id": 8040905,
             "name": b"Adam",
         },
         "committer_date": {
