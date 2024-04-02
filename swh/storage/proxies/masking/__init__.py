@@ -370,9 +370,10 @@ class MaskingProxyStorage:
                 if result is None:
                     return None
 
-                parsed_args = inspect.getcallargs(method, *args, **kwargs)
+                signature = inspect.signature(getattr(StorageInterface, method_name))
+                bound_args = signature.bind(self, *args, **kwargs)
                 self._raise_if_masked_swhids(
-                    self._get_swhids_in_args(method_name, parsed_args)
+                    self._get_swhids_in_args(method_name, bound_args.arguments)
                 )
 
                 return result
