@@ -13,7 +13,7 @@ from swh.core.api import encode_data_server as encode_data
 from swh.core.api import error_handler
 from swh.storage import get_storage as get_swhstorage
 
-from ..exc import StorageArgumentException
+from ..exc import NonRetryableException
 from ..interface import StorageInterface
 from ..metrics import send_metric, timed
 from .serializers import DECODERS, ENCODERS
@@ -93,8 +93,10 @@ app = StorageServerApp(
 storage = None
 
 
-@app.errorhandler(StorageArgumentException)
-def argument_error_handler(exception):
+@app.errorhandler(NonRetryableException)
+def non_retryable_error_handler(exception):
+    """Send all non-retryable errors with a 400 status code so the client can
+    re-raise them."""
     return error_handler(exception, encode_data, status_code=400)
 
 
