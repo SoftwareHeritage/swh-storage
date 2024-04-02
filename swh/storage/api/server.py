@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from functools import partial
 import logging
 import os
 from typing import Any, Dict, Optional
@@ -97,7 +98,9 @@ storage = None
 def non_retryable_error_handler(exception):
     """Send all non-retryable errors with a 400 status code so the client can
     re-raise them."""
-    return error_handler(exception, encode_data, status_code=400)
+    return error_handler(
+        exception, partial(encode_data, extra_type_encoders=ENCODERS), status_code=400
+    )
 
 
 app.setup_psycopg2_errorhandlers()
