@@ -10,6 +10,7 @@ from swh.storage.utils import content_bytes_hashes, content_hex_hashes
 
 if TYPE_CHECKING:
     from swh.model.swhids import ExtendedSWHID
+    from swh.storage.proxies.blocking.db import BlockingStatus
     from swh.storage.proxies.masking.db import MaskedStatus
 
 
@@ -59,6 +60,27 @@ class UnknownMetadataFetcher(StorageArgumentException):
     metadata fetcher as argument."""
 
     pass
+
+
+class BlockedOriginException(NonRetryableException):
+    """Raised when the blocking proxy prevent from inserting a blocked origin"""
+
+    def __init__(self, blocked: "Dict[str, BlockingStatus]"):
+        blocked = {
+            url: status
+            for url, status in blocked.items()
+            if status.state.name != "NON_BLOCKED"
+        }
+        if not blocked:
+            raise ValueError(
+                "Can't raise a BlockedOriginException if no origin is actually blocked"
+            )
+
+        self.blocked = blocked
+        super().__init__(blocked)
+
+    def __str__(self):
+        return "Some origins are blocked: %s" % ", ".join(self.blocked)
 
 
 class MaskedObjectException(NonRetryableException):

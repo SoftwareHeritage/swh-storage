@@ -42,10 +42,12 @@ journal = {file = ["requirements-swh-journal.txt"]}
 "validate" = "swh.storage.proxies.validate:ValidatingProxyStorage"
 "record_references" = "swh.storage.proxies.record_references:RecordReferencesProxyStorage"
 "masking" = "swh.storage.proxies.masking:MaskingProxyStorage"
+"blocking" = "swh.storage.proxies.blocking:BlockingProxyStorage"
 
 [project.entry-points."swh.cli.subcommands"]
 "swh.storage" = "swh.storage.cli"
 "swh.storage.proxies.masking" = "swh.storage.proxies.masking.cli"
+"swh.storage.proxies.blocking" = "swh.storage.proxies.blocking.cli"
 
 [project.urls]
 "Homepage" = "https://gitlab.softwareheritage.org/swh/devel/swh-storage"
