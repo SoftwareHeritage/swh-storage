@@ -4,10 +4,6 @@ select swh_get_dbflavor() = 'read_replica' as dbflavor_read_replica \gset
 select swh_get_dbflavor() != 'read_replica' as dbflavor_does_deduplication \gset
 select swh_get_dbflavor() = 'mirror' as dbflavor_mirror \gset
 select swh_get_dbflavor() = 'default' as dbflavor_default \gset
-select swh_get_dbflavor() != 'only_masking' as dbflavor_not_only_masking \gset
-
--- This skips this whole file if the dbflavor is `only_masking`
-\if :dbflavor_not_only_masking
 
 -- content
 
@@ -325,6 +321,3 @@ alter table object_counts_bucketed add primary key using index object_counts_buc
 -- used to query by (extid_type, extid) + to deduplicate the whole row
 create unique index concurrently on extid(extid_type, extid, extid_version, target_type, target);
 create index concurrently on extid(target_type, target);
-
--- :dbflavor_not_only_masking
-\endif

@@ -2,8 +2,7 @@
 create type database_flavor as enum (
   'default', -- default: full index availability for deduplication and read queries
   'mirror', -- mirror: reduced indexes to allow for out of order insertions
-  'read_replica', -- read replica: minimal indexes to allow read queries
-  'only_masking' -- only masking: only deploy enough schema for the masking proxy
+  'read_replica' -- read replica: minimal indexes to allow read queries
 );
 comment on type database_flavor is 'Flavor of the current database';
 

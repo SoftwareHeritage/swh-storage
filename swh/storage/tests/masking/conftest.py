@@ -9,16 +9,14 @@ import pytest
 from pytest_postgresql import factories
 
 from swh.core.db.db_utils import initialize_database_for_module
-from swh.storage.postgresql.storage import Storage as StorageDatastore
 from swh.storage.proxies.masking.db import MaskingAdmin, MaskingQuery
 
 masking_db_postgresql_proc = factories.postgresql_proc(
     load=[
         partial(
             initialize_database_for_module,
-            modname="storage",
-            flavor="only_masking",
-            version=StorageDatastore.current_version,
+            modname="storage.proxies.masking",
+            version=MaskingAdmin.current_version,
         ),
     ],
 )

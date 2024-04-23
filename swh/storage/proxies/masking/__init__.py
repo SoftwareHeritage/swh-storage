@@ -25,6 +25,13 @@ from .db import MaskingQuery
 MASKING_OVERHEAD_METRIC = "swh_storage_masking_overhead_seconds"
 
 
+def get_datastore(cls, db):
+    assert cls == "postgresql"
+    from .db import MaskingAdmin
+
+    return MaskingAdmin.connect(db)
+
+
 def masking_overhead_timer(method_name: str) -> DifferentialTimer:
     """Return a properly setup DifferentialTimer for ``method_name`` of the storage"""
     return DifferentialTimer(MASKING_OVERHEAD_METRIC, tags={"endpoint": method_name})

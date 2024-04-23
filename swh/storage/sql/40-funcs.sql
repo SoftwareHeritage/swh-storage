@@ -1,8 +1,3 @@
-select swh_get_dbflavor() != 'only_masking' as dbflavor_not_only_masking \gset
-
--- This skips this whole file if the dbflavor is `only_masking`
-\if :dbflavor_not_only_masking
-
 create or replace function hash_sha1(text)
        returns text
 as $$
@@ -1052,6 +1047,3 @@ create trigger update_counts_from_bucketed
   for each row
   when (NEW.line % 256 = 0)
   execute procedure swh_update_counters_from_buckets();
-
--- :dbflavor_not_only_masking
-\endif

@@ -86,6 +86,9 @@ class MaskedObject:
 
 
 class MaskingDb(BaseDb):
+    # we started with 192, because this used to be part of the main storage db
+    current_version = 193
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 

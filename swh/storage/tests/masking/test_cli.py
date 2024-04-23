@@ -12,6 +12,8 @@ import textwrap
 from click.testing import CliRunner
 import pytest
 
+from swh.core.cli.db import db as swhdb
+from swh.core.db.db_utils import get_database_info
 from swh.model.swhids import ExtendedSWHID, ValidationError
 
 from ...proxies.masking.cli import (
@@ -35,6 +37,31 @@ from ...proxies.masking.db import (
     MaskingRequestHistory,
     RequestNotFound,
 )
+
+
+def test_cli_db_create(postgresql):
+    """Create a db then initializing it should be ok"""
+    module_name = "storage.proxies.masking"
+
+    db_params = postgresql.info
+    dbname = "masking-db"
+    conninfo = (
+        f"postgresql://{db_params.user}@{db_params.host}:{db_params.port}/{dbname}"
+    )
+
+    # This creates the db and installs the necessary admin extensions
+    result = CliRunner().invoke(swhdb, ["create", module_name, "--dbname", conninfo])
+    assert result.exit_code == 0, f"Unexpected output: {result.output}"
+
+    # This initializes the schema and data
+    result = CliRunner().invoke(swhdb, ["init", module_name, "--dbname", conninfo])
+
+    assert result.exit_code == 0, f"Unexpected output: {result.output}"
+
+    dbmodule, dbversion, dbflavor = get_database_info(conninfo)
+    assert dbmodule == "storage.proxies.masking"
+    assert dbversion == MaskingAdmin.current_version
+    assert dbflavor is None
 
 
 @pytest.fixture

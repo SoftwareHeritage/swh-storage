@@ -8,6 +8,7 @@ import uuid
 
 import pytest
 
+from swh.core.db.db_utils import get_database_info
 from swh.storage.proxies.masking.db import (
     DuplicateRequest,
     MaskedState,
@@ -17,6 +18,13 @@ from swh.storage.proxies.masking.db import (
     RequestNotFound,
 )
 from swh.storage.tests.storage_data import StorageData
+
+
+def test_db_version(masking_admin: MaskingAdmin):
+    dbmodule, dbversion, dbflavor = get_database_info(masking_admin.conn.dsn)
+    assert dbmodule == "storage.proxies.masking"
+    assert dbversion == MaskingAdmin.current_version
+    assert dbflavor is None
 
 
 def test_create_find_request(masking_admin: MaskingAdmin):

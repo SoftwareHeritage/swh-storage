@@ -3,7 +3,6 @@
 create extension if not exists btree_gist;
 create extension if not exists pgcrypto;
 create extension if not exists pg_trgm;
-create extension if not exists "uuid-ossp";  -- for masking proxy
 
 -- courtesy of  Andreas 'ads' Scherbaum in
 -- https://andreas.scherbaum.la/blog/archives/346-create-language-if-not-exist.html
