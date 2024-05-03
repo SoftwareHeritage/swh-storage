@@ -26,6 +26,23 @@ dependencies = {file = ["requirements.txt", "requirements-swh.txt"]}
 testing = {file = ["requirements-test.txt", "requirements-swh-journal.txt"]}
 journal = {file = ["requirements-swh-journal.txt"]}
 
+[project.entry-points."swh.storage.classes"]
+"remote" = "swh.storage.api.client:RemoteStorage"
+"memory" = "swh.storage.in_memory:InMemoryStorage"
+"cassandra" = "swh.storage.cassandra:CassandraStorage"
+"postgresql" = "swh.storage.postgresql.storage:Storage"
+# deprecated
+"local" = "swh.storage.postgresql.storage:Storage"
+# proxy storages
+"buffer" = "swh.storage.proxies.buffer:BufferingProxyStorage"
+"counter" = "swh.storage.proxies.counter:CountingProxyStorage"
+"filter" = "swh.storage.proxies.filter:FilteringProxyStorage"
+"retry" = "swh.storage.proxies.retry:RetryingProxyStorage"
+"tenacious" = "swh.storage.proxies.tenacious:TenaciousProxyStorage"
+"validate" = "swh.storage.proxies.validate:ValidatingProxyStorage"
+"record_references" = "swh.storage.proxies.record_references:RecordReferencesProxyStorage"
+"masking" = "swh.storage.proxies.masking:MaskingProxyStorage"
+
 [project.entry-points."swh.cli.subcommands"]
 "swh.storage" = "swh.storage.cli"
 "swh.storage.proxies.masking" = "swh.storage.proxies.masking.cli"
