@@ -366,3 +366,176 @@ def test_blocking_prefix_match_add_multi(swh_storage, blocking_admin, endpoint):
             if origin.url not in origins[BlockingState.BLOCKED]
         ]
     )
+
+
+@pytest.mark.parametrize(
+    "endpoint", ["origin_add", "origin_visit_add", "origin_visit_status_add"]
+)
+def test_blocking_log(swh_storage, blocking_admin, endpoint):
+    method = getattr(swh_storage, endpoint)
+    obj_factory = OBJ_FACTORY[endpoint]
+    backend_storage = swh_storage.storage
+
+    url_patterns = {
+        BlockingState.DECISION_PENDING: [
+            "https://example.com/user1/repo1",
+            "https://example.com/user2",
+        ],
+        BlockingState.NON_BLOCKED: [
+            "https://example.com/user2/repo1",
+        ],
+        BlockingState.BLOCKED: [
+            "https://example.com/user2/repo1/subrepo1",
+        ],
+    }
+    requests = {}
+    set_vs = {}
+    for decision, urls in url_patterns.items():
+        request, set_visibility = set_origin_visibility(
+            blocking_admin, slug=f"foo_{decision.name}"
+        )
+        set_visibility(urls, decision)
+        requests[decision] = request
+        set_vs[decision] = set_visibility
+
+    origins = {
+        BlockingState.DECISION_PENDING: [
+            "https://example.com/user1/repo1",
+            "https://example.com/user1/repo1/",
+            "https://example.com/user1/repo1.git",
+            "https://example.com/user1/repo1.git/",
+            "https://example.com/user1/repo1/subrepo1",
+            "https://example.com/user1/repo1/subrepo1.git",
+            # everything under https://example.com/user2 should be blocked (but
+            # https://example.com/user2/repo1)
+            "https://example.com/user2",
+            "https://example.com/user2.git",
+            "https://example.com/user2.git/",
+            "https://example.com/user2/",
+            "https://example.com/user2/repo2",
+            "https://example.com/user2/repo2/",
+            "https://example.com/user2/repo2.git",
+            "https://example.com/user2/repo2.git/",
+        ],
+        None: [
+            # these should work OK by themselves, not matching any rule
+            "https://example.com/user1",
+            "https://example.com/user1/repo2",
+            "https://example.org/user2/repo2",
+            "https://example.org/user3/repo2/",
+        ],
+        BlockingState.NON_BLOCKED: [
+            # https://example.com/user2/repo1 is explicitly enabled
+            "https://example.com/user2/repo1",
+            "https://example.com/user2/repo1/",
+            "https://example.com/user2/repo1.git",
+            "https://example.com/user2/repo1/subrepo2",
+        ],
+        BlockingState.BLOCKED: [
+            # "https://example.com/user2/repo1/subrepo1 is explicitly blocked
+            "https://example.com/user2/repo1/subrepo1",
+            "https://example.com/user2/repo1/subrepo1.git",
+            "https://example.com/user2/repo1/subrepo1/subsubrepo",
+        ],
+    }
+
+    # insert them all at once, none should be inserted and the error give
+    # reasons for rejected urls
+    all_origins = [Origin(url) for url in chain(*(origins.values()))]
+
+    ts_before = now()
+    if endpoint != "origin_add":
+        # if the endpoint is not 'origin_add', insert the origins; no
+        # visit or visit status should be able to be inserted nonetheless
+        assert backend_storage.origin_add(all_origins)
+    if endpoint == "origin_visit_status_add":
+        # if the endpoint is 'origin_visit_status_add', insert the
+        # origin visits in the backend; but no visit status should be able to
+        # be inserted via the proxy
+        assert backend_storage.origin_visit_add(
+            [mk_origin_visit(origin) for origin in all_origins]
+        )
+
+    with pytest.raises(BlockedOriginException):
+        method([obj_factory(origin) for origin in all_origins])
+    ts_after = now()
+
+    # Check blocking journal log
+    log = blocking_admin.get_log()
+    assert set(origins[BlockingState.DECISION_PENDING]) == set(
+        x.url for x in log if x.state == BlockingState.DECISION_PENDING
+    )
+    assert set(origins[BlockingState.BLOCKED]) == set(
+        x.url for x in log if x.state == BlockingState.BLOCKED
+    )
+    assert set(origins[BlockingState.NON_BLOCKED]) == set(
+        x.url for x in log if x.state == BlockingState.NON_BLOCKED
+    )
+    urls_with_event = {x.url for x in log}
+    for url in origins[None]:
+        assert url not in urls_with_event
+
+    for logentry in log:
+        assert logentry.request == requests[logentry.state].id
+        assert ts_before < logentry.date < ts_after
+
+    # check the get_log(request_id=xx) method call
+    for state, request in requests.items():
+        log = blocking_admin.get_log(request_id=request.id)
+        assert set(origins[state]) == set(x.url for x in log)
+
+    # check the get_log(url=xx) method call
+    for origin in all_origins:
+        url = origin.url
+        log = blocking_admin.get_log(url=url)
+        if url in origins[None]:
+            assert not log
+        else:
+            assert len(log) == 1
+            logentry = log[0]
+            assert logentry.url == url
+            assert logentry.request == requests[logentry.state].id
+
+    # now, set the decision pending pattern to non_blocked and rerun the whole
+    # insertion thing; use the set_visibility helper coming with the request
+    # that created decision pending rules
+    set_visibility = set_vs[BlockingState.DECISION_PENDING]
+    set_visibility(
+        url_patterns[BlockingState.DECISION_PENDING], BlockingState.NON_BLOCKED
+    )
+
+    with pytest.raises(BlockedOriginException):
+        method([obj_factory(origin) for origin in all_origins])
+
+    # for each url in origin[BLOCKED], we should have 2 'blocked' log entries
+    for url in origins[BlockingState.BLOCKED]:
+        log = blocking_admin.get_log(url=url)
+        assert len(log) == 2
+        assert {entry.state for entry in log} == {BlockingState.BLOCKED}
+
+    # for each url in origin[NON_BLOCKED], we should have 2 'non-blocked' log entries
+    for url in origins[BlockingState.NON_BLOCKED]:
+        log = blocking_admin.get_log(url=url)
+        assert len(log) == 2
+        assert {entry.state for entry in log} == {BlockingState.NON_BLOCKED}
+
+    # for each url in origin[DESCISION_PENDING], we should have 1 'decision-pending' and
+    # 1 'non-blocked' log entry
+    for url in origins[BlockingState.DECISION_PENDING]:
+        log = blocking_admin.get_log(url=url)
+        assert len(log) == 2
+        assert {entry.state for entry in log} == {
+            BlockingState.NON_BLOCKED,
+            BlockingState.DECISION_PENDING,
+        }
+
+    # for each url in origin[NON_BLOCKED], we should have 2 'non-blocked' log entries
+    for url in origins[BlockingState.NON_BLOCKED]:
+        log = blocking_admin.get_log(url=url)
+        assert len(log) == 2
+        assert {entry.state for entry in log} == {BlockingState.NON_BLOCKED}
+
+    # for each url in origin[None], we should have no log entry
+    for url in origins[None]:
+        log = blocking_admin.get_log(url=url)
+        assert len(log) == 0

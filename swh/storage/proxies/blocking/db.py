@@ -70,6 +70,20 @@ class RequestHistory:
 
 
 @attr.s
+class BlockingLogEntry:
+    url = attr.ib(type=str)
+    """origin url that have been blocked"""
+    url_match = attr.ib(type=str)
+    """url matching pattern that caused the blocking of the origin url"""
+    request = attr.ib(type=UUID)
+    """id of the blocking request"""
+    date = attr.ib(type=datetime.datetime)
+    """Date the blocking event occurred"""
+    state = attr.ib(type=BlockingState)
+    """Blocking state responsible for the blocking event"""
+
+
+@attr.s
 class BlockedOrigin:
     request_slug = attr.ib(type=str)
     url_pattern = attr.ib(type=str)
@@ -333,6 +347,42 @@ class BlockingAdmin(BlockingDb):
             )
         return records
 
+    def get_log(
+        self, request_id: Optional[UUID] = None, url: Optional[str] = None
+    ) -> List[BlockingLogEntry]:
+        cur = self.cursor()
+        where = []
+        args = []
+        if request_id:
+            where.append("request = %s")
+            args.append(str(request_id))
+        if url:
+            where.append("url = %s")
+            args.append(url)
+        if where:
+            condition = "WHERE " + " AND ".join(where)
+        else:
+            condition = ""
+        cur.execute(
+            f"""SELECT date, url, url_match, request, state
+                    FROM blocked_origin_log
+                    {condition}
+                    ORDER BY date DESC""",
+            args,
+        )
+        records = []
+        for db_date, db_url, db_url_match, db_request_id, db_state in cur:
+            records.append(
+                BlockingLogEntry(
+                    url=db_url,
+                    url_match=db_url_match,
+                    request=db_request_id,
+                    date=db_date,
+                    state=BlockingState[db_state.upper()],
+                )
+            )
+        return records
+
 
 class BlockingQuery(BlockingDb):
     def origins_are_blocked(
@@ -357,6 +407,8 @@ class BlockingQuery(BlockingDb):
 
         If the given url matches a set of registered blocking rules, return the
         most appropriate one. Otherwise, return None.
+
+        Log the blocking event in the database (log only a matching events).
         """
         logging.debug("url: %s", url)
         cur = self.cursor()
@@ -426,5 +478,13 @@ class BlockingQuery(BlockingDb):
             )
             logger.debug("Matching status for %s: %s", url_match, status)
             statsd.increment(METRIC_BLOCKED_TOTAL, 1)
+            # log the event; even a NON_BLOCKED decision is logged
+            cur.execute(
+                """
+                INSERT INTO blocked_origin_log (url, url_match, request, state)
+                VALUES (%s, %s, %s, %s)
+                """,
+                (url, url_match, status.request, status.state.name.lower()),
+            )
             return status
         return None
