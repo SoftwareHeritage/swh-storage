@@ -252,10 +252,13 @@ def db_to_revision(db_revision: Dict[str, Any]) -> Revision:
                 parents.append(parent)
 
     metadata = db_revision["metadata"]
-    if metadata and "extra_headers" in metadata:
-        del metadata["extra_headers"]
-
-    extra_headers = db_revision["extra_headers"] or ()
+    extra_headers = db_revision["extra_headers"]
+    if not extra_headers:
+        if metadata and "extra_headers" in metadata:
+            extra_headers = db_to_git_headers(metadata.pop("extra_headers"))
+        else:
+            # For older versions of the database that were not migrated to schema v161
+            extra_headers = ()
 
     return Revision(
         id=db_revision["id"],
