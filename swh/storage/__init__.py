@@ -1,9 +1,9 @@
-# Copyright (C) 2015-2022  The Software Heritage developers
+# Copyright (C) 2015-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import importlib
+import importlib.metadata
 from typing import TYPE_CHECKING, Any, Dict, List
 import warnings
 
@@ -11,28 +11,10 @@ if TYPE_CHECKING:
     from .interface import StorageInterface
 
 
-STORAGE_IMPLEMENTATIONS = {
-    "remote": ".api.client.RemoteStorage",
-    "memory": ".in_memory.InMemoryStorage",
-    "cassandra": ".cassandra.CassandraStorage",
-    "postgresql": ".postgresql.storage.Storage",
-    # deprecated
-    "local": ".postgresql.storage.Storage",
-    # proxy storages
-    "buffer": ".proxies.buffer.BufferingProxyStorage",
-    "counter": ".proxies.counter.CountingProxyStorage",
-    "filter": ".proxies.filter.FilteringProxyStorage",
-    "overlay": ".proxies.overlay.OverlayProxyStorage",
-    "retry": ".proxies.retry.RetryingProxyStorage",
-    "tenacious": ".proxies.tenacious.TenaciousProxyStorage",
-    "validate": ".proxies.validate.ValidatingProxyStorage",
-    "record_references": ".proxies.record_references.RecordReferencesProxyStorage",
-}
-
-
 def get_storage(cls: str, **kwargs) -> "StorageInterface":
-    """Get a storage object of class `storage_class` with arguments
-    `storage_args`.
+    """Get a storage object of class ``cls`` with arguments ``**kwargs``.
+    ``cls`` must be one of the ``swh.storage.classes`` `entry-points
+    <https://setuptools.pypa.io/en/latest/userguide/entry_point.html>`_
 
     Args:
         cls (str):
@@ -68,16 +50,16 @@ def get_storage(cls: str, **kwargs) -> "StorageInterface":
             DeprecationWarning,
         )
 
-    class_path = STORAGE_IMPLEMENTATIONS.get(cls)
-    if class_path is None:
+    entry_points = importlib.metadata.entry_points(group="swh.storage.classes")
+    try:
+        entry_point = entry_points[cls]
+    except KeyError:
         raise ValueError(
             "Unknown storage class `%s`. Supported: %s"
-            % (cls, ", ".join(STORAGE_IMPLEMENTATIONS))
-        )
+            % (cls, ", ".join(entry_point.name for entry_point in entry_points))
+        ) from None
+    Storage = entry_point.load()
 
-    (module_path, class_name) = class_path.rsplit(".", 1)
-    module = importlib.import_module(module_path, package=__package__)
-    Storage = getattr(module, class_name)
     check_config = kwargs.pop("check_config", {})
     storage = Storage(**kwargs)
     if check_config:

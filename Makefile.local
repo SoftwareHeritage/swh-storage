@@ -1,2 +1,2 @@
 TEST_DIRS := ./swh/storage/tests
-TESTFLAGS=--hypothesis-profile=fast
+TESTFLAGS += --hypothesis-profile=fast

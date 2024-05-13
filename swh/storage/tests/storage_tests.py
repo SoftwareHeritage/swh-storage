@@ -14,7 +14,9 @@ from typing import Any, ClassVar, Dict, Iterator, Optional
 from unittest.mock import MagicMock
 
 import attr
+import cassandra
 from hypothesis import HealthCheck, given, settings, strategies
+import psycopg2.errors
 import pytest
 
 from swh.core.api import RemoteException
@@ -40,11 +42,11 @@ from swh.model.model import (
 from swh.model.model import Content, Directory, DirectoryEntry, ExtID
 from swh.model.model import ObjectType as ModelObjectType
 from swh.model.swhids import CoreSWHID, ExtendedSWHID, ObjectType
-from swh.storage import get_storage
 from swh.storage.cassandra.storage import CassandraStorage
 from swh.storage.common import origin_url_to_sha1 as sha1
 from swh.storage.exc import (
     HashCollision,
+    QueryTimeout,
     StorageArgumentException,
     UnknownMetadataAuthority,
     UnknownMetadataFetcher,
@@ -147,15 +149,14 @@ class TestStorage:
     class twice.
     """
 
-    maxDiff = None  # type: ClassVar[Optional[int]]
+    maxDiff: ClassVar[Optional[int]] = None
 
-    def test_types(self, swh_storage_backend_config):
+    def test_types(self, swh_storage):
         """Checks all methods of StorageInterface are implemented by this
         backend, and that they have the same signature."""
         # Create an instance of the protocol (which cannot be instantiated
         # directly, so this creates a subclass, then instantiates it)
         interface = type("_", (StorageInterface,), {})()
-        storage = get_storage(**swh_storage_backend_config)
 
         assert "content_add" in dir(interface)
 
@@ -166,7 +167,7 @@ class TestStorage:
                 continue
             interface_meth = getattr(interface, meth_name)
             try:
-                concrete_meth = getattr(storage, meth_name)
+                concrete_meth = getattr(swh_storage, meth_name)
             except AttributeError:
                 if not getattr(interface_meth, "deprecated_endpoint", False):
                     # The backend is missing a (non-deprecated) endpoint
@@ -184,7 +185,7 @@ class TestStorage:
         # But there's no harm in double-checking.
         # And we could replace the assertions above by this one, but unlike
         # the assertions above, it doesn't explain what is missing.
-        assert isinstance(storage, StorageInterface)
+        assert isinstance(swh_storage, StorageInterface)
 
     def test_check_config(self, swh_storage):
         assert swh_storage.check_config(check_write=True)
@@ -350,7 +351,7 @@ class TestStorage:
         )
 
         combinations = list(itertools.combinations(sorted(DEFAULT_ALGORITHMS), 2))
-        for (algo1, algo2) in combinations:
+        for algo1, algo2 in combinations:
             assert (
                 swh_storage.content_get_data(
                     {algo1: cont.get_hash(algo1), algo2: cont.get_hash(algo2)}
@@ -541,11 +542,15 @@ class TestStorage:
             cont1b.hashes(),
         ]
 
-    def test_content_add_objstorage_first(self, swh_storage, sample_data):
+    def test_content_add_objstorage_first(
+        self, swh_storage, swh_storage_backend, sample_data
+    ):
         """Tests the objstorage is written to before the DB and journal"""
         cont = sample_data.content
 
-        swh_storage.objstorage.content_add = MagicMock(side_effect=Exception("Oops"))
+        swh_storage_backend.objstorage.content_add = MagicMock(
+            side_effect=Exception("Oops")
+        )
 
         # Try to add, but the objstorage crashes
         try:
@@ -1534,12 +1539,16 @@ class TestStorage:
                 revision,
                 synthetic=False,
                 metadata=None,
-                author=None
-                if revision.author is None
-                else Person.from_fullname(revision.author.fullname),
-                committer=None
-                if revision.committer is None
-                else Person.from_fullname(revision.committer.fullname),
+                author=(
+                    None
+                    if revision.author is None
+                    else Person.from_fullname(revision.author.fullname)
+                ),
+                committer=(
+                    None
+                    if revision.committer is None
+                    else Person.from_fullname(revision.committer.fullname)
+                ),
                 type=RevisionType.GIT,
             )
             for revision in revisions
@@ -1770,7 +1779,6 @@ class TestStorage:
         assert swh_storage.revision_get([revision.id]) == [revision]
 
     def test_extid_add_git(self, swh_storage, sample_data):
-
         gitids = [
             revision.id
             for revision in sample_data.revisions
@@ -1865,7 +1873,6 @@ class TestStorage:
         assert extid_objs == extids_in_journal
 
     def test_extid_add_twice(self, swh_storage, sample_data):
-
         gitids = [
             revision.id
             for revision in sample_data.revisions
@@ -1895,7 +1902,6 @@ class TestStorage:
         ) == set(extids)
 
     def test_extid_add_extid_multicity(self, swh_storage, sample_data):
-
         ids = [
             revision.id
             for revision in sample_data.revisions
@@ -1939,7 +1945,6 @@ class TestStorage:
         }
 
     def test_extid_add_target_multicity(self, swh_storage, sample_data):
-
         ids = [
             revision.id
             for revision in sample_data.revisions
@@ -2131,9 +2136,11 @@ class TestStorage:
                 release,
                 synthetic=False,
                 metadata=None,
-                author=Person.from_fullname(release.author.fullname)
-                if release.author
-                else None,
+                author=(
+                    Person.from_fullname(release.author.fullname)
+                    if release.author
+                    else None
+                ),
             )
             for release in releases
         ]
@@ -3624,7 +3631,7 @@ class TestStorage:
         for obj in expected_objects:
             assert obj in actual_objects
 
-    def test_origin_visit_find_by_date(self, swh_storage, sample_data):
+    def _setup_origin_visit_tests_data(self, swh_storage, sample_data):
         origin = sample_data.origin
         swh_storage.origin_add([origin])
         visit1 = OriginVisit(
@@ -3667,17 +3674,48 @@ class TestStorage:
         )
         swh_storage.origin_visit_status_add([ovs1, ovs2, ovs3])
 
+        return origin, ov1, ov2, ov3
+
+    def test_origin_visit_find_by_date(self, swh_storage, sample_data):
+        origin, _, origin_visit2, origin_visit3 = self._setup_origin_visit_tests_data(
+            swh_storage, sample_data
+        )
+
         # Simple case
         actual_visit = swh_storage.origin_visit_find_by_date(
             origin.url, sample_data.date_visit3
         )
-        assert actual_visit == ov2
+        assert actual_visit == origin_visit2
 
         # There are two visits at the same date, the latest must be returned
         actual_visit = swh_storage.origin_visit_find_by_date(
             origin.url, sample_data.date_visit2
         )
-        assert actual_visit == ov3
+        assert actual_visit == origin_visit3
+
+    def test_origin_visit_find_by_date_and_type(self, swh_storage, sample_data):
+        (
+            origin,
+            origin_visit1,
+            origin_visit2,
+            origin_visit3,
+        ) = self._setup_origin_visit_tests_data(swh_storage, sample_data)
+
+        # each visit has a different type
+        for origin_visit in (origin_visit1, origin_visit2, origin_visit3):
+            actual_visit = swh_storage.origin_visit_find_by_date(
+                origin.url, sample_data.date_visit3, type=origin_visit.type
+            )
+
+            assert actual_visit == origin_visit
+
+        # visit 1 and visit 3 have same date but different types
+        for origin_visit in (origin_visit1, origin_visit3):
+            actual_visit = swh_storage.origin_visit_find_by_date(
+                origin.url, sample_data.date_visit2, type=origin_visit.type
+            )
+
+            assert actual_visit == origin_visit
 
     def test_origin_visit_find_by_date_latest_visit(self, swh_storage, sample_data):
         first_visit_date = sample_data.date_visit2
@@ -4944,7 +4982,6 @@ class TestStorage:
         assert partial_branches["branches"] == {}
 
     def test_snapshot_get_branches_correct_branch_count(self, swh_storage, sample_data):
-
         n = 20
         branches = {}
         for i in range(n):
@@ -5892,17 +5929,22 @@ class TestStorage:
             ]
         )
 
-        assert swh_storage.raw_extrinsic_metadata_get_authorities(content1.swhid()) in (
+        assert swh_storage.raw_extrinsic_metadata_get_authorities(
+            content1.swhid().to_extended()
+        ) in (
             [authority, authority2],
             [authority2, authority],
         )
 
-        assert swh_storage.raw_extrinsic_metadata_get_authorities(content2.swhid()) == [
-            authority
-        ]
+        assert swh_storage.raw_extrinsic_metadata_get_authorities(
+            content2.swhid().to_extended()
+        ) == [authority]
 
         assert (
-            swh_storage.raw_extrinsic_metadata_get_authorities(content3.swhid()) == []
+            swh_storage.raw_extrinsic_metadata_get_authorities(
+                content3.swhid().to_extended()
+            )
+            == []
         )
 
     def test_origin_metadata_add(self, swh_storage, sample_data):
@@ -6044,7 +6086,12 @@ class TestStorage:
             after=origin_metadata.discovery_date - timedelta(seconds=1),
         )
         assert result.next_page_token is None
-        assert list(sorted(result.results, key=lambda x: x.discovery_date,)) == [
+        assert list(
+            sorted(
+                result.results,
+                key=lambda x: x.discovery_date,
+            )
+        ) == [
             origin_metadata,
             origin_metadata2,
         ]
@@ -6223,6 +6270,35 @@ class TestStorage:
             [ObjectReference(source=source, target=target)]
         ) == {"object_reference:add": 1}
 
+    def test_querytimeout(self, swh_storage, sample_data, mocker):
+        origin_url = "https://example.org/"
+
+        message = "too slow!"
+        mocker.patch(
+            "swh.storage.postgresql.db.Db.origin_visit_get_latest",
+            side_effect=psycopg2.errors.QueryCanceled(message),
+        )
+        mocker.patch(
+            "swh.storage.postgresql.db.Db.revision_missing_from_list",
+            side_effect=psycopg2.errors.QueryCanceled(message),
+        )
+        mocker.patch(
+            "swh.storage.cassandra.cql.CqlRunner._execute_with_retries_inner",
+            side_effect=cassandra.ReadTimeout(message),
+        )
+        mocker.patch(
+            "swh.storage.cassandra.cql.CqlRunner._execute_many_with_retries_inner",
+            side_effect=cassandra.ReadTimeout(message),
+        )
+
+        # db_transaction on postgres, _execute_with_retries on cassandra
+        with pytest.raises(QueryTimeout, match=message):
+            swh_storage.origin_visit_get_latest(origin_url, require_snapshot=True)
+
+        # db_transaction_generator on postgres, _execute_many_with_retries on cassandra
+        with pytest.raises(QueryTimeout, match=message):
+            list(swh_storage.revision_missing([b"\x00" * 20]))
+
 
 class TestStorageGeneratedData:
     def test_generate_content_get_data(self, swh_storage, swh_contents):
@@ -6371,7 +6447,7 @@ class TestStorageGeneratedData:
         ) + [obj for obj in objects if not hasattr(obj, "id")]
         random.shuffle(objects)
 
-        for (obj_type, obj) in objects:
+        for obj_type, obj in objects:
             if obj.object_type == "origin_visit":
                 swh_storage.origin_add([Origin(url=obj.origin)])
                 visit = OriginVisit(

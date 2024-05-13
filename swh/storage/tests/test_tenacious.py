@@ -1,4 +1,4 @@
-# Copyright (C) 2020-2021 The Software Heritage developers
+# Copyright (C) 2020-2024 The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -85,6 +85,14 @@ class TestTenaciousStorage(_TestStorage):
     def test_origin_count(self):
         pass
 
+    @pytest.mark.skip("in-memory backend has no timeout")
+    def test_querytimeout(self):
+        pass
+
+    @pytest.mark.skip("test_types doesn't like our getattribute tricks")
+    def test_types(self):
+        pass
+
 
 class TestTenaciousStorageGeneratedData(_TestStorageGeneratedData):
     @pytest.mark.skip("Not supported by Cassandra/InMemory")
@@ -144,7 +152,11 @@ testdata = [
     pytest.param(
         "content",
         "content_add_metadata",
-        [attr.evolve(cnt, ctime=now()) for cnt in TEST_OBJECTS["content"]],
+        [
+            attr.evolve(cnt, ctime=now())
+            for cnt in TEST_OBJECTS["content"]
+            if isinstance(cnt, model.Content)  # to keep mypy happy
+        ],
         attr.evolve(model.Content.from_data(data=b"too big"), length=1000, ctime=now()),
         attr.evolve(model.Content.from_data(data=b"to fail"), length=1000, ctime=now()),
         id="content_metadata",

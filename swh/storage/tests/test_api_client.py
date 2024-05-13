@@ -3,13 +3,18 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from uuid import uuid4
+
 import psycopg2.errors
 import pytest
 
 from swh.core.api import RemoteException, TransientRemoteException
+from swh.model.swhids import ExtendedSWHID
 import swh.storage
 from swh.storage import get_storage
 import swh.storage.api.server as server
+from swh.storage.exc import MaskedObjectException
+from swh.storage.proxies.masking.db import MaskedState, MaskedStatus
 from swh.storage.tests.storage_tests import (
     TestStorageGeneratedData as _TestStorageGeneratedData,
 )
@@ -86,6 +91,10 @@ class TestStorageApi(_TestStorage):
     def test_origin_count(self):
         pass
 
+    @pytest.mark.skip("in-memory backend has no timeout")
+    def test_querytimeout(self):
+        pass
+
     def test_exception(self, app_server, swh_storage, mocker):
         """Checks the client re-raises unknown exceptions as a :exc:`RemoteException`"""
         assert swh_storage.revision_get(["\x01" * 20]) == [None]
@@ -125,6 +134,23 @@ class TestStorageApi(_TestStorage):
         with pytest.raises(RemoteException) as excinfo:
             swh_storage.revision_get(["\x01" * 20])
         assert not isinstance(excinfo.value, TransientRemoteException)
+
+    def test_masked_object_exception(self, app_server, swh_storage, mocker):
+        """Checks the client re-raises masking proxy exceptions"""
+        assert swh_storage.revision_get(["\x01" * 20]) == [None]
+        masked = {
+            ExtendedSWHID.from_string("swh:1:rev:" + ("01" * 20)): [
+                MaskedStatus(MaskedState.DECISION_PENDING, request=uuid4())
+            ]
+        }
+        mocker.patch.object(
+            app_server.storage._cql_runner,
+            "revision_get",
+            side_effect=MaskedObjectException(masked),
+        )
+        with pytest.raises(MaskedObjectException) as e:
+            swh_storage.revision_get(["\x01" * 20])
+        assert e.value.masked == masked
 
 
 class TestStorageApiGeneratedData(_TestStorageGeneratedData):

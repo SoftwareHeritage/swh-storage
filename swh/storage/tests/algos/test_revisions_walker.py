@@ -398,7 +398,6 @@ def check_revisions_ordering(
 
 
 def test_revisions_walker_committer_date(mocker):
-
     # revisions should be returned in reverse chronological order
     # of their committer date
     expected_result = [
@@ -419,7 +418,6 @@ def test_revisions_walker_committer_date(mocker):
 
 
 def test_revisions_walker_dfs(mocker):
-
     # revisions should be returned in the same order they are
     # visited when performing a depth-first search in pre order
     # on the revisions DAG
@@ -439,7 +437,6 @@ def test_revisions_walker_dfs(mocker):
 
 
 def test_revisions_walker_dfs_post(mocker):
-
     # revisions should be returned in the same order they are
     # visited when performing a depth-first search in post order
     # on the revisions DAG
@@ -461,7 +458,6 @@ def test_revisions_walker_dfs_post(mocker):
 
 
 def test_revisions_walker_bfs(mocker):
-
     # revisions should be returned in the same order they are
     # visited when performing a breadth-first search on the
     # revisions DAG
@@ -481,7 +477,6 @@ def test_revisions_walker_bfs(mocker):
 
 
 def test_revisions_walker_truncated_history(mocker):
-
     expected_result = [
         "b364f53155044e5308a0f73abb3b5f01995a5b7d",
         "b94886c500c46e32dc3d7ebae8a5409accd592e5",
@@ -492,14 +487,12 @@ def test_revisions_walker_truncated_history(mocker):
     ]
 
     for revs_walker_type in ("committer_date", "bfs", "dfs", "dfs_post"):
-
         check_revisions_ordering(
             mocker, revs_walker_type, expected_result, truncated_history=True
         )
 
 
 def test_revisions_walker_no_committer_date(mocker):
-
     expected_result = [
         "b364f53155044e5308a0f73abb3b5f01995a5b7d",
         "b94886c500c46e32dc3d7ebae8a5409accd592e5",

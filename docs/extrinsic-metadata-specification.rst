@@ -1,5 +1,3 @@
-:orphan:
-
 .. _extrinsic-metadata-specification:
 
 Extrinsic metadata specification

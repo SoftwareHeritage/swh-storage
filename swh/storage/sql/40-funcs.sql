@@ -1,4 +1,3 @@
-
 create or replace function hash_sha1(text)
        returns text
 as $$
@@ -821,7 +820,7 @@ $$;
 
 -- Find the visit of origin closest to date visit_date
 -- Breaks ties by selecting the largest visit id
-create or replace function swh_visit_find_by_date(origin_url text, visit_date timestamptz default NOW())
+create or replace function swh_visit_find_by_date(origin_url text, visit_date timestamptz default NOW(), visit_type text default null)
     returns setof origin_visit
     language plpgsql
     stable
@@ -838,6 +837,7 @@ begin
     from origin_visit ov
     where ov.origin = origin_id
           and ov.date >= visit_date
+          and (visit_type is null or ov.type = visit_type)
     order by ov.date asc
     limit 1
   ) union (
@@ -845,6 +845,7 @@ begin
     from origin_visit ov
     where ov.origin = origin_id
           and ov.date < visit_date
+          and (visit_type is null or ov.type = visit_type)
     order by ov.date desc
     limit 1
   ))
@@ -854,6 +855,7 @@ begin
   select * from origin_visit
     where origin = origin_id
       and date = (select date from closest_two_visit_dates order by interval limit 1)
+      and (visit_type is null or type = visit_type)
     order by visit desc
     limit 1;
 end

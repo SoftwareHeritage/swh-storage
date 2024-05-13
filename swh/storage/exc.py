@@ -3,17 +3,21 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Dict, List
+from typing import TYPE_CHECKING, Dict, List
 
 from swh.model.hashutil import hash_to_hex
 from swh.storage.utils import content_bytes_hashes, content_hex_hashes
+
+if TYPE_CHECKING:
+    from swh.model.swhids import ExtendedSWHID
+    from swh.storage.proxies.masking.db import MaskedStatus
 
 
 class StorageDBError(Exception):
     """Specific storage db error (connection, erroneous queries, etc...)"""
 
     def __str__(self):
-        return "An unexpected error occurred in the backend: %s" % self.args
+        return "An unexpected error occurred in the backend: %s" % (self.args,)
 
 
 class StorageAPIError(Exception):
@@ -21,11 +25,24 @@ class StorageAPIError(Exception):
 
     def __str__(self):
         args = self.args
-        return "An unexpected error occurred in the api backend: %s" % args
+        return "An unexpected error occurred in the api backend: %s" % (args,)
 
 
-class StorageArgumentException(Exception):
+class NonRetryableException(Exception):
+    """Persistent storage exceptions for which clients should not issue automatic
+    retries"""
+
+    pass
+
+
+class StorageArgumentException(NonRetryableException):
     """Argument passed to a Storage endpoint is invalid."""
+
+    pass
+
+
+class QueryTimeout(StorageAPIError):
+    """Raised when a query to the backend (Cassandra or PostgreSQL) took too long."""
 
     pass
 
@@ -42,6 +59,37 @@ class UnknownMetadataFetcher(StorageArgumentException):
     metadata fetcher as argument."""
 
     pass
+
+
+class MaskedObjectException(NonRetryableException):
+    """Raised when the masking proxy attempts to return a masked object"""
+
+    def __init__(self, masked: "Dict[ExtendedSWHID, List[MaskedStatus]]"):
+        if not masked:
+            raise ValueError(
+                "Can't raise a MaskedObjectException if no objects are masked"
+            )
+        for swhid, statuses in masked.items():
+            if not statuses:
+                raise ValueError(f"MaskedObjectException has no statuses for {swhid}")
+
+        self.masked = masked
+
+        super().__init__(masked)
+
+    @staticmethod
+    def _str_one_masked(obj, statuses):
+        status = statuses[0]
+        return f"{obj} by request {status.request} ({status.state.name})" + (
+            " and others" if len(statuses) > 1 else ""
+        )
+
+    def __str__(self):
+        return "Some objects are masked: %s" % ", ".join(
+            self._str_one_masked(obj, statuses)
+            for obj, statuses in self.masked.items()
+            if statuses
+        )
 
 
 class HashCollision(Exception):

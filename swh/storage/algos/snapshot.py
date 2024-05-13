@@ -123,7 +123,7 @@ def snapshot_id_get_from_revision(
 
     # they are sorted by descending date, so we just need to return the first one,
     # if any.
-    for (visit, status, snapshot) in res:
+    for visit, status, snapshot in res:
         return snapshot.id
 
     return None

@@ -1,11 +1,6 @@
 .. _swh-storage:
 
-Software Heritage - Storage
-===========================
-
-Abstraction layer over the archive, allowing to access all stored source code
-artifacts as well as their metadata
-
+.. include:: README.rst
 
 The Software Heritage storage consist of a high-level storage layer
 (:mod:`swh.storage`) that exposes a client/server API
@@ -29,20 +24,21 @@ If you want to access the Software Heritage archive without running your own,
 you should use the :swh_web:`Web API <api/>` instead.
 
 As ``swh-storage`` has multiple backends, it is instantiated via the
-:py:func:`swh.storage.get_storage` function, which takes as argument the backend type
-(usually ``remote``, if you already have access to a running swh-storage).
+:py:func:`swh.storage.get_storage` function, which takes as argument the
+backend type (usually ``remote``, if you already have access to a running
+swh-storage).
 
 It returns an instance of a class implementing
-:py:class:`swh.storage.interface.StorageInterface`; which is mostly a set of key-value
-stores, one for each object type.
+:py:class:`swh.storage.interface.StorageInterface`; which is mostly a set of
+key-value stores, one for each object type.
 
-Many of the arguments and return types are "model objects", ie. immutable objects
-that are instances of the classes defined in :py:mod:`swh.model.model`.
+Many of the arguments and return types are "model objects", ie. immutable
+objects that are instances of the classes defined in :py:mod:`swh.model.model`.
 
-Methods returning long lists of arguments are paginated; by returning both a list
-of results and an opaque token to get the next page of results.
-For example, to list all the visits of an origin using ``origin_visit_get``
-ten visits at a time, you can do:
+Methods returning long lists of arguments are paginated; by returning both a
+list of results and an opaque token to get the next page of results. For
+example, to list all the visits of an origin using ``origin_visit_get`` ten
+visits at a time, you can do:
 
 .. code-block::
 
@@ -79,7 +75,10 @@ Archive copies
 Specifications
 --------------
 
-* :ref:`extrinsic-metadata-specification`
+.. toctree::
+
+   extrinsic-metadata-specification
+   object-masking
 
 
 Reference Documentation

@@ -6,9 +6,11 @@
 """Decoder and encoders for swh-model objects."""
 
 from typing import Any, Callable, Dict, List, Tuple
+import uuid
 
 from swh.model import model, swhids
 from swh.storage import interface
+from swh.storage.proxies.masking.db import MaskedState, MaskedStatus
 
 
 def _encode_model_object(obj):
@@ -46,6 +48,17 @@ def _encode_snapshot_branch_by_name_response(
         "target": target.to_dict() if target else None,
         "aliases_followed": branch_by_name_response.aliases_followed,
     }
+
+
+def _encode_masked_status(masked_status: MaskedStatus):
+    return {
+        "state": masked_status.state.name,
+        "request": str(masked_status.request),
+    }
+
+
+def _decode_masked_status(d: Dict[str, Any]):
+    return MaskedStatus(state=MaskedState[d["state"]], request=uuid.UUID(d["request"]))
 
 
 def _decode_origin_visit_with_statuses(
@@ -109,6 +122,7 @@ ENCODERS: List[Tuple[type, str, Callable]] = [
         "branch_by_name_response",
         _encode_snapshot_branch_by_name_response,
     ),
+    (MaskedStatus, "masked_status", _encode_masked_status),
 ]
 
 
@@ -124,4 +138,5 @@ DECODERS: Dict[str, Callable] = {
     "origin_visit_with_statuses": _decode_origin_visit_with_statuses,
     "object_reference": _decode_object_reference,
     "branch_by_name_response": _decode_snapshot_branch_by_name_response,
+    "masked_status": _decode_masked_status,
 }

@@ -43,7 +43,7 @@ def test_cran_package_from_url():
         ("https://cran.r-project.org/src/contrib/hot.deck_1.1.tar.gz", "hot.deck"),
     ]
 
-    for (filename, project) in files:
+    for filename, project in files:
         assert cran_package_from_url(filename) == project
 
 

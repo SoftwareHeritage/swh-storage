@@ -3,9 +3,11 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from dataclasses import dataclass
 import datetime
 import logging
 import random
+import re
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
 
 from psycopg2 import sql
@@ -90,6 +92,15 @@ class QueryBuilder:
         # Compose and execute
         query = self.parts.join(separator)
         db_cursor.execute(query, self.params)
+
+
+@dataclass
+class ObjectReferencesPartition:
+    table_name: str
+    year: int
+    week: int
+    start: datetime.datetime
+    end: datetime.datetime
 
 
 class Db(BaseDb):
@@ -1214,10 +1225,11 @@ class Db(BaseDb):
             return None
         return r[0]
 
-    def origin_visit_find_by_date(self, origin, visit_date, cur=None):
+    def origin_visit_find_by_date(self, origin, visit_date, type=None, cur=None):
         cur = self._cursor(cur)
         cur.execute(
-            "SELECT * FROM swh_visit_find_by_date(%s, %s)", (origin, visit_date)
+            "SELECT * FROM swh_visit_find_by_date(%s, %s, %s)",
+            (origin, visit_date, type),
         )
         rows = cur.fetchall()
         if rows:
@@ -1851,3 +1863,174 @@ class Db(BaseDb):
         )
 
         return (monday, next_monday)
+
+    def object_references_drop_partition(self, year: int, week: int, cur=None) -> None:
+        """Delete the partition of the object_references table for the given ISO
+        ``year`` and ``week``."""
+        cur = self._cursor(cur)
+        cur.execute("DROP TABLE object_references_%04dw%02d" % (year, week))
+
+    def object_references_list_partitions(
+        self, cur=None
+    ) -> List[ObjectReferencesPartition]:
+        """List existing partitions of the object_references table, ordered from
+        oldest to the most recent."""
+        cur = self._cursor(cur)
+        cur.execute(
+            """SELECT relname, pg_get_expr(relpartbound, oid)
+                 FROM pg_partition_tree('object_references') pt
+                      INNER JOIN pg_class ON relid = pg_class.oid
+                WHERE isleaf = true
+                ORDER BY relname"""
+        )
+        name_re = re.compile(r"^object_references_([0-9]+)w([0-9]+)$")
+        bounds_re = re.compile(r"^FOR VALUES FROM \('([0-9-]+)'\) TO \('([0-9-]+)'\)$")
+        partitions = []
+        for row in cur:
+            name_m = name_re.match(row[0])
+            assert name_m is not None
+            bounds_m = bounds_re.match(row[1])
+            assert bounds_m is not None
+            partitions.append(
+                ObjectReferencesPartition(
+                    table_name=row[0],
+                    year=int(name_m[1]),
+                    week=int(name_m[2]),
+                    start=datetime.datetime.fromisoformat(bounds_m[1]),
+                    end=datetime.datetime.fromisoformat(bounds_m[2]),
+                )
+            )
+        return partitions
+
+    #################
+    # object deletion
+    #################
+
+    def object_delete(
+        self, object_rows: List[Tuple[str, bytes]], cur=None
+    ) -> Dict[str, int]:
+        result = {}
+        cur = self._cursor(cur)
+        cur.execute(
+            """
+            CREATE TEMPORARY TABLE objects_to_remove (
+                type extended_object_type NOT NULL,
+                id BYTEA NOT NULL
+            ) ON COMMIT DROP
+            """
+        )
+        execute_values(
+            cur,
+            """INSERT INTO objects_to_remove (type, id)
+               VALUES %s""",
+            object_rows,
+        )
+        # We need to remove lines from `origin_visit_status`,
+        # `origin_visit` and `origin`.
+        cur.execute(
+            """CREATE TEMPORARY TABLE origins_to_remove
+                 ON COMMIT DROP
+                 AS
+                   SELECT origin.id FROM origin
+                    INNER JOIN objects_to_remove otr
+                       ON DIGEST(url, 'sha1') = otr.id and otr.type = 'origin'"""
+        )
+        cur.execute(
+            """DELETE FROM origin_visit_status ovs
+                WHERE ovs.origin IN (SELECT id FROM origins_to_remove)"""
+        )
+        result["origin_visit_status:delete"] = cur.rowcount
+        cur.execute(
+            """DELETE FROM origin_visit ov
+                WHERE ov.origin IN (SELECT id FROM origins_to_remove)"""
+        )
+        result["origin_visit:delete"] = cur.rowcount
+        cur.execute(
+            """DELETE FROM origin
+                WHERE origin.id IN (SELECT id FROM origins_to_remove)"""
+        )
+        result["origin:delete"] = cur.rowcount
+        # We need to remove lines from both `snapshot_branches`
+        # and `snapshot_branch`.
+        cur.execute(
+            """CREATE TEMPORARY TABLE snapshots_to_remove
+                  ON COMMIT DROP
+                  AS
+                    SELECT object_id AS snapshot_id
+                      FROM snapshot s
+                     INNER JOIN objects_to_remove otr
+                        ON s.id = otr.id AND otr.type = 'snapshot'"""
+        )
+        cur.execute(
+            """CREATE TEMPORARY TABLE snapshot_branches_to_remove
+                 ON COMMIT DROP
+                 AS
+                    SELECT branch_id
+                      FROM snapshot_branches sb
+                     WHERE sb.snapshot_id IN (SELECT snapshot_id FROM snapshots_to_remove)"""
+        )
+        cur.execute(
+            """DELETE FROM snapshot_branches
+                WHERE snapshot_branches.branch_id IN
+                  (SELECT branch_id FROM snapshot_branches_to_remove)"""
+        )
+        cur.execute(
+            """DELETE FROM snapshot_branch
+                WHERE snapshot_branch.object_id IN
+                  (SELECT branch_id FROM snapshot_branches_to_remove)"""
+        )
+        cur.execute(
+            """DELETE FROM snapshot
+                WHERE snapshot.object_id IN (SELECT snapshot_id FROM snapshots_to_remove)"""
+        )
+        result["snapshot:delete"] = cur.rowcount
+        cur.execute(
+            """DELETE FROM release
+                WHERE release.id IN (SELECT id
+                                       FROM objects_to_remove
+                                      WHERE type = 'release')"""
+        )
+        result["release:delete"] = cur.rowcount
+        cur.execute(
+            """DELETE FROM revision_history
+                WHERE revision_history.id IN (SELECT id
+                                                FROM objects_to_remove
+                                               WHERE type = 'revision')"""
+        )
+        cur.execute(
+            """DELETE FROM revision
+                WHERE revision.id IN (SELECT id
+                                        FROM objects_to_remove
+                                       WHERE type = 'revision')"""
+        )
+        result["revision:delete"] = cur.rowcount
+        # We do not remove anything from `directory_entry_dir`,
+        # `directory_entry_file`, `directory_entry_rev`: these entries are
+        # shared across directories and we don't have (or don’t want to keep) an
+        # index to know which directory uses what entry.
+        cur.execute(
+            """DELETE FROM directory
+                WHERE directory.id IN (SELECT id
+                                         FROM objects_to_remove
+                                        WHERE type = 'directory')"""
+        )
+        result["directory:delete"] = cur.rowcount
+        cur.execute(
+            """DELETE FROM skipped_content
+                WHERE skipped_content.sha1_git IN (
+                    SELECT id
+                      FROM objects_to_remove
+                     WHERE type = 'content')"""
+        )
+        result["skipped_content:delete"] = cur.rowcount
+        cur.execute(
+            """DELETE FROM content
+                WHERE content.sha1_git IN (
+                    SELECT id
+                      FROM objects_to_remove
+                     WHERE type = 'content')"""
+        )
+        result["content:delete"] = cur.rowcount
+        # We are not an objstorage
+        result["content:delete:bytes"] = 0
+        return result

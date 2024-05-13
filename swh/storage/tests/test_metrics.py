@@ -5,7 +5,14 @@
 
 from unittest.mock import patch
 
-from swh.storage.metrics import OPERATIONS_METRIC, OPERATIONS_UNIT_METRIC, send_metric
+import pytest
+
+from swh.storage.metrics import (
+    OPERATIONS_METRIC,
+    OPERATIONS_UNIT_METRIC,
+    DifferentialTimer,
+    send_metric,
+)
 
 
 def test_send_metric_unknown_unit():
@@ -54,3 +61,104 @@ def test_send_metric_unit(mock_statsd):
     )
 
     assert r
+
+
+def test_differential_timer(mocker):
+    mocked_timing = mocker.patch("swh.core.statsd.statsd.timing")
+    mocked_monotonic = mocker.patch("swh.storage.metrics.monotonic")
+    mocked_monotonic.side_effect = [
+        0.0,  # outer start
+        1.0,  # inner.start 1
+        1.5,  # inner.done 1 (0.5s elapsed)
+        1.7,  # inner.start 2
+        1.9,  # inner.done 2 (0.2s elapsed)
+        4.5,  # outer done (4.5s elapsed)
+        Exception("Should not have been called again!"),
+    ]
+
+    timer = DifferentialTimer("metric_difftimer_seconds", tags={"test": "value"})
+
+    def do_something():
+        pass
+
+    def do_something_else():
+        pass
+
+    with timer:
+        with timer.inner():
+            do_something()
+        with timer.inner():
+            do_something()
+        do_something_else()
+
+    mocked_timing.assert_called_once_with(
+        "metric_difftimer_seconds",
+        # The differential timing is 3800 ms: 4.5s - 0.5s - 0.2s
+        pytest.approx(3800.0),
+        tags={"test": "value"},
+    )
+
+
+def test_differential_timer_inner_exception(mocker):
+    mocked_timing = mocker.patch("swh.core.statsd.statsd.timing")
+    mocked_monotonic = mocker.patch("swh.storage.metrics.monotonic")
+    mocked_monotonic.side_effect = [
+        5.0,  # outer start
+        6.0,  # inner start
+        # exception raised by inner
+        6.1,  # inner finished (0.1s elapsed)
+        6.2,  # outer finished (1.2s elapsed)
+        Exception("Should not have been called again!"),
+    ]
+
+    timer = DifferentialTimer("metric_innerexception_seconds", tags={"test2": "value"})
+
+    class InnerException(Exception):
+        pass
+
+    with pytest.raises(InnerException):
+        with timer:
+            with timer.inner():
+                raise InnerException
+
+            assert False, "unreachable"
+
+    mocked_timing.assert_called_once_with(
+        "metric_innerexception_seconds",
+        # The differential timing is 1100 ms: 1.2s - 0.1s
+        pytest.approx(1100.0),
+        tags={"test2": "value", "inner_exc": "InnerException"},
+    )
+
+
+def test_differential_timer_outer_exception(mocker):
+    mocked_timing = mocker.patch("swh.core.statsd.statsd.timing")
+    mocked_monotonic = mocker.patch("swh.storage.metrics.monotonic")
+    mocked_monotonic.side_effect = [
+        15.0,  # outer start
+        17.0,  # inner start
+        17.7,  # inner finished (0.7s elapsed)
+        # exception raised by outer
+        18.2,  # outer finished (3.2s elapsed)
+        Exception("Should not have been called again!"),
+    ]
+
+    timer = DifferentialTimer("metric_outerexception_seconds")
+
+    class OuterException(Exception):
+        pass
+
+    with pytest.raises(OuterException):
+        with timer:
+            with timer.inner():
+                pass
+            raise OuterException
+
+            assert False, "unreachable"
+
+    mocked_timing.assert_called_once_with(
+        "metric_outerexception_seconds",
+        # The differential timing is 2500 ms: 3.2s - 0.7s
+        pytest.approx(2500.0),
+        tags={"outer_exc": "OuterException"},
+    )

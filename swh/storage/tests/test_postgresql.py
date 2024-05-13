@@ -4,10 +4,10 @@
 # See top-level LICENSE file for more information
 
 from contextlib import contextmanager
+import datetime
 import queue
 import threading
 import time
-from typing import Dict
 from unittest.mock import Mock
 
 import attr
@@ -30,19 +30,6 @@ def db_transaction(storage):
 @pytest.mark.db
 def test_pgstorage_flavor(swh_storage):
     assert swh_storage.get_flavor() == "default"
-
-
-def get_object_references_partition_bounds(swh_storage) -> Dict[str, str]:
-    """Generates a dict mapping the name of partitions of the `object_references` table to
-    their bounds in ``FOR VALUES FROM (start) TO (end)`` format"""
-    with db_transaction(swh_storage) as (_, cur):
-        cur.execute(
-            """select relname, pg_get_expr(relpartbound, oid)
-                   from pg_partition_tree('object_references') pt
-                     inner join pg_class on relid=pg_class.oid
-                   where isleaf=true"""
-        )
-        return {row[0]: row[1] for row in cur}
 
 
 class TestStorage(_TestStorage):
@@ -458,17 +445,25 @@ class TestPgStorage:
         )
         assert releases == [release, release2]
 
-    def test_object_references_create_partition(self, swh_storage):
+    def test_object_references_create_and_list_partition(self, swh_storage):
         with db_transaction(swh_storage) as (db, cur):
             db.object_references_create_partition(year=2020, week=6, cur=cur)
+            partitions = db.object_references_list_partitions(cur=cur)
 
-        partitions = get_object_references_partition_bounds(swh_storage)
-
+        # We get a partition for this week initialized on schema creation
+        assert len(partitions) == 2
+        assert partitions[0].table_name == "object_references_2020w06"
+        assert partitions[0].year == 2020
+        assert partitions[0].week == 6
+        assert partitions[0].start == datetime.datetime.fromisoformat("2020-02-03")
+        assert partitions[0].end == datetime.datetime.fromisoformat("2020-02-10")
+        this_year, this_week = datetime.datetime.now().isocalendar()[0:2]
         assert (
-            partitions["object_references_2020w06"]
-            == "FOR VALUES FROM ('2020-02-03') TO ('2020-02-10')"
+            partitions[1].table_name
+            == f"object_references_{this_year:04d}w{this_week:02d}"
         )
-        assert "object_references_2020w07" not in partitions
+        assert partitions[1].year == this_year
+        assert partitions[1].week == this_week
 
     def test_clear_buffers(self, swh_storage):
         """Calling clear buffers on real storage does nothing"""
@@ -486,3 +481,69 @@ class TestPgStorage:
         swh_storage.current_version = -1
         assert swh_storage.check_config(check_write=True) is False
         assert swh_storage.check_config(check_write=False) is False
+
+    def test_object_delete(self, swh_storage, sample_data):
+        affected_tables = [
+            "origin",
+            "origin_visit",
+            "origin_visit_status",
+            "snapshot",
+            "snapshot_branch",
+            "snapshot_branches",
+            "release",
+            "revision",
+            "revision_history",
+            "directory",
+            # `directory_entry_*` are left out on purpose.
+            # We leave stale data there by design.
+            "skipped_content",
+            "content",
+        ]
+
+        swh_storage.content_add(sample_data.contents)
+        swh_storage.skipped_content_add(sample_data.skipped_contents)
+        swh_storage.directory_add(sample_data.directories)
+        swh_storage.revision_add(sample_data.git_revisions)
+        swh_storage.release_add(sample_data.releases)
+        swh_storage.snapshot_add(sample_data.snapshots)
+        swh_storage.origin_add(sample_data.origins)
+        swh_storage.origin_visit_add(sample_data.origin_visits)
+        swh_storage.origin_visit_status_add(sample_data.origin_visit_statuses)
+        swhids = (
+            [content.swhid().to_extended() for content in sample_data.contents]
+            + [
+                skipped_content.swhid().to_extended()
+                for skipped_content in sample_data.skipped_contents
+            ]
+            + [directory.swhid().to_extended() for directory in sample_data.directories]
+            + [revision.swhid().to_extended() for revision in sample_data.revisions]
+            + [release.swhid().to_extended() for release in sample_data.releases]
+            + [snapshot.swhid().to_extended() for snapshot in sample_data.snapshots]
+            + [origin.swhid() for origin in sample_data.origins]
+        )
+
+        # Ensure we properly loaded our data
+        with db_transaction(swh_storage) as (_, cur):
+            for table in affected_tables:
+                cur.execute(f"SELECT COUNT(*) FROM {table}")
+                assert cur.fetchone()[0] >= 1, f"{table} is not populated"
+
+        result = swh_storage.object_delete(swhids)
+        assert result == {
+            "content:delete": 3,
+            "content:delete:bytes": 0,
+            "skipped_content:delete": 2,
+            "directory:delete": 7,
+            "release:delete": 3,
+            "revision:delete": 4,
+            "snapshot:delete": 3,
+            "origin:delete": 7,
+            "origin_visit:delete": 3,
+            "origin_visit_status:delete": 3,
+        }
+
+        # Ensure we properly removed our data
+        with db_transaction(swh_storage) as (_, cur):
+            for table in affected_tables:
+                cur.execute(f"SELECT COUNT(*) FROM {table}")
+                assert cur.fetchone()[0] == 0, f"{table} is not empty"

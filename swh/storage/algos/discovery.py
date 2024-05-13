@@ -20,11 +20,11 @@ class DiscoveryStorageConnection(discovery.ArchiveDiscoveryInterface):
         self.directories = directories
         self.storage = swh_storage
 
-    async def content_missing(self, contents: List[Sha1Git]) -> Iterable[Sha1Git]:
+    def content_missing(self, contents: List[Sha1Git]) -> Iterable[Sha1Git]:
         """List content missing from the archive by sha1"""
         return self.storage.content_missing_per_sha1_git(contents)
 
-    async def skipped_content_missing(
+    def skipped_content_missing(
         self, skipped_contents: List[Sha1Git]
     ) -> Iterable[Sha1Git]:
         """List skipped content missing from the archive by sha1"""
@@ -34,6 +34,6 @@ class DiscoveryStorageConnection(discovery.ArchiveDiscoveryInterface):
         ]
         return (d["sha1_git"] for d in self.storage.skipped_content_missing(contents))
 
-    async def directory_missing(self, directories: List[Sha1Git]) -> Iterable[Sha1Git]:
+    def directory_missing(self, directories: List[Sha1Git]) -> Iterable[Sha1Git]:
         """List directories missing from the archive by sha1"""
         return self.storage.directory_missing(directories)

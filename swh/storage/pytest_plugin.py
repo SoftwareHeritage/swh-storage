@@ -305,7 +305,7 @@ def swh_storage_postgresql_backend_config(swh_storage_postgresql):
     """
     yield {
         "cls": "postgresql",
-        "db": swh_storage_postgresql.dsn,
+        "db": swh_storage_postgresql.info.dsn,
         "objstorage": {"cls": "memory"},
         "check_config": {"check_write": True},
         "max_pool_conns": 100,

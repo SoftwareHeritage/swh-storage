@@ -27,7 +27,7 @@ from swh.storage import get_storage
 from swh.storage.cassandra.cql import BATCH_INSERT_MAX_SIZE
 import swh.storage.cassandra.model
 from swh.storage.cassandra.model import BaseRow, ContentRow, ExtIDRow
-from swh.storage.cassandra.schema import CREATE_TABLES_QUERIES, HASH_ALGORITHMS
+from swh.storage.cassandra.schema import CREATE_TABLES_QUERIES, HASH_ALGORITHMS, TABLES
 from swh.storage.cassandra.storage import DIRECTORY_ENTRIES_INSERT_ALGOS
 from swh.storage.tests.storage_data import StorageData
 from swh.storage.tests.storage_tests import (
@@ -73,6 +73,7 @@ def _python_type_to_cql_type_re(ty: type) -> str:
     assert False, f"Unsupported type: {ty}"
 
 
+@pytest.mark.cassandra
 def test_schema_matches_model():
     """Checks tables defined in :mod:`swh.storage.cassandra.schema` match
     the object model defined in :mod:`swh.storage.cassandra.model`.
@@ -618,6 +619,70 @@ class TestCassandraStorage(_TestStorage):
     def test_origin_count(self):
         pass
 
+    def test_object_delete(self, swh_storage, sample_data):
+        # For our sanity checks
+        affected_tables = set(TABLES) - {
+            "raw_extrinsic_metadata",
+            "metadata_authority",
+            "metadata_fetcher",
+            "extid",
+            "extid_by_target",
+            "object_references",
+        }
+        # XXX: Not ideal…
+        cql_runner = getattr(swh_storage, "_cql_runner")
+        execute_query = getattr(cql_runner, "_execute_with_retries")
+
+        swh_storage.content_add(sample_data.contents)
+        swh_storage.skipped_content_add(sample_data.skipped_contents)
+        swh_storage.directory_add(sample_data.directories)
+        swh_storage.revision_add(sample_data.revisions)
+        swh_storage.release_add(sample_data.releases)
+        swh_storage.snapshot_add(sample_data.snapshots)
+        swh_storage.origin_add(sample_data.origins)
+        swh_storage.origin_visit_add(sample_data.origin_visits)
+        swh_storage.origin_visit_status_add(sample_data.origin_visit_statuses)
+        swhids = (
+            [content.swhid().to_extended() for content in sample_data.contents]
+            + [
+                skipped_content.swhid().to_extended()
+                for skipped_content in sample_data.skipped_contents
+            ]
+            + [directory.swhid().to_extended() for directory in sample_data.directories]
+            + [revision.swhid().to_extended() for revision in sample_data.revisions]
+            + [release.swhid().to_extended() for release in sample_data.releases]
+            + [snapshot.swhid().to_extended() for snapshot in sample_data.snapshots]
+            + [origin.swhid() for origin in sample_data.origins]
+        )
+
+        # Do we have something in every affected tables?
+        for table in affected_tables:
+            row = execute_query(
+                f"SELECT COUNT(*) AS count FROM {cql_runner.keyspace}.{table}", []
+            ).one()
+            assert row["count"] >= 1, f"nothing in table {table}"
+
+        result = swh_storage.object_delete(swhids)
+        assert result == {
+            "content:delete": 3,
+            "content:delete:bytes": 0,
+            "skipped_content:delete": 2,
+            "directory:delete": 7,
+            "revision:delete": 8,
+            "release:delete": 3,
+            "snapshot:delete": 3,
+            "origin:delete": 7,
+            "origin_visit:delete": 3,
+            "origin_visit_status:delete": 3,
+        }
+
+        # Have we cleaned every affected tables?
+        for table in affected_tables:
+            row = execute_query(
+                f"SELECT COUNT(*) AS count FROM {cql_runner.keyspace}.{table}", []
+            ).one()
+            assert row["count"] == 0, f"something in table {table}"
+
 
 @pytest.mark.cassandra
 class TestCassandraStorageGeneratedData(_TestStorageGeneratedData):
@@ -638,6 +703,7 @@ class TestCassandraStorageGeneratedData(_TestStorageGeneratedData):
         pass
 
 
+@pytest.mark.cassandra
 @pytest.mark.parametrize(
     "allow_overwrite,object_type",
     itertools.product(

@@ -1,15 +1,18 @@
-# Copyright (C) 2015-2020  The Software Heritage developers
+# Copyright (C) 2015-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Any, Dict, Iterable, Union
+from typing import Dict, List
 
 from swh.core.api import RemoteException, RPCClient
 from swh.model.model import Content
 
 from ..exc import (
     HashCollision,
+    MaskedObjectException,
+    NonRetryableException,
+    QueryTimeout,
     StorageAPIError,
     StorageArgumentException,
     UnknownMetadataAuthority,
@@ -25,6 +28,9 @@ class RemoteStorage(RPCClient):
     api_exception = StorageAPIError
     backend_class = StorageInterface
     reraise_exceptions = [
+        MaskedObjectException,
+        NonRetryableException,
+        QueryTimeout,
         StorageArgumentException,
         UnknownMetadataAuthority,
         UnknownMetadataFetcher,
@@ -48,7 +54,7 @@ class RemoteStorage(RPCClient):
             else:
                 raise
 
-    def content_add(self, content: Iterable[Union[Content, Dict[str, Any]]]):
+    def content_add(self, content: List[Content]) -> Dict[str, int]:
         content = [c.with_data() if isinstance(c, Content) else c for c in content]
         return self._post("content/add", {"content": content})
 

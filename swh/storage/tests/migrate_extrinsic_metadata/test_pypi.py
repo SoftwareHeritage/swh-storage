@@ -145,7 +145,7 @@ def test_pypi_project_from_filename():
         ("pypops-201408-r3.tar.gz", "pypops"),
     ]
 
-    for (filename, project) in files:
+    for filename, project in files:
         assert pypi_project_from_filename(filename) == project
 
 

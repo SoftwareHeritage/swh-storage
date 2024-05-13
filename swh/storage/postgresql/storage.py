@@ -8,6 +8,7 @@ from collections import defaultdict
 import contextlib
 from contextlib import contextmanager
 import datetime
+import functools
 import itertools
 import logging
 import operator
@@ -32,7 +33,8 @@ import psycopg2.errors
 import psycopg2.pool
 
 from swh.core.api.serializers import msgpack_dumps, msgpack_loads
-from swh.core.db.common import db_transaction, db_transaction_generator
+from swh.core.db.common import db_transaction as _db_transaction
+from swh.core.db.common import db_transaction_generator as _db_transaction_generator
 from swh.core.db.db_utils import swh_db_flavor, swh_db_version
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
 from swh.model.model import (
@@ -60,6 +62,7 @@ from swh.model.model import (
 from swh.model.swhids import ExtendedObjectType, ExtendedSWHID, ObjectType
 from swh.storage.exc import (
     HashCollision,
+    QueryTimeout,
     StorageArgumentException,
     StorageDBError,
     UnknownMetadataAuthority,
@@ -127,6 +130,38 @@ def convert_validation_exceptions():
         raise StorageArgumentException(str(e))
 
 
+def db_transaction_generator(*args, **kwargs):
+    def decorator(meth):
+        meth = _db_transaction_generator(*args, **kwargs)(meth)
+
+        @functools.wraps(meth)
+        def _meth(self, *args, **kwargs):
+            try:
+                yield from meth(self, *args, **kwargs)
+            except psycopg2.errors.QueryCanceled as e:
+                raise QueryTimeout(*e.args)
+
+        return _meth
+
+    return decorator
+
+
+def db_transaction(*args, **kwargs):
+    def decorator(meth):
+        meth = _db_transaction(*args, **kwargs)(meth)
+
+        @functools.wraps(meth)
+        def _meth(self, *args, **kwargs):
+            try:
+                return meth(self, *args, **kwargs)
+            except psycopg2.errors.QueryCanceled as e:
+                raise QueryTimeout(*e.args)
+
+        return _meth
+
+    return decorator
+
+
 TRow = TypeVar("TRow", bound=Tuple)
 TResult = TypeVar("TResult")
 
@@ -181,7 +216,7 @@ def _get_paginated_sha1_partition(
 class Storage:
     """SWH storage datastore proxy, encompassing DB and object storage"""
 
-    current_version: int = 190
+    current_version: int = 193
 
     def __init__(
         self,
@@ -288,7 +323,6 @@ class Storage:
 
     @db_transaction()
     def check_config(self, *, check_write: bool, db: Db, cur=None) -> bool:
-
         if not self.objstorage.check_config(check_write=check_write):
             return False
 
@@ -1182,7 +1216,6 @@ class Storage:
         db: Db,
         cur=None,
     ) -> Optional[PartialBranches]:
-
         if snapshot_id == EMPTY_SNAPSHOT_ID:
             return PartialBranches(
                 id=snapshot_id,
@@ -1249,7 +1282,6 @@ class Storage:
         follow_alias_chain: bool = True,
         max_alias_chain_length: int = 100,
     ) -> Optional[SnapshotBranchByNameResponse]:
-
         if list(self.snapshot_missing([snapshot_id])):
             return None
 
@@ -1492,7 +1524,6 @@ class Storage:
         next_page_token = visits_page.next_page_token
 
         if visits:
-
             visit_from = min(visits[0].visit, visits[-1].visit)
             visit_to = max(visits[0].visit, visits[-1].visit)
 
@@ -1519,9 +1550,15 @@ class Storage:
 
     @db_transaction(statement_timeout=2000)
     def origin_visit_find_by_date(
-        self, origin: str, visit_date: datetime.datetime, *, db: Db, cur=None
+        self,
+        origin: str,
+        visit_date: datetime.datetime,
+        type: Optional[str] = None,
+        *,
+        db: Db,
+        cur=None,
     ) -> Optional[OriginVisit]:
-        row_d = db.origin_visit_find_by_date(origin, visit_date, cur=cur)
+        row_d = db.origin_visit_find_by_date(origin, visit_date, type=type, cur=cur)
         if not row_d:
             return None
         return OriginVisit(
@@ -2038,3 +2075,41 @@ class Storage:
         if not fetcher_id:
             raise UnknownMetadataFetcher(str(fetcher))
         return fetcher_id
+
+    #########################
+    # ObjectDeletionInterface
+    #########################
+
+    @db_transaction()
+    def object_delete(
+        self, swhids: List[ExtendedSWHID], *, db: Db, cur=None
+    ) -> Dict[str, int]:
+        """Delete objects from the storage
+
+        All skipped content objects matching the given SWHID will be removed,
+        including those who have the same SWHID due to hash collisions.
+
+        Origin objects are removed alongside their associated origin visit and
+        origin visit status objects.
+
+        Args:
+            swhids: list of SWHID of the objects to remove
+
+        Returns:
+            Summary dict with the following keys and associated values:
+
+                content:delete: Number of content objects removed
+                content:delete:bytes: Sum of the removed contents’ data length
+                skipped_content:delete: Number of skipped content objects removed
+                directory:delete: Number of directory objects removed
+                revision:delete: Number of revision objects removed
+                release:delete: Number of release objects removed
+                snapshot:delete: Number of snapshot objects removed
+                origin:delete: Number of origin objects removed
+                origin_visit:delete: Number of origin visit objects removed
+                origin_visit_status:delete: Number of origin visit status objects removed
+        """
+        object_rows = [
+            (swhid.object_type.name.lower(), swhid.object_id) for swhid in swhids
+        ]
+        return db.object_delete(object_rows)

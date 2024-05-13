@@ -1,13 +1,16 @@
-# Copyright (C) 2020  The Software Heritage developers
+# Copyright (C) 2020-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
+
+import pytest
 
 from swh.model import hashutil
 from swh.storage.utils import (
     content_bytes_hashes,
     content_hex_hashes,
     extract_collision_hash,
+    map_optional,
     now,
     round_to_milliseconds,
 )
@@ -112,7 +115,26 @@ def test_content_bytes_hashes():
 def test_round_to_milliseconds():
     date = now()
 
-    for (ms, expected_ms) in [(0, 0), (1000, 1000), (555555, 555000), (999500, 999000)]:
+    for ms, expected_ms in [(0, 0), (1000, 1000), (555555, 555000), (999500, 999000)]:
         date = date.replace(microsecond=ms)
         actual_date = round_to_milliseconds(date)
         assert actual_date.microsecond == expected_ms
+
+
+@pytest.mark.parametrize(
+    "f,x,expected_result",
+    [
+        (int, "10", 10),
+        (int, None, None),
+        (str, 10, "10"),
+        (str, None, None),
+        (lambda x: x + 1, 99, 100),
+        (lambda x: x + 1, None, None),
+    ],
+)
+def test_map_optional(f, x, expected_result):
+    """map_optional should execute function over input if input is not None, returns
+    None otherwise.
+
+    """
+    assert map_optional(f, x) == expected_result
