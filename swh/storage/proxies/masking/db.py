@@ -6,7 +6,8 @@
 
 import datetime
 import enum
-from typing import Dict, List, Optional, Tuple
+import itertools
+from typing import Dict, Iterator, List, Optional, Tuple
 from uuid import UUID
 
 import attr
@@ -19,6 +20,8 @@ from swh.model.swhids import ExtendedObjectType, ExtendedSWHID
 from swh.storage.exc import StorageArgumentException
 
 METRIC_QUERY_TOTAL = "swh_storage_masking_queried_total"
+METRIC_LIST_REQUESTS_TOTAL = "swh_storage_masking_list_requests_total"
+METRIC_LISTED_TOTAL = "swh_storage_masking_listed_total"
 METRIC_MASKED_TOTAL = "swh_storage_masking_masked_total"
 
 
@@ -358,8 +361,9 @@ class MaskingQuery(MaskingDb):
     ) -> Dict[ExtendedSWHID, List[MaskedStatus]]:
         """Checks which objects in the list are masked.
 
-        Returns: For each masked object, a list of :class:`MaskedStatus` objects
-        where the State is not :const:`MaskedState.VISIBLE`.
+        Returns:
+            For each masked object, a list of :class:`MaskedStatus` objects
+            where the State is not :const:`MaskedState.VISIBLE`.
         """
 
         cur = self.cursor()
@@ -401,3 +405,46 @@ class MaskingQuery(MaskingDb):
         if ret:
             statsd.increment(METRIC_MASKED_TOTAL, len(ret))
         return ret
+
+    def iter_masked_swhids(self) -> Iterator[Tuple[ExtendedSWHID, List[MaskedStatus]]]:
+        """Returns the complete list of masked SWHIDs.
+
+        SWHIDs are guaranteed to be unique in the iterator.
+
+        Yields:
+            For each masked object, its SWHID and a list of :class:`MaskedStatus`
+            objects where the State is not :const:`MaskedState.VISIBLE`.
+        """
+
+        cur = self.cursor()
+
+        statsd.increment(METRIC_LIST_REQUESTS_TOTAL, 1)
+
+        cur.execute(
+            """
+            SELECT object_id, object_type, request, state
+            FROM masked_object
+            WHERE state != 'visible'
+            ORDER BY object_id, object_type
+            """
+        )
+
+        count = 0
+
+        for (object_id, object_type), statuses in itertools.groupby(
+            cur, key=lambda t: (t[0], t[1])
+        ):
+            count += 1
+            swhid = ExtendedSWHID(
+                object_id=object_id,
+                object_type=ExtendedObjectType[object_type.upper()],
+            )
+            yield (
+                swhid,
+                [
+                    MaskedStatus(request=request_id, state=MaskedState[state.upper()])
+                    for (_, _, request_id, state) in statuses
+                ],
+            )
+
+        statsd.increment(METRIC_LISTED_TOTAL, count)

@@ -226,6 +226,7 @@ def test_swhid_lifecycle(masking_admin: MaskingAdmin, masking_query: MaskingQuer
     }
 
     assert masking_query.swhids_are_masked(all_swhids) == expected
+    assert dict(masking_query.iter_masked_swhids()) == expected
 
     restricted = masked_swhids[0:2]
 
@@ -239,6 +240,7 @@ def test_swhid_lifecycle(masking_admin: MaskingAdmin, masking_query: MaskingQuer
         ]
 
     assert masking_query.swhids_are_masked(all_swhids) == expected
+    assert dict(masking_query.iter_masked_swhids()) == expected
 
     visible = masked_swhids[2:4]
 
@@ -250,6 +252,7 @@ def test_swhid_lifecycle(masking_admin: MaskingAdmin, masking_query: MaskingQuer
         del expected[swhid]
 
     assert masking_query.swhids_are_masked(all_swhids) == expected
+    assert dict(masking_query.iter_masked_swhids()) == expected
 
 
 def test_query_metrics(
@@ -278,11 +281,24 @@ def test_query_metrics(
         StorageData.origin2.swhid(),
     ]
 
+    # Query with no masked SWHIDs
+
     assert masking_query.swhids_are_masked(all_swhids) == {}
     increment.assert_called_once_with(
         "swh_storage_masking_queried_total", len(all_swhids)
     )
     increment.reset_mock()
+
+    assert dict(masking_query.iter_masked_swhids()) == {}
+    increment.assert_has_calls(
+        [
+            call("swh_storage_masking_list_requests_total", 1),
+            call("swh_storage_masking_listed_total", 0),
+        ]
+    )
+    increment.reset_mock()
+
+    # Mask some SWHIDs
 
     masking_admin.set_object_state(
         request_id=request.id,
@@ -290,10 +306,21 @@ def test_query_metrics(
         swhids=masked_swhids,
     )
 
+    # Query again
+
     assert len(masking_query.swhids_are_masked(all_swhids)) == len(masked_swhids)
     increment.assert_has_calls(
         [
             call("swh_storage_masking_queried_total", len(all_swhids)),
             call("swh_storage_masking_masked_total", len(masked_swhids)),
+        ]
+    )
+    increment.reset_mock()
+
+    assert set(dict(masking_query.iter_masked_swhids())) == set(masked_swhids)
+    increment.assert_has_calls(
+        [
+            call("swh_storage_masking_list_requests_total", 1),
+            call("swh_storage_masking_listed_total", len(masked_swhids)),
         ]
     )
