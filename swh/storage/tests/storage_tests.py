@@ -39,7 +39,7 @@ from swh.model.model import (
     SkippedContent,
     Snapshot,
     SnapshotBranch,
-    TargetType,
+    SnapshotTargetType,
     Timestamp,
     TimestampWithTimezone,
 )
@@ -4574,19 +4574,19 @@ class TestStorage:
             branches={
                 b"\xaa\xff": SnapshotBranch(
                     target=sample_data.revision.id,
-                    target_type=TargetType.REVISION,
+                    target_type=SnapshotTargetType.REVISION,
                 ),
                 b"\xaa\xff\x00": SnapshotBranch(
                     target=sample_data.revision.id,
-                    target_type=TargetType.REVISION,
+                    target_type=SnapshotTargetType.REVISION,
                 ),
                 b"\xff\xff": SnapshotBranch(
                     target=sample_data.release.id,
-                    target_type=TargetType.RELEASE,
+                    target_type=SnapshotTargetType.RELEASE,
                 ),
                 b"\xff\xff\x00": SnapshotBranch(
                     target=sample_data.release.id,
-                    target_type=TargetType.RELEASE,
+                    target_type=SnapshotTargetType.RELEASE,
                 ),
                 b"dangling": None,
             },
@@ -4689,7 +4689,9 @@ class TestStorage:
             "branches": {
                 name: tgt
                 for name, tgt in branches.items()
-                if tgt and tgt.target_type in [TargetType.RELEASE, TargetType.REVISION]
+                if tgt
+                and tgt.target_type
+                in [SnapshotTargetType.RELEASE, SnapshotTargetType.REVISION]
             },
             "next_branch": None,
         }
@@ -4703,7 +4705,7 @@ class TestStorage:
             "branches": {
                 name: tgt
                 for name, tgt in branches.items()
-                if tgt and tgt.target_type == TargetType.ALIAS
+                if tgt and tgt.target_type == SnapshotTargetType.ALIAS
             },
             "next_branch": None,
         }
@@ -4818,36 +4820,36 @@ class TestStorage:
             branches={
                 b"refs/heads/master": SnapshotBranch(
                     target=sample_data.revision.id,
-                    target_type=TargetType.REVISION,
+                    target_type=SnapshotTargetType.REVISION,
                 ),
                 b"refs/heads/incoming": SnapshotBranch(
                     target=sample_data.revision.id,
-                    target_type=TargetType.REVISION,
+                    target_type=SnapshotTargetType.REVISION,
                 ),
                 b"refs/pull/1": SnapshotBranch(
                     target=sample_data.revision.id,
-                    target_type=TargetType.REVISION,
+                    target_type=SnapshotTargetType.REVISION,
                 ),
                 b"refs/pull/2": SnapshotBranch(
                     target=sample_data.revision.id,
-                    target_type=TargetType.REVISION,
+                    target_type=SnapshotTargetType.REVISION,
                 ),
                 b"dangling": None,
                 b"\xaa\xff": SnapshotBranch(
                     target=sample_data.revision.id,
-                    target_type=TargetType.REVISION,
+                    target_type=SnapshotTargetType.REVISION,
                 ),
                 b"\xaa\xff\x00": SnapshotBranch(
                     target=sample_data.revision.id,
-                    target_type=TargetType.REVISION,
+                    target_type=SnapshotTargetType.REVISION,
                 ),
                 b"\xff\xff": SnapshotBranch(
                     target=sample_data.revision.id,
-                    target_type=TargetType.REVISION,
+                    target_type=SnapshotTargetType.REVISION,
                 ),
                 b"\xff\xff\x00": SnapshotBranch(
                     target=sample_data.revision.id,
-                    target_type=TargetType.REVISION,
+                    target_type=SnapshotTargetType.REVISION,
                 ),
             },
         )
@@ -4889,19 +4891,19 @@ class TestStorage:
         for i in range(nb_branches_by_target_type):
             branches[f"branch/directory/bar{i}".encode()] = SnapshotBranch(
                 target=sample_data.directory.id,
-                target_type=TargetType.DIRECTORY,
+                target_type=SnapshotTargetType.DIRECTORY,
             )
             branches[f"branch/revision/bar{i}".encode()] = SnapshotBranch(
                 target=sample_data.revision.id,
-                target_type=TargetType.REVISION,
+                target_type=SnapshotTargetType.REVISION,
             )
             branches[f"branch/directory/{pattern}{i}".encode()] = SnapshotBranch(
                 target=sample_data.directory.id,
-                target_type=TargetType.DIRECTORY,
+                target_type=SnapshotTargetType.DIRECTORY,
             )
             branches[f"branch/revision/{pattern}{i}".encode()] = SnapshotBranch(
                 target=sample_data.revision.id,
-                target_type=TargetType.REVISION,
+                target_type=SnapshotTargetType.REVISION,
             )
 
         snapshot = Snapshot(branches=branches)
@@ -4910,8 +4912,8 @@ class TestStorage:
         branches_count = nb_branches_by_target_type // 2
 
         for target_type in (
-            TargetType.DIRECTORY,
-            TargetType.REVISION,
+            SnapshotTargetType.DIRECTORY,
+            SnapshotTargetType.REVISION,
         ):
             target_type_str = target_type.value
             partial_branches = swh_storage.snapshot_get_branches(
@@ -4956,7 +4958,7 @@ class TestStorage:
             branches={
                 b"refs/heads/master": SnapshotBranch(
                     target=sample_data.revision.id,
-                    target_type=TargetType.REVISION,
+                    target_type=SnapshotTargetType.REVISION,
                 ),
             },
         )
@@ -4976,16 +4978,16 @@ class TestStorage:
         for i in range(n):
             branches[f"refs/heads/head{i:02d}".encode()] = SnapshotBranch(
                 target=sample_data.revision.id,
-                target_type=TargetType.REVISION,
+                target_type=SnapshotTargetType.REVISION,
             )
             branches[f"refs/tags/tag{i:02d}".encode()] = SnapshotBranch(
                 target=sample_data.release.id,
-                target_type=TargetType.RELEASE,
+                target_type=SnapshotTargetType.RELEASE,
             )
         for i in range(n):
             branches[f"refs/tags/tag{n+i:02d}".encode()] = SnapshotBranch(
                 target=sample_data.release.id,
-                target_type=TargetType.RELEASE,
+                target_type=SnapshotTargetType.RELEASE,
             )
 
         snapshot = Snapshot(branches=branches)
@@ -4997,7 +4999,7 @@ class TestStorage:
 
         assert len(partial_branches["branches"]) == n
         assert all(
-            branch.target_type == TargetType.RELEASE
+            branch.target_type == SnapshotTargetType.RELEASE
             for branch in partial_branches["branches"].values()
         )
         assert partial_branches["next_branch"] == b"refs/tags/tag20"
@@ -5009,15 +5011,15 @@ class TestStorage:
             branches={
                 b"refs/pulls/pull0": SnapshotBranch(
                     target=sample_data.revision.id,
-                    target_type=TargetType.REVISION,
+                    target_type=SnapshotTargetType.REVISION,
                 ),
                 b"refs/tags/tag00": SnapshotBranch(
                     target=sample_data.release.id,
-                    target_type=TargetType.RELEASE,
+                    target_type=SnapshotTargetType.RELEASE,
                 ),
                 b"refs/tags/tag01": SnapshotBranch(
                     target=sample_data.release.id,
-                    target_type=TargetType.RELEASE,
+                    target_type=SnapshotTargetType.RELEASE,
                 ),
             }
         )
@@ -5089,7 +5091,7 @@ class TestStorage:
                 branches={
                     f"branch{i}".encode(): SnapshotBranch(
                         target=b"\x00" * 20,
-                        target_type=TargetType.REVISION,
+                        target_type=SnapshotTargetType.REVISION,
                     ),
                 },
             )
@@ -5215,11 +5217,11 @@ class TestStorage:
             branches={
                 b"HEAD1": SnapshotBranch(
                     target=b"HEAD2",
-                    target_type=TargetType.ALIAS,
+                    target_type=SnapshotTargetType.ALIAS,
                 ),
                 b"HEAD2": SnapshotBranch(
                     target=b"HEAD1",
-                    target_type=TargetType.ALIAS,
+                    target_type=SnapshotTargetType.ALIAS,
                 ),
             },
         )
@@ -5239,19 +5241,19 @@ class TestStorage:
             branches={
                 b"first": SnapshotBranch(
                     target=b"second",
-                    target_type=TargetType.ALIAS,
+                    target_type=SnapshotTargetType.ALIAS,
                 ),
                 b"second": SnapshotBranch(
                     target=b"third",
-                    target_type=TargetType.ALIAS,
+                    target_type=SnapshotTargetType.ALIAS,
                 ),
                 b"third": SnapshotBranch(
                     target=b"forth",
-                    target_type=TargetType.ALIAS,
+                    target_type=SnapshotTargetType.ALIAS,
                 ),
                 b"forth": SnapshotBranch(
                     target=b"revision",
-                    target_type=TargetType.ALIAS,
+                    target_type=SnapshotTargetType.ALIAS,
                 ),
             },
         )

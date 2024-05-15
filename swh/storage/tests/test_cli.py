@@ -18,7 +18,7 @@ import pytest
 import yaml
 
 from swh.journal.serializers import key_to_kafka, value_to_kafka
-from swh.model.model import Origin, Snapshot, SnapshotBranch, TargetType
+from swh.model.model import Origin, Snapshot, SnapshotBranch, SnapshotTargetType
 from swh.storage import get_storage
 from swh.storage.cli import storage as cli
 from swh.storage.replay import OBJECT_CONVERTERS
@@ -111,7 +111,7 @@ def test_replay(
     snapshot = Snapshot(
         branches={
             b"HEAD": SnapshotBranch(
-                target_type=TargetType.REVISION,
+                target_type=SnapshotTargetType.REVISION,
                 target=b"\x01" * 20,
             )
         },
@@ -168,7 +168,7 @@ def test_replay_with_exceptions(
     snapshot = Snapshot(
         branches={
             b"HEAD": SnapshotBranch(
-                target_type=TargetType.REVISION,
+                target_type=SnapshotTargetType.REVISION,
                 target=b"\x01" * 20,
             )
         },

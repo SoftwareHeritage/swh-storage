@@ -29,7 +29,7 @@ from swh.model.model import (
     Revision,
     Snapshot,
     SnapshotBranch,
-    TargetType,
+    SnapshotTargetType,
 )
 from swh.model.swhids import ExtendedObjectType
 from swh.storage.postgresql.converters import (
@@ -288,7 +288,7 @@ def snapshot_converter(db: BaseDb, snapshot_d: Dict[str, Any]) -> Snapshot:
             if branch_d["target"] is not None and branch_d["target_type"] is not None:
                 branch: Optional[SnapshotBranch] = SnapshotBranch(
                     target=branch_d["target"],
-                    target_type=TargetType(branch_d["target_type"]),
+                    target_type=SnapshotTargetType(branch_d["target_type"]),
                 )
             else:
                 branch = None

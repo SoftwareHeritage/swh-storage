@@ -12,7 +12,7 @@ from swh.model.model import (
     Sha1Git,
     Snapshot,
     SnapshotBranch,
-    TargetType,
+    SnapshotTargetType,
 )
 from swh.storage.algos.origin import (
     iter_origin_visit_statuses,
@@ -160,7 +160,7 @@ def visits_and_snapshots_get_from_revision(
             for branch_name, branch in snapshot.branches.items():
                 if (
                     branch is not None
-                    and branch.target_type == TargetType.REVISION
+                    and branch.target_type == SnapshotTargetType.REVISION
                     and branch.target == revision_id
                 ):  # snapshot found
                     yield (visit, visit_status, snapshot)

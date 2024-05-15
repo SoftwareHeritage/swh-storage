@@ -50,7 +50,7 @@ from swh.model.model import (
     SkippedContent,
     Snapshot,
     SnapshotBranch,
-    TargetType,
+    SnapshotTargetType,
 )
 from swh.model.swhids import CoreSWHID, ExtendedObjectType, ExtendedSWHID
 from swh.model.swhids import ObjectType as SwhidObjectType
@@ -1172,7 +1172,8 @@ class CassandraStorage:
                     None
                     if branch.target is None
                     else SnapshotBranch(
-                        target=branch.target, target_type=TargetType(branch.target_type)
+                        target=branch.target,
+                        target_type=SnapshotTargetType(branch.target_type),
                     )
                 )
                 for branch in branches
@@ -1208,12 +1209,15 @@ class CassandraStorage:
                 break
             branch = branches[0]
             resolve_chain.append(branch_name)
-            if branch.target_type != TargetType.ALIAS.value or not follow_alias_chain:
+            if (
+                branch.target_type != SnapshotTargetType.ALIAS.value
+                or not follow_alias_chain
+            ):
                 # first non alias branch or the first branch when follow_alias_chain is False
                 target = (
                     SnapshotBranch(
                         target=branch.target,
-                        target_type=TargetType(branch.target_type),
+                        target_type=SnapshotTargetType(branch.target_type),
                     )
                     if branch.target
                     else None

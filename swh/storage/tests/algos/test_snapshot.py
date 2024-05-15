@@ -6,13 +6,13 @@
 from hypothesis import HealthCheck, given, settings
 import pytest
 
-from swh.model.hypothesis_strategies import branch_names, branch_targets, snapshots
+from swh.model.hypothesis_strategies import branch_names, snapshot_targets, snapshots
 from swh.model.model import (
     OriginVisit,
     OriginVisitStatus,
     Snapshot,
     SnapshotBranch,
-    TargetType,
+    SnapshotTargetType,
 )
 from swh.storage.algos.snapshot import (
     snapshot_get_all_branches,
@@ -48,10 +48,10 @@ def test_snapshot_small(swh_storage, snapshot):  # noqa
 
 
 @settings(suppress_health_check=disabled_health_checks, deadline=None)
-@given(branch_name=branch_names(), branch_target=branch_targets(only_objects=True))
-def test_snapshot_large(swh_storage, branch_name, branch_target):  # noqa
+@given(branch_name=branch_names(), snapshot_target=snapshot_targets(only_objects=True))
+def test_snapshot_large(swh_storage, branch_name, snapshot_target):  # noqa
     snapshot = Snapshot(
-        branches={b"%s%05d" % (branch_name, i): branch_target for i in range(10000)},
+        branches={b"%s%05d" % (branch_name, i): snapshot_target for i in range(10000)},
     )
 
     swh_storage.snapshot_add([snapshot])
@@ -318,24 +318,24 @@ def test_snapshot_resolve_alias(swh_storage, sample_data):
     rel_alias_name = b"rel_alias"
     rev_branch_info = SnapshotBranch(
         target=sample_data.revisions[0].id,
-        target_type=TargetType.REVISION,
+        target_type=SnapshotTargetType.REVISION,
     )
     rel_branch_info = SnapshotBranch(
         target=sample_data.releases[0].id,
-        target_type=TargetType.RELEASE,
+        target_type=SnapshotTargetType.RELEASE,
     )
     rev_alias1_branch_info = SnapshotBranch(
-        target=rev_branch_name, target_type=TargetType.ALIAS
+        target=rev_branch_name, target_type=SnapshotTargetType.ALIAS
     )
     rev_alias2_branch_info = SnapshotBranch(
-        target=rev_alias1_name, target_type=TargetType.ALIAS
+        target=rev_alias1_name, target_type=SnapshotTargetType.ALIAS
     )
 
     rev_alias3_branch_info = SnapshotBranch(
-        target=rev_alias2_name, target_type=TargetType.ALIAS
+        target=rev_alias2_name, target_type=SnapshotTargetType.ALIAS
     )
     rel_alias_branch_info = SnapshotBranch(
-        target=rel_branch_name, target_type=TargetType.ALIAS
+        target=rel_branch_name, target_type=SnapshotTargetType.ALIAS
     )
 
     snapshot = Snapshot(
@@ -373,7 +373,7 @@ def test_snapshot_resolve_alias_dangling_branch(swh_storage):
     alias_name = b"rev_alias"
 
     alias_branch = SnapshotBranch(
-        target=dangling_branch_name, target_type=TargetType.ALIAS
+        target=dangling_branch_name, target_type=SnapshotTargetType.ALIAS
     )
 
     snapshot = Snapshot(
@@ -392,7 +392,7 @@ def test_snapshot_resolve_alias_missing_branch(swh_storage):
     alias_name = b"rev_alias"
 
     alias_branch = SnapshotBranch(
-        target=missing_branch_name, target_type=TargetType.ALIAS
+        target=missing_branch_name, target_type=SnapshotTargetType.ALIAS
     )
 
     snapshot = Snapshot(
@@ -413,16 +413,16 @@ def test_snapshot_resolve_alias_cycle_found(swh_storage):
     alias4_name = b"alias_4"
 
     alias1_branch_info = SnapshotBranch(
-        target=alias2_name, target_type=TargetType.ALIAS
+        target=alias2_name, target_type=SnapshotTargetType.ALIAS
     )
     alias2_branch_info = SnapshotBranch(
-        target=alias3_name, target_type=TargetType.ALIAS
+        target=alias3_name, target_type=SnapshotTargetType.ALIAS
     )
     alias3_branch_info = SnapshotBranch(
-        target=alias4_name, target_type=TargetType.ALIAS
+        target=alias4_name, target_type=SnapshotTargetType.ALIAS
     )
     alias4_branch_info = SnapshotBranch(
-        target=alias2_name, target_type=TargetType.ALIAS
+        target=alias2_name, target_type=SnapshotTargetType.ALIAS
     )
 
     snapshot = Snapshot(

@@ -22,7 +22,7 @@ from swh.model.model import (
     RevisionType,
     Snapshot,
     SnapshotBranch,
-    TargetType,
+    SnapshotTargetType,
 )
 from swh.model.swhids import CoreSWHID, ExtendedObjectType, ExtendedSWHID, ObjectType
 from swh.storage.exc import MaskedObjectException
@@ -597,7 +597,7 @@ def test_snapshot_get(swh_storage, set_object_visibility):
     )
     # Check that masking branch targets doesn't affect snapshot visibility
     for branch in StorageData.complete_snapshot.branches.values():
-        if not branch or branch.target_type == TargetType.ALIAS:
+        if not branch or branch.target_type == SnapshotTargetType.ALIAS:
             continue
 
         set_object_visibility(
@@ -644,7 +644,7 @@ def test_snapshot_get_branches(swh_storage, set_object_visibility):
     )
     # Check that masking branch targets doesn't affect snapshot visibility
     for branch in StorageData.complete_snapshot.branches.values():
-        if not branch or branch.target_type == TargetType.ALIAS:
+        if not branch or branch.target_type == SnapshotTargetType.ALIAS:
             continue
 
         set_object_visibility(
@@ -675,7 +675,7 @@ def test_snapshot_branch_get_by_name(swh_storage, set_object_visibility):
 
     # Check that masking branch targets doesn't affect snapshot visibility
     for name, branch in StorageData.complete_snapshot.branches.items():
-        if branch and branch.target_type != TargetType.ALIAS:
+        if branch and branch.target_type != SnapshotTargetType.ALIAS:
             set_object_visibility(
                 [branch.swhid().to_extended()], MaskedState.DECISION_PENDING
             )
@@ -702,7 +702,7 @@ def test_snapshot_get_id_partition(swh_storage, set_object_visibility):
             branches={
                 f"branch{i}".encode(): SnapshotBranch(
                     target=b"\x00" * 20,
-                    target_type=TargetType.REVISION,
+                    target_type=SnapshotTargetType.REVISION,
                 ),
             },
         )

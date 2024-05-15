@@ -30,7 +30,7 @@ from swh.model.model import (
     SkippedContent,
     Snapshot,
     SnapshotBranch,
-    TargetType,
+    SnapshotTargetType,
     Timestamp,
     TimestampWithTimezone,
 )
@@ -696,7 +696,7 @@ class StorageData:
         branches={
             b"master": SnapshotBranch(
                 target=revision.id,
-                target_type=TargetType.REVISION,
+                target_type=SnapshotTargetType.REVISION,
             ),
         },
     )
@@ -709,31 +709,31 @@ class StorageData:
         branches={
             b"directory": SnapshotBranch(
                 target=directory.id,
-                target_type=TargetType.DIRECTORY,
+                target_type=SnapshotTargetType.DIRECTORY,
             ),
             b"directory2": SnapshotBranch(
                 target=directory2.id,
-                target_type=TargetType.DIRECTORY,
+                target_type=SnapshotTargetType.DIRECTORY,
             ),
             b"content": SnapshotBranch(
                 target=content.sha1_git,
-                target_type=TargetType.CONTENT,
+                target_type=SnapshotTargetType.CONTENT,
             ),
             b"alias": SnapshotBranch(
                 target=b"revision",
-                target_type=TargetType.ALIAS,
+                target_type=SnapshotTargetType.ALIAS,
             ),
             b"revision": SnapshotBranch(
                 target=revision.id,
-                target_type=TargetType.REVISION,
+                target_type=SnapshotTargetType.REVISION,
             ),
             b"release": SnapshotBranch(
                 target=release.id,
-                target_type=TargetType.RELEASE,
+                target_type=SnapshotTargetType.RELEASE,
             ),
             b"snapshot": SnapshotBranch(
                 target=empty_snapshot.id,
-                target_type=TargetType.SNAPSHOT,
+                target_type=SnapshotTargetType.SNAPSHOT,
             ),
             b"dangling": None,
         },

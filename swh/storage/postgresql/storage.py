@@ -57,7 +57,7 @@ from swh.model.model import (
     SkippedContent,
     Snapshot,
     SnapshotBranch,
-    TargetType,
+    SnapshotTargetType,
 )
 from swh.model.swhids import ExtendedObjectType, ExtendedSWHID, ObjectType
 from swh.storage.exc import (
@@ -1253,7 +1253,7 @@ class Storage:
                 assert branch_d["target_type"] is not None
                 branch = SnapshotBranch(
                     target=branch_d["target"],
-                    target_type=TargetType(branch_d["target_type"]),
+                    target_type=SnapshotTargetType(branch_d["target_type"]),
                 )
             branches[name] = branch
 
@@ -1308,14 +1308,14 @@ class Storage:
             branch_d = dict(zip(cols_to_fetch, branch))
             resolve_chain.append(branch_name)
             if (
-                branch_d["target_type"] != TargetType.ALIAS.value
+                branch_d["target_type"] != SnapshotTargetType.ALIAS.value
                 or not follow_alias_chain
             ):
                 # first non alias branch or the first branch when follow_alias_chain is False
                 target = (
                     SnapshotBranch(
                         target=branch_d["target"],
-                        target_type=TargetType(branch_d["target_type"]),
+                        target_type=SnapshotTargetType(branch_d["target_type"]),
                     )
                     if branch_d["target"]
                     else None
