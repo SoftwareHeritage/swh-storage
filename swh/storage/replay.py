@@ -181,9 +181,9 @@ class ModelObjectDeserializer:
                 oid = str(swhid)
             elif isinstance(obj, HashableObject):
                 uid = obj.compute_hash()
-                oid = f"{obj.object_type}:{uid.hex()}"  # type: ignore[attr-defined]
+                oid = f"{obj.object_type}:{uid.hex()}"
             else:
-                oid = f"{obj.object_type}:uuid:{uuid4()}"  # type: ignore[attr-defined]
+                oid = f"{obj.object_type}:uuid:{uuid4()}"
 
             self.reporter(oid, msg)
 
