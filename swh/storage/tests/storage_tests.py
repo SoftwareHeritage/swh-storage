@@ -24,12 +24,16 @@ from swh.core.api.classes import stream_results
 from swh.model import from_disk, hypothesis_strategies
 from swh.model.hashutil import DEFAULT_ALGORITHMS, MultiHash, hash_to_bytes
 from swh.model.model import (
+    Directory,
+    DirectoryEntry,
+    ExtID,
     Origin,
     OriginVisit,
     OriginVisitStatus,
     Person,
     RawExtrinsicMetadata,
     Release,
+    ReleaseTargetType,
     Revision,
     RevisionType,
     SkippedContent,
@@ -39,8 +43,6 @@ from swh.model.model import (
     Timestamp,
     TimestampWithTimezone,
 )
-from swh.model.model import Content, Directory, DirectoryEntry, ExtID
-from swh.model.model import ObjectType as ModelObjectType
 from swh.model.swhids import CoreSWHID, ExtendedSWHID, ObjectType
 from swh.storage.cassandra.storage import CassandraStorage
 from swh.storage.common import origin_url_to_sha1 as sha1
@@ -130,11 +132,6 @@ def assert_contents_ok(
 def filter_dict(d):
     "Filter None value from a dict"
     return {k: v for k, v in d.items() if v is not None}
-
-
-class LazyContent(Content):
-    def with_data(self):
-        return Content.from_dict({**self.to_dict(), "data": b"42\n"})
 
 
 class TestStorage:
@@ -289,7 +286,7 @@ class TestStorage:
 
     def test_content_add_from_lazy_content(self, swh_storage, sample_data):
         cont = sample_data.content
-        lazy_content = LazyContent.from_dict(cont.to_dict())
+        lazy_content = cont.evolve(data=None, get_data=lambda: cont.data)
 
         insertion_start_time = now()
 
@@ -306,7 +303,7 @@ class TestStorage:
         # the correct 'data' field ensures it has been 'called'
         assert swh_storage.content_get_data({"sha1": cont.sha1}) == cont.data
 
-        expected_cont = attr.evolve(lazy_content, data=None, ctime=None)
+        expected_cont = cont.evolve(data=None, ctime=None, get_data=None)
         contents = [
             obj
             for (obj_type, obj) in swh_storage.journal_writer.journal.objects
@@ -316,7 +313,7 @@ class TestStorage:
         for obj in contents:
             assert insertion_start_time <= obj.ctime
             assert obj.ctime <= insertion_end_time
-            assert attr.evolve(obj, ctime=None).to_dict() == expected_cont.to_dict()
+            assert obj.evolve(ctime=None).to_dict() == expected_cont.to_dict()
 
         if isinstance(swh_storage, InMemoryStorage) or not isinstance(
             swh_storage, CassandraStorage
@@ -2234,7 +2231,7 @@ class TestStorage:
                 author=None,
                 date=None,
                 target=b"\x00" * 20,
-                target_type=ModelObjectType.REVISION,
+                target_type=ReleaseTargetType.REVISION,
                 synthetic=True,
             )
             for i in range(100)

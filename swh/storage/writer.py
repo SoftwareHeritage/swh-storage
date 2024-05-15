@@ -5,8 +5,6 @@
 
 from typing import Any, Dict, Iterable
 
-from attr import evolve
-
 from swh.model.model import (
     Content,
     Directory,
@@ -68,7 +66,7 @@ class JournalWriter:
 
     def content_add(self, contents: Iterable[Content]) -> None:
         """Add contents to the journal. Drop the data field if provided."""
-        contents = [evolve(item, data=None) for item in contents]
+        contents = [item.evolve(data=None, get_data=None) for item in contents]
         self.write_additions("content", contents)
 
     def content_update(self, contents: Iterable[Dict[str, Any]]) -> None:

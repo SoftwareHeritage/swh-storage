@@ -55,8 +55,7 @@ class RemoteStorage(RPCClient):
                 raise
 
     def content_add(self, content: List[Content]) -> Dict[str, int]:
-        content = [c.with_data() if isinstance(c, Content) else c for c in content]
-        return self._post("content/add", {"content": content})
+        return self._post("content/add", {"content": [c.with_data() for c in content]})
 
     def reset(self):
         return self._post("reset", {})

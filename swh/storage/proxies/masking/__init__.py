@@ -112,7 +112,7 @@ class MaskingProxyStorage:
         if result_type:
             if result_type == "extid":
                 return [result.target.to_extended()]
-            if result_type.startswith("origin_visit"):
+            if result_type.value.startswith("origin_visit"):
                 return [Origin(url=result.origin).swhid()]
 
         if (

@@ -11,17 +11,19 @@ import pytest
 
 from swh.core.api.classes import stream_results
 from swh.model.model import (
+    Directory,
+    DirectoryEntry,
+    ExtID,
     OriginVisit,
     OriginVisitStatus,
     Release,
+    ReleaseTargetType,
     Revision,
     RevisionType,
     Snapshot,
     SnapshotBranch,
     TargetType,
 )
-from swh.model.model import Directory, DirectoryEntry, ExtID
-from swh.model.model import ObjectType as ModelObjectType
 from swh.model.swhids import CoreSWHID, ExtendedObjectType, ExtendedSWHID, ObjectType
 from swh.storage.exc import MaskedObjectException
 from swh.storage.interface import HashDict
@@ -511,11 +513,11 @@ def test_extid_get_from_extid():
 def test_release_get(swh_storage, set_object_visibility):
     # release.target = revision
     assert StorageData.release.target == StorageData.revision.id
-    assert StorageData.release.target_type == ModelObjectType.REVISION
+    assert StorageData.release.target_type == ReleaseTargetType.REVISION
 
     # release2.target = revision2
     assert StorageData.release2.target == StorageData.revision2.id
-    assert StorageData.release2.target_type == ModelObjectType.REVISION
+    assert StorageData.release2.target_type == ReleaseTargetType.REVISION
 
     # Ensure that object masking doesn't prevent insertion
     set_object_visibility(
@@ -550,7 +552,7 @@ def test_release_get_partition(swh_storage, set_object_visibility):
             author=None,
             date=None,
             target=b"\x00" * 20,
-            target_type=ModelObjectType.REVISION,
+            target_type=ReleaseTargetType.REVISION,
             synthetic=True,
         )
         for i in range(100)
