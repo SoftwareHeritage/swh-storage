@@ -8,7 +8,7 @@ from typing import Dict, Iterable, List
 
 from swh.model.hashutil import MultiHash, hash_to_bytes, hash_to_hex
 from swh.model.model import Content, Directory, Release, Revision, Snapshot
-from swh.storage import get_storage
+from swh.storage import StorageSpec, get_storage
 from swh.storage.exc import StorageArgumentException
 from swh.storage.interface import StorageInterface
 
@@ -28,7 +28,7 @@ class ValidatingProxyStorage:
 
     """
 
-    def __init__(self, storage):
+    def __init__(self, storage: StorageSpec) -> None:
         self.storage: StorageInterface = get_storage(**storage)
 
     def __getattr__(self, key):

@@ -11,6 +11,9 @@ if TYPE_CHECKING:
     from .interface import StorageInterface
 
 
+StorageSpec = Dict[str, Any]
+
+
 def get_storage(cls: str, **kwargs) -> "StorageInterface":
     """Get a storage object of class ``cls`` with arguments ``**kwargs``.
     ``cls`` must be one of the ``swh.storage.classes`` `entry-points

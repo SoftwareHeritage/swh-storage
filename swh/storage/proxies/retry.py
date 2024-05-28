@@ -10,7 +10,7 @@ from tenacity import RetryCallState, retry, stop_after_attempt, wait_random_expo
 from tenacity.wait import wait_base
 
 from swh.core.api import TransientRemoteException
-from swh.storage import get_storage
+from swh.storage import StorageSpec, get_storage
 from swh.storage.exc import NonRetryableException
 from swh.storage.interface import StorageInterface
 
@@ -89,7 +89,7 @@ class RetryingProxyStorage:
 
     """
 
-    def __init__(self, storage):
+    def __init__(self, storage: StorageSpec):
         self.storage: StorageInterface = get_storage(**storage)
         for attribute_name in dir(StorageInterface):
             if attribute_name.startswith("_"):

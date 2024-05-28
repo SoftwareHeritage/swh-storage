@@ -8,7 +8,7 @@ from typing import Callable
 
 from swh.counters import get_counters
 from swh.counters.interface import CountersInterface
-from swh.storage import get_storage
+from swh.storage import StorageSpec, get_storage
 from swh.storage.interface import StorageInterface
 
 OBJECT_TYPES = [
@@ -47,7 +47,7 @@ class CountingProxyStorage:
 
     """
 
-    def __init__(self, counters, storage):
+    def __init__(self, counters, storage: StorageSpec) -> None:
         self.counters: CountersInterface = get_counters(**counters)
         self.storage: StorageInterface = get_storage(**storage)
 

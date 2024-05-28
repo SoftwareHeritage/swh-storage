@@ -14,7 +14,7 @@ from swh.model.model import (
     Sha1Git,
     SkippedContent,
 )
-from swh.storage import get_storage
+from swh.storage import StorageSpec, get_storage
 from swh.storage.interface import HashDict, StorageInterface
 
 
@@ -36,7 +36,7 @@ class FilteringProxyStorage:
 
     object_types = ["content", "skipped_content", "directory", "revision", "release"]
 
-    def __init__(self, storage):
+    def __init__(self, storage: StorageSpec) -> None:
         self.storage: StorageInterface = get_storage(**storage)
 
     def __getattr__(self, key):
