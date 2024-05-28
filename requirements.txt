@@ -5,7 +5,8 @@ deprecated
 flask
 iso8601
 mypy_extensions
-psycopg2
+psycopg
+psycopg_pool
 redis
 tenacity >= 8.4.2
 typing-extensions

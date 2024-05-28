@@ -28,9 +28,9 @@ from typing import (
 )
 
 import attr
-import psycopg2
-import psycopg2.errors
-import psycopg2.pool
+import psycopg
+import psycopg.errors
+import psycopg_pool
 
 from swh.core.api.serializers import msgpack_dumps, msgpack_loads
 from swh.core.db.common import db_transaction as _db_transaction
@@ -105,13 +105,13 @@ VALIDATION_EXCEPTIONS = (
     KeyError,
     TypeError,
     ValueError,
-    psycopg2.errors.CheckViolation,
-    psycopg2.errors.IntegrityError,
-    psycopg2.errors.InvalidTextRepresentation,
-    psycopg2.errors.NotNullViolation,
-    psycopg2.errors.NumericValueOutOfRange,
-    psycopg2.errors.UndefinedFunction,  # (raised on wrong argument typs)
-    psycopg2.errors.ProgramLimitExceeded,  # typically person_name_idx
+    psycopg.errors.CheckViolation,
+    psycopg.errors.IntegrityError,
+    psycopg.errors.InvalidTextRepresentation,
+    psycopg.errors.NotNullViolation,
+    psycopg.errors.NumericValueOutOfRange,
+    psycopg.errors.UndefinedFunction,  # (raised on wrong argument typs)
+    psycopg.errors.ProgramLimitExceeded,  # typically person_name_idx
 )
 """Exceptions raised by postgresql when validation of the arguments
 failed."""
@@ -123,7 +123,7 @@ def convert_validation_exceptions():
     re-raises a StorageArgumentException."""
     try:
         yield
-    except psycopg2.errors.UniqueViolation:
+    except psycopg.errors.UniqueViolation:
         # This only happens because of concurrent insertions, but it is
         # a subclass of IntegrityError; so we need to catch and reraise it
         # before the next clause converts it to StorageArgumentException.
@@ -140,7 +140,7 @@ def db_transaction_generator(*args, **kwargs):
         def _meth(self, *args, **kwargs):
             try:
                 yield from meth(self, *args, **kwargs)
-            except psycopg2.errors.QueryCanceled as e:
+            except psycopg.errors.QueryCanceled as e:
                 raise QueryTimeout(*e.args)
 
         return _meth
@@ -156,7 +156,7 @@ def db_transaction(*args, **kwargs):
         def _meth(self, *args, **kwargs):
             try:
                 return meth(self, *args, **kwargs)
-            except psycopg2.errors.QueryCanceled as e:
+            except psycopg.errors.QueryCanceled as e:
                 raise QueryTimeout(*e.args)
 
         return _meth
@@ -222,7 +222,7 @@ class Storage:
 
     def __init__(
         self,
-        db: Union[str, Db],
+        db: Union[str, psycopg.Connection[Any]],
         objstorage: Optional[Dict] = None,
         min_pool_conns: int = 1,
         max_pool_conns: int = 10,
@@ -234,15 +234,15 @@ class Storage:
 
         When ``db`` is passed as a connection string, then this module automatically
         manages a connection pool between ``min_pool_conns`` and ``max_pool_conns``.
-        When ``db`` is an explicit psycopg2 connection, then ``min_pool_conns`` and
+        When ``db`` is an explicit psycopg connection, then ``min_pool_conns`` and
         ``max_pool_conns`` are ignored and the connection is used directly.
 
         Args:
-            db: either a libpq connection string, or a psycopg2 connection
+            db: either a libpq connection string, or a psycopg connection
             objstorage: configuration for the backend :class:`ObjStorage`; if unset,
                use a NoopObjStorage
-            min_pool_conns: min number of connections in the psycopg2 pool
-            max_pool_conns: max number of connections in the psycopg2 pool
+            min_pool_conns: min number of connections in the psycopg pool
+            max_pool_conns: max number of connections in the psycopg pool
             journal_writer: configuration for the :class:`JournalWriter`
             query_options: configuration for the sql connections; keys of the dict are
                the method names decorated with :func:`db_transaction` or
@@ -260,20 +260,23 @@ class Storage:
         """
 
         self._db: Optional[Db]
+        self._pool: Optional[psycopg_pool.ConnectionPool]
 
         try:
-            if isinstance(db, psycopg2.extensions.connection):
+            if isinstance(db, str):
+                self._pool = psycopg_pool.ConnectionPool(
+                    conninfo=db,
+                    min_size=min_pool_conns,
+                    max_size=max_pool_conns,
+                )
+                self._db = None
+            else:
                 self._pool = None
                 self._db = Db(db)
 
                 # See comment below
                 self._db.cursor().execute("SET TIME ZONE 'UTC'")
-            else:
-                self._pool = psycopg2.pool.ThreadedConnectionPool(
-                    min_pool_conns, max_pool_conns, db
-                )
-                self._db = None
-        except psycopg2.OperationalError as e:
+        except psycopg.OperationalError as e:
             raise StorageDBError(e)
         self.journal_writer = JournalWriter(journal_writer)
         self.objstorage = ObjStorage(self, objstorage)
@@ -290,12 +293,6 @@ class Storage:
         else:
             db = Db.from_pool(self._pool)
 
-            # Workaround for psycopg2 < 2.9.0 not handling fractional timezones,
-            # which may happen on old revision/release dates on systems configured
-            # with non-UTC timezones.
-            # https://www.psycopg.org/docs/usage.html#time-zones-handling
-            db.cursor().execute("SET TIME ZONE 'UTC'")
-
             return db
 
     def put_db(self, db):
@@ -307,14 +304,15 @@ class Storage:
         db = None
         try:
             db = self.get_db()
-            yield db
+            with db:
+                yield db
         finally:
             if db:
                 self.put_db(db)
 
     @db_transaction()
     def get_flavor(self, *, db: Db, cur=None) -> str:
-        flavor = swh_db_flavor(db.conn.dsn)
+        flavor = swh_db_flavor(db.conn)
         assert flavor is not None
         return flavor
 
@@ -330,7 +328,7 @@ class Storage:
         if not self.objstorage.check_config(check_write=check_write):
             return False
 
-        dbversion = swh_db_version(db.conn.dsn)
+        dbversion = swh_db_version(db.conn)
         if dbversion != self.current_version:
             logger.warning(
                 "database dbversion (%s) != %s current_version (%s)",
@@ -372,7 +370,7 @@ class Storage:
         # move metadata in place
         try:
             db.content_add_from_temp(cur)
-        except psycopg2.IntegrityError as e:
+        except psycopg.IntegrityError as e:
             if e.diag.sqlstate == "23505" and e.diag.table_name == "content":
                 message_detail = e.diag.message_detail
                 if message_detail:
@@ -2057,7 +2055,7 @@ class Storage:
                 to_add,
                 cur=cur,
             )
-        except psycopg2.errors.CheckViolation:
+        except psycopg.errors.CheckViolation:
             raise NonRetryableException(
                 "No 'object_references_*' table open for writing."
             )

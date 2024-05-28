@@ -35,7 +35,7 @@ STORAGES = [
 
 
 @pytest.mark.parametrize("cls,real_class,args", STORAGES)
-@patch("swh.storage.postgresql.storage.psycopg2.pool")
+@patch("swh.storage.postgresql.storage.psycopg_pool")
 def test_get_storage(mock_pool, cls, real_class, args):
     """Instantiating an existing storage should be ok"""
     mock_pool.ThreadedConnectionPool.return_value = None
@@ -45,7 +45,7 @@ def test_get_storage(mock_pool, cls, real_class, args):
 
 
 @pytest.mark.parametrize("cls,real_class,args", STORAGES)
-@patch("swh.storage.postgresql.storage.psycopg2.pool")
+@patch("swh.storage.postgresql.storage.psycopg_pool")
 def test_get_storage_legacy_args(mock_pool, cls, real_class, args):
     """Instantiating an existing storage should be ok even with the legacy
     explicit 'args' keys
@@ -132,7 +132,7 @@ def test_get_storage_check_config(cls, real_class, kwargs, monkeypatch):
     check_backend_check_config(monkeypatch, dict(cls=cls, **kwargs))
 
 
-@patch("swh.storage.postgresql.storage.psycopg2.pool")
+@patch("swh.storage.postgresql.storage.psycopg_pool")
 def test_get_storage_local_check_config(mock_pool, monkeypatch):
     """Instantiating a local storage with check_config should be ok"""
     mock_pool.ThreadedConnectionPool.return_value = None

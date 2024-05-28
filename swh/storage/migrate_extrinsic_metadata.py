@@ -35,7 +35,7 @@ from urllib.parse import unquote, urlparse
 from urllib.request import urlopen
 
 import iso8601
-import psycopg2
+import psycopg
 
 from swh.core.db import BaseDb
 from swh.model.hashutil import hash_to_hex
@@ -1179,7 +1179,7 @@ def iter_revision_rows(storage_dbconn: str, first_id: Sha1Git):
                     after_id = row_d["id"]
                     if new_rows == 0:
                         return
-        except psycopg2.OperationalError as e:
+        except psycopg.OperationalError as e:
             print(e)
             # most likely a temporary error, try again
             if failures >= 60:

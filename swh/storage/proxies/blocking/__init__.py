@@ -7,7 +7,7 @@ from contextlib import contextmanager
 from typing import Dict, Iterable, Iterator, List, Optional, Union
 import warnings
 
-import psycopg2.pool
+import psycopg_pool
 
 from swh.model.model import Origin, OriginVisit, OriginVisitStatus
 from swh.storage import get_storage
@@ -78,8 +78,10 @@ class BlockingProxyStorage:
             get_storage(**storage) if isinstance(storage, dict) else storage
         )
 
-        self._blocking_pool = psycopg2.pool.ThreadedConnectionPool(
-            min_pool_conns, max_pool_conns, db
+        self._blocking_pool = psycopg_pool.ConnectionPool(
+            db,
+            min_size=min_pool_conns,
+            max_size=max_pool_conns,
         )
 
     def origin_visit_status_add(

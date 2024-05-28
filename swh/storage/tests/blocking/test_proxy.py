@@ -462,6 +462,26 @@ def test_blocking_log(swh_storage, blocking_admin, endpoint):
 
     # Check blocking journal log
     log = blocking_admin.get_log()
+
+    all_log = set(x.url for x in log)
+    all_expected = set()
+    for k, vs in origins.items():
+        if k is None:
+            continue
+        all_expected.update(vs)
+    assert all_log == all_expected
+
+    pair_log = [(x.url, x.state) for x in log]
+    pair_log.sort()
+    pair_expected = []
+    for k, vs in origins.items():
+        if k is None:
+            continue
+        for v in vs:
+            pair_expected.append((v, k))
+    pair_expected.sort()
+    assert pair_log == pair_expected
+
     assert set(origins[BlockingState.DECISION_PENDING]) == set(
         x.url for x in log if x.state == BlockingState.DECISION_PENDING
     )

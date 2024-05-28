@@ -322,6 +322,7 @@ TABLES = [
     "object_references_table",
 ]
 
+
 HASH_ALGORITHMS = ["sha1", "sha1_git", "sha256", "blake2s256"]
 
 for main_algo in HASH_ALGORITHMS:

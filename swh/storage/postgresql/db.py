@@ -9,11 +9,9 @@ import random
 import re
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
 
-from psycopg2 import sql
-from psycopg2.extras import execute_values
+from psycopg import Cursor, sql
 
 from swh.core.db import BaseDb
-from swh.core.db.db_utils import execute_values_generator
 from swh.core.db.db_utils import jsonize as _jsonize
 from swh.core.db.db_utils import stored_procedure
 from swh.model.hashutil import DEFAULT_ALGORITHMS
@@ -26,6 +24,17 @@ logger = logging.getLogger(__name__)
 
 def jsonize(d):
     return _jsonize(dict(d) if d is not None else None)
+
+
+def execute_values_generator(
+    cur: Cursor, query: str, values: Iterable[Any]
+) -> Iterator[Any]:
+    cur.executemany(query, values, returning=True)
+    if cur.pgresult is None:
+        return
+    yield from cur.fetchall()
+    while cur.nextset():
+        yield from cur.fetchall()
 
 
 class QueryBuilder:
@@ -202,14 +211,11 @@ class Db(BaseDb):
         assert algo in DEFAULT_ALGORITHMS
         query = f"""
             select {", ".join(self.content_get_metadata_keys)}
-            from (values %s) as t (hash)
+            from (values (%s)) as t (hash)
             inner join content on (content.{algo}=hash)
         """
-        yield from execute_values_generator(
-            cur,
-            query,
-            ((hash_,) for hash_ in hashes),
-        )
+        args = ((hash_,) for hash_ in hashes)
+        yield from execute_values_generator(cur, query, args)
 
     def content_get_range(self, start, end, limit=None, cur=None) -> Iterator[Tuple]:
         """Retrieve contents within range [start, end]."""
@@ -233,27 +239,30 @@ class Db(BaseDb):
             ("t.%s = c.%s" % (key, key)) for key in self.content_hash_keys
         )
 
+        values = ", ".join("%s" for _ in self.content_hash_keys)
+        queries = f"""
+        SELECT {keys}
+        FROM (VALUES ({values})) as t({keys})
+        WHERE NOT EXISTS (
+            SELECT 1 FROM content c
+            WHERE {equality}
+        )
+        """
         yield from execute_values_generator(
             cur,
-            """
-            SELECT %s
-            FROM (VALUES %%s) as t(%s)
-            WHERE NOT EXISTS (
-                SELECT 1 FROM content c
-                WHERE %s
-            )
-            """
-            % (keys, keys, equality),
+            queries,
             (tuple(c[key] for key in self.content_hash_keys) for c in contents),
         )
 
     def content_missing_per_sha1(self, sha1s, cur=None):
+        if len(sha1s) == 0:
+            return
         cur = self._cursor(cur)
 
         yield from execute_values_generator(
             cur,
             """
-        SELECT t.sha1 FROM (VALUES %s) AS t(sha1)
+        SELECT t.sha1 FROM (VALUES (%s)) AS t(sha1)
         WHERE NOT EXISTS (
             SELECT 1 FROM content c WHERE c.sha1 = t.sha1
         )""",
@@ -261,12 +270,14 @@ class Db(BaseDb):
         )
 
     def content_missing_per_sha1_git(self, contents, cur=None):
+        if len(contents) == 0:
+            return
         cur = self._cursor(cur)
 
         yield from execute_values_generator(
             cur,
             """
-        SELECT t.sha1_git FROM (VALUES %s) AS t(sha1_git)
+        SELECT t.sha1_git FROM (VALUES (%s)) AS t(sha1_git)
         WHERE NOT EXISTS (
             SELECT 1 FROM content c WHERE c.sha1_git = t.sha1_git
         )""",
@@ -340,21 +351,19 @@ class Db(BaseDb):
             return []
         cur = self._cursor(cur)
 
-        query = """SELECT * FROM (VALUES %s) AS t (%s)
+        values_fmt = ", ".join("%s" for _ in self.content_hash_keys)
+        key_fmt = ", ".join(self.content_hash_keys)
+        query = f"""SELECT * FROM (VALUES ({values_fmt})) AS t ({key_fmt})
                    WHERE not exists
                    (SELECT 1 FROM skipped_content s WHERE
                        s.sha1 is not distinct from t.sha1::sha1 and
                        s.sha1_git is not distinct from t.sha1_git::sha1 and
-                       s.sha256 is not distinct from t.sha256::bytea);""" % (
-            (", ".join("%s" for _ in contents)),
-            ", ".join(self.content_hash_keys),
-        )
-        cur.execute(
+                       s.sha256 is not distinct from t.sha256::bytea);"""
+        yield from execute_values_generator(
+            cur,
             query,
             [tuple(cont[key] for key in self.content_hash_keys) for cont in contents],
         )
-
-        yield from cur
 
     skipped_content_find_cols = [
         "sha1",
@@ -417,7 +426,7 @@ class Db(BaseDb):
         yield from execute_values_generator(
             cur,
             """
-            SELECT id FROM (VALUES %s) as t(id)
+            SELECT id FROM (VALUES (%s)) as t(id)
             WHERE NOT EXISTS (
                 SELECT 1 FROM directory d WHERE d.id = t.id
             )
@@ -481,7 +490,7 @@ class Db(BaseDb):
         yield from execute_values_generator(
             cur,
             """
-            SELECT t.id, raw_manifest FROM (VALUES %s) as t(id)
+            SELECT t.id, raw_manifest FROM (VALUES (%s)) as t(id)
             INNER JOIN directory ON (t.id=directory.id)
             """,
             ((id_,) for id_ in directory_ids),
@@ -514,7 +523,7 @@ class Db(BaseDb):
         yield from execute_values_generator(
             cur,
             """
-            SELECT id FROM (VALUES %s) as t(id)
+            SELECT id FROM (VALUES (%s)) as t(id)
             WHERE NOT EXISTS (
                 SELECT 1 FROM revision r WHERE r.id = t.id
             )
@@ -604,14 +613,13 @@ class Db(BaseDb):
 
         yield from execute_values_generator(
             cur,
-            """
-            SELECT %s FROM (VALUES %%s) as t(sortkey, id)
+            f"""
+            SELECT {query_keys} FROM (VALUES (%s, %s)) as t(sortkey, id)
             LEFT JOIN revision ON t.id = revision.id
             LEFT JOIN person author ON revision.author = author.id
             LEFT JOIN person committer ON revision.committer = committer.id
             ORDER BY sortkey
-            """
-            % query_keys,
+            """,
             ((sortkey, id) for sortkey, id in enumerate(revisions)),
         )
 
@@ -676,31 +684,33 @@ class Db(BaseDb):
     extid_cols = ["extid", "extid_version", "extid_type", "target", "target_type"]
 
     def extid_get_from_extid_list(
-        self, extid_type: str, ids: List[bytes], version: Optional[int] = None, cur=None
+        self,
+        extid_type: str,
+        ids: List[bytes],
+        version: Optional[int] = None,
+        cur=None,
     ):
         cur = self._cursor(cur)
         query_keys = ", ".join(
             self.mangle_query_key(k, "extid", "t.id") for k in self.extid_cols
         )
+        extra_inputs: Tuple[Any, ...] = (extid_type,)
         filter_query = ""
         if version is not None:
-            filter_query = cur.mogrify(
-                f"WHERE extid_version={version}", (version,)
-            ).decode()
+            filter_query = "WHERE extid_version = %s"
+            extra_inputs += (version,)
 
         sql = f"""
             SELECT {query_keys}
-            FROM (VALUES %s) as t(sortkey, extid, extid_type)
+            FROM (VALUES (%s, %s, %s)) as t(sortkey, extid, extid_type)
             LEFT JOIN extid USING (extid, extid_type)
             {filter_query}
             ORDER BY sortkey
             """
 
-        yield from execute_values_generator(
-            cur,
-            sql,
-            (((sortkey, extid, extid_type) for sortkey, extid in enumerate(ids))),
-        )
+        inputs = ((sortkey, extid) + extra_inputs for sortkey, extid in enumerate(ids))
+
+        yield from execute_values_generator(cur, sql, inputs)
 
     def extid_get_from_swhid_list(
         self,
@@ -718,43 +728,39 @@ class Db(BaseDb):
             self.mangle_query_key(k, "extid", "t.id") for k in self.extid_cols
         )
         filter_query = ""
+        query_extra: Tuple[Any, ...] = ()
         if extid_version is not None and extid_type is not None:
-            filter_query = cur.mogrify(
-                "WHERE extid_version=%s AND extid_type=%s",
-                (
-                    extid_version,
-                    extid_type,
-                ),
-            ).decode()
+            filter_query = "WHERE extid_version = %s AND extid_type = %s"
+            query_extra = (
+                extid_version,
+                extid_type,
+            )
 
         sql = f"""
             SELECT {query_keys}
-            FROM (VALUES %s) as t(sortkey, target, target_type)
+            FROM (VALUES (%s,%s,%s::object_type)) as t(sortkey, target, target_type)
             LEFT JOIN extid USING (target, target_type)
             {filter_query}
             ORDER BY sortkey
             """
 
-        yield from execute_values_generator(
-            cur,
-            sql,
-            (((sortkey, target, target_type) for sortkey, target in enumerate(ids))),
-            template=b"(%s,%s,%s::object_type)",
+        args = (
+            (sortkey, target, target_type) + query_extra
+            for sortkey, target in enumerate(ids)
         )
+        yield from execute_values_generator(cur, sql, args)
 
     def extid_delete_for_target(
         self, target_rows: List[Tuple[str, bytes]], cur=None
     ) -> Dict[str, int]:
         result = {}
         cur = self._cursor(cur)
-        execute_values(
-            cur,
+        cur.executemany(
             """DELETE FROM extid
-                USING (VALUES %s) AS t(target_type, target)
+                USING (VALUES (%s::object_type, %s)) AS t(target_type, target)
                 WHERE extid.target_type = t.target_type
                   AND extid.target = t.target""",
             target_rows,
-            template=b"(%s::object_type,%s)",
         )
         result["extid:delete"] = cur.rowcount
         return result
@@ -768,7 +774,7 @@ class Db(BaseDb):
         yield from execute_values_generator(
             cur,
             """
-            SELECT id FROM (VALUES %s) as t(id)
+            SELECT id FROM (VALUES (%s)) as t(id)
             WHERE NOT EXISTS (
                 SELECT 1 FROM release r WHERE r.id = t.id
             )
@@ -804,7 +810,7 @@ class Db(BaseDb):
         yield from execute_values_generator(
             cur,
             """
-            SELECT %s FROM (VALUES %%s) as t(sortkey, id)
+            SELECT %s FROM (VALUES (%%s, %%s)) as t(sortkey, id)
             LEFT JOIN release ON t.id = release.id
             LEFT JOIN person author ON release.author = author.id
             ORDER BY sortkey
@@ -853,7 +859,7 @@ class Db(BaseDb):
         yield from execute_values_generator(
             cur,
             """
-            SELECT id FROM (VALUES %s) as t(id)
+            SELECT id FROM (VALUES (%s)) as t(id)
             WHERE NOT EXISTS (
                 SELECT 1 FROM snapshot d WHERE d.id = t.id
             )
@@ -1084,8 +1090,8 @@ class Db(BaseDb):
             query_parts.append("AND ovs.snapshot is not null")
 
         if allowed_statuses:
-            query_parts.append("AND ovs.status IN %s")
-            query_params.append(tuple(allowed_statuses))
+            query_parts.append("AND ovs.status = Any(%s)")
+            query_params.append(list(allowed_statuses))
 
         query_parts.append("ORDER BY ovs.date DESC LIMIT 1")
         query = "\n".join(query_parts)
@@ -1192,8 +1198,8 @@ class Db(BaseDb):
             query_parts.append("AND ovs.snapshot is not null")
 
         if allowed_statuses:
-            query_parts.append("AND ovs.status IN %s")
-            query_params.append(tuple(allowed_statuses))
+            query_parts.append("AND ovs.status = Any(%s)")
+            query_params.append(list(allowed_statuses))
 
         query_parts.append("ORDER BY ovs.visit ASC, ovs.date ASC")
 
@@ -1298,8 +1304,8 @@ class Db(BaseDb):
             query_parts.append("AND ovs.snapshot is not null")
 
         if allowed_statuses:
-            query_parts.append("AND ovs.status IN %s")
-            query_params.append(tuple(allowed_statuses))
+            query_parts.append("AND ovs.status = ANY(%s)")
+            query_params.append(list(allowed_statuses))
 
         query_parts.append("ORDER BY ovs.visit DESC, ovs.date DESC LIMIT 1")
 
@@ -1350,7 +1356,7 @@ class Db(BaseDb):
         """Retrieve origin `(type, url)` from urls if found."""
         cur = self._cursor(cur)
 
-        query = """SELECT %s FROM (VALUES %%s) as t(url)
+        query = """SELECT %s FROM (VALUES (%%s)) as t(url)
                    LEFT JOIN origin ON t.url = origin.url
                 """ % ",".join(
             "origin." + col for col in self.origin_cols
@@ -1362,7 +1368,7 @@ class Db(BaseDb):
         """Retrieve origin urls from sha1s if found."""
         cur = self._cursor(cur)
 
-        query = """SELECT %s FROM (VALUES %%s) as t(sha1)
+        query = """SELECT %s FROM (VALUES (%%s)) as t(sha1)
                    LEFT JOIN origin ON t.sha1 = digest(origin.url, 'sha1')
                 """ % ",".join(
             "origin." + col for col in self.origin_cols
@@ -1374,7 +1380,7 @@ class Db(BaseDb):
         """Retrieve origin `(type, url)` from urls if found."""
         cur = self._cursor(cur)
 
-        query = """SELECT id FROM (VALUES %s) as t(url)
+        query = """SELECT id FROM (VALUES (%s)) as t(url)
                    LEFT JOIN origin ON t.url = origin.url
                 """
 
@@ -1550,7 +1556,7 @@ class Db(BaseDb):
         yield from execute_values_generator(
             cur,
             """
-            WITH t (sha1_git) AS (VALUES %s),
+            WITH t (sha1_git) AS (VALUES (%s)),
             known_objects as ((
                 select
                   id as sha1_git,
@@ -1731,7 +1737,7 @@ class Db(BaseDb):
         yield from execute_values_generator(
             cur,
             self._raw_extrinsic_metadata_select_query
-            + "INNER JOIN (VALUES %s) AS t(id) ON t.id = raw_extrinsic_metadata.id",
+            + "INNER JOIN (VALUES (%s)) AS t(id) ON t.id = raw_extrinsic_metadata.id",
             [(id_,) for id_ in ids],
         )
 
@@ -1840,10 +1846,10 @@ class Db(BaseDb):
     def object_references_add(self, reference_rows, cur=None) -> None:
         cols = ", ".join(self._object_references_cols)
         cur = self._cursor(cur)
-        execute_values(
-            cur,
+        values_fmt = ", ".join("%s" for _ in self._object_references_cols)
+        cur.executemany(
             f"""INSERT INTO object_references ({cols})
-            VALUES %s ON CONFLICT (insertion_date, {cols}) DO NOTHING""",
+            VALUES ({values_fmt}) ON CONFLICT (insertion_date, {cols}) DO NOTHING""",
             reference_rows,
         )
 
@@ -1860,14 +1866,15 @@ class Db(BaseDb):
         next_monday = monday + datetime.timedelta(days=7)
 
         cur = self._cursor(cur)
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS object_references_%04dw%02d
-            PARTITION OF object_references
-            FOR VALUES FROM (%%s) TO (%%s)"""
-            % (year, week),
-            (monday.isoformat(), next_monday.isoformat()),
-        )
+
+        assert not cur.closed
+        query = f"""
+        CREATE TABLE IF NOT EXISTS object_references_{year:04d}w{week:02d}
+        PARTITION OF object_references
+        FOR VALUES FROM ('{monday.isoformat()}')
+        TO ('{next_monday.isoformat()}')
+        """
+        cur.execute(query)
 
         return (monday, next_monday)
 
@@ -1926,10 +1933,9 @@ class Db(BaseDb):
             ) ON COMMIT DROP
             """
         )
-        execute_values(
-            cur,
+        cur.executemany(
             """INSERT INTO objects_to_remove (type, id)
-               VALUES %s""",
+               VALUES (%s, %s)""",
             object_rows,
         )
         # Let’s handle raw extrinsic metadata first as they’ll

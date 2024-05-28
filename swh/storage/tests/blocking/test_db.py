@@ -90,7 +90,7 @@ def test_get_urls_to_check(url, exact, prefix):
 
 
 def test_db_version(blocking_admin: BlockingAdmin):
-    dbmodule, dbversion, dbflavor = get_database_info(blocking_admin.conn.dsn)
+    dbmodule, dbversion, dbflavor = get_database_info(blocking_admin.conn)
     assert dbmodule == "storage.proxies.blocking"
     assert dbversion == BlockingAdmin.current_version
     assert dbflavor is None
