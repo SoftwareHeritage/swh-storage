@@ -18,11 +18,13 @@ from swh.model import from_disk
 from swh.model.model import (
     Directory,
     DirectoryEntry,
+    ExtID,
     Person,
     Snapshot,
     SnapshotBranch,
     TimestampWithTimezone,
 )
+from swh.model.swhids import CoreSWHID, ObjectType
 from swh.storage import get_storage
 from swh.storage.cassandra.cql import BATCH_INSERT_MAX_SIZE
 import swh.storage.cassandra.model
@@ -628,7 +630,6 @@ class TestCassandraStorage(_TestStorage):
     def test_object_delete(self, swh_storage, sample_data):
         # For our sanity checks
         affected_tables = set(TABLES) - {
-            "raw_extrinsic_metadata",
             "metadata_authority",
             "metadata_fetcher",
             "extid",
@@ -648,6 +649,10 @@ class TestCassandraStorage(_TestStorage):
         swh_storage.origin_add(sample_data.origins)
         swh_storage.origin_visit_add(sample_data.origin_visits)
         swh_storage.origin_visit_status_add(sample_data.origin_visit_statuses)
+        swh_storage.metadata_authority_add(sample_data.authorities)
+        swh_storage.metadata_fetcher_add(sample_data.fetchers)
+        swh_storage.raw_extrinsic_metadata_add(sample_data.content_metadata)
+        swh_storage.raw_extrinsic_metadata_add(sample_data.origin_metadata)
         swhids = (
             [content.swhid().to_extended() for content in sample_data.contents]
             + [
@@ -659,6 +664,8 @@ class TestCassandraStorage(_TestStorage):
             + [release.swhid().to_extended() for release in sample_data.releases]
             + [snapshot.swhid().to_extended() for snapshot in sample_data.snapshots]
             + [origin.swhid() for origin in sample_data.origins]
+            + [emd.swhid() for emd in sample_data.content_metadata]
+            + [emd.swhid() for emd in sample_data.origin_metadata]
         )
 
         # Do we have something in every affected tables?
@@ -680,6 +687,8 @@ class TestCassandraStorage(_TestStorage):
             "origin:delete": 7,
             "origin_visit:delete": 3,
             "origin_visit_status:delete": 3,
+            "cnt_metadata:delete": 3,
+            "ori_metadata:delete": 3,
         }
 
         # Have we cleaned every affected tables?
@@ -688,6 +697,38 @@ class TestCassandraStorage(_TestStorage):
                 f"SELECT COUNT(*) AS count FROM {cql_runner.keyspace}.{table}", []
             ).one()
             assert row["count"] == 0, f"something in table {table}"
+
+    def test_extid_delete_for_target(self, swh_storage, sample_data):
+        swh_storage.revision_add([sample_data.revision, sample_data.hg_revision])
+        swh_storage.directory_add([sample_data.directory, sample_data.directory2])
+        extid_for_same_target = ExtID(
+            target=CoreSWHID(
+                object_type=ObjectType.REVISION, object_id=sample_data.revision.id
+            ),
+            extid_type="drink_some",
+            extid=bytes.fromhex("c0ffee"),
+        )
+        result = swh_storage.extid_add(sample_data.extids + (extid_for_same_target,))
+        assert result == {"extid:add": 5}
+
+        result = swh_storage.extid_delete_for_target(
+            [sample_data.revision.swhid(), sample_data.directory2.swhid()]
+        )
+        assert result == {"extid:delete": 3}
+
+        extids = swh_storage.extid_get_from_target(
+            target_type=ObjectType.REVISION, ids=[sample_data.hg_revision.id]
+        )
+        assert extids == [sample_data.extid2]
+        extids = swh_storage.extid_get_from_target(
+            target_type=ObjectType.DIRECTORY, ids=[sample_data.directory.id]
+        )
+        assert extids == [sample_data.extid3]
+
+        result = swh_storage.extid_delete_for_target(
+            [sample_data.hg_revision.swhid(), sample_data.directory.swhid()]
+        )
+        assert result == {"extid:delete": 2}
 
 
 @pytest.mark.cassandra

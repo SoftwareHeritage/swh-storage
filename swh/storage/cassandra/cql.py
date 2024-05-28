@@ -1395,6 +1395,10 @@ class CqlRunner:
             self._execute_with_retries(statement, [ids]),
         )
 
+    @_prepared_delete_statement(RawExtrinsicMetadataByIdRow)
+    def raw_extrinsic_metadata_by_id_delete(self, emd_id, *, statement):
+        self._execute_with_retries(statement, [emd_id])
+
     #########################
     # 'raw_extrinsic_metadata' table
     #########################
@@ -1479,6 +1483,28 @@ class CqlRunner:
         return (
             (entry["authority_type"], entry["authority_url"])
             for entry in self._execute_with_retries(statement, [target])
+        )
+
+    @_prepared_statement(
+        """DELETE FROM {keyspace}.raw_extrinsic_metadata
+            WHERE target = ?
+              AND authority_type = ?
+              AND authority_url = ?
+              AND discovery_date = ?
+              AND id = ?"""
+    )
+    def raw_extrinsic_metadata_delete(
+        self,
+        target,
+        authority_type,
+        authority_url,
+        discovery_date,
+        emd_id,
+        *,
+        statement,
+    ):
+        self._execute_with_retries(
+            statement, [target, authority_type, authority_url, discovery_date, emd_id]
         )
 
     ##########################
@@ -1658,6 +1684,28 @@ class CqlRunner:
                     ):
                         yield extid
 
+    @_prepared_statement(
+        """DELETE FROM {keyspace}.extid
+            WHERE extid_type = ?
+              AND extid = ?
+              AND extid_version = ?
+              AND target_type = ?
+              AND target = ?"""
+    )
+    def extid_delete(
+        self,
+        extid_type: str,
+        extid: bytes,
+        extid_version: int,
+        target_type: str,
+        target: bytes,
+        *,
+        statement,
+    ) -> None:
+        self._execute_with_retries(
+            statement, [extid_type, extid, extid_version, target_type, target]
+        )
+
     ##########################
     # 'extid_by_target' table
     ##########################
@@ -1678,6 +1726,16 @@ class CqlRunner:
             row["target_token"]
             for row in self._execute_with_retries(statement, [target_type, target])
         )
+
+    @_prepared_statement(
+        """DELETE FROM {keyspace}.extid_by_target
+            WHERE target_type = ?
+              AND target = ?"""
+    )
+    def extid_delete_from_by_target_table(
+        self, target_type: str, target: bytes, *, statement
+    ) -> None:
+        self._execute_with_retries(statement, [target_type, target])
 
     ##########################
     # 'object_references' table

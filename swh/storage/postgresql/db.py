@@ -19,7 +19,7 @@ from swh.core.db.db_utils import jsonize as _jsonize
 from swh.core.db.db_utils import stored_procedure
 from swh.model.hashutil import DEFAULT_ALGORITHMS
 from swh.model.model import SHA1_SIZE, OriginVisit, OriginVisitStatus, Sha1Git
-from swh.model.swhids import ObjectType
+from swh.model.swhids import ExtendedObjectType, ObjectType
 from swh.storage.interface import ListOrder
 
 logger = logging.getLogger(__name__)
@@ -751,6 +751,23 @@ class Db(BaseDb):
             (((sortkey, target, target_type) for sortkey, target in enumerate(ids))),
             template=b"(%s,%s,%s::object_type)",
         )
+
+    def extid_delete_for_target(
+        self, target_rows: List[Tuple[str, bytes]], cur=None
+    ) -> Dict[str, int]:
+        result = {}
+        cur = self._cursor(cur)
+        execute_values(
+            cur,
+            """DELETE FROM extid
+                USING (VALUES %s) AS t(target_type, target)
+                WHERE extid.target_type = t.target_type
+                  AND extid.target = t.target""",
+            target_rows,
+            template=b"(%s::object_type,%s)",
+        )
+        result["extid:delete"] = cur.rowcount
+        return result
 
     ##########################
     # 'release' table
@@ -1924,6 +1941,26 @@ class Db(BaseDb):
             """INSERT INTO objects_to_remove (type, id)
                VALUES %s""",
             object_rows,
+        )
+        # Let’s handle raw extrinsic metadata first as they’ll
+        # be referencing other objects
+        cur.execute(
+            """SELECT COUNT(emd.id), emd.type AS target_type
+                 FROM raw_extrinsic_metadata emd
+                WHERE emd.id IN (SELECT id
+                                   FROM objects_to_remove
+                                  WHERE type = 'raw_extrinsic_metadata')
+                GROUP BY type"""
+        )
+        for count, target_type in cur:
+            result[
+                f"{ExtendedObjectType[target_type.upper()].value}_metadata:delete"
+            ] = count
+        cur.execute(
+            """DELETE FROM raw_extrinsic_metadata emd
+                WHERE emd.id IN (SELECT id
+                                   FROM objects_to_remove
+                                  WHERE type = 'raw_extrinsic_metadata')"""
         )
         # We need to remove lines from `origin_visit_status`,
         # `origin_visit` and `origin`.

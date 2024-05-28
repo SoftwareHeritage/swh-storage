@@ -4,16 +4,16 @@
 # See top-level LICENSE file for more information
 
 import base64
-from collections import defaultdict
+from collections import Counter, defaultdict
 import datetime
 import itertools
+import logging
 import operator
 import random
 import re
 from typing import (
     Any,
     Callable,
-    Counter,
     Dict,
     Iterable,
     Iterator,
@@ -110,6 +110,9 @@ DIRECTORY_ENTRIES_INSERT_ALGOS = ["one-by-one", "concurrent", "batch"]
 
 TResult = TypeVar("TResult")
 TRow = TypeVar("TRow", bound=BaseRow)
+
+
+logger = logging.getLogger(__name__)
 
 
 def _get_paginated_sha1_partition(
@@ -2190,6 +2193,43 @@ class CassandraStorage:
             "origin_visit_status:delete": origin_visit_status_count,
         }
 
+    def _raw_extrinsic_metadata_delete(self, emd_ids: Set[Sha1Git]) -> Dict[str, int]:
+        result: Counter[str] = Counter()
+        for emd_by_id_row in self._cql_runner.raw_extrinsic_metadata_get_by_ids(
+            emd_ids
+        ):
+            discovery_date = None
+            # Sadly, the `raw_extrinsic_metadata_by_id` table does not contain
+            # the `discovery_date` which is needed to remove a specific line in
+            # the `raw_extrinsic_metadata` table. We have to get it by scanning
+            # `raw_extrinsic_metadata` table, looking for the right line.
+            for emd_row in self._cql_runner.raw_extrinsic_metadata_get(
+                emd_by_id_row.target,
+                emd_by_id_row.authority_type,
+                emd_by_id_row.authority_url,
+            ):
+                if emd_row.id == emd_by_id_row.id:
+                    discovery_date = emd_row.discovery_date
+                    break
+            if discovery_date is None:
+                logger.warning(
+                    f"Unable to find `swh:1:emd:{emd_by_id_row.id.hex()}` in "
+                    "`raw_extrinsic_metadata` while it exists in "
+                    "`raw_extrinsic_metadata_by_id`!"
+                )
+                continue
+            self._cql_runner.raw_extrinsic_metadata_delete(
+                emd_by_id_row.target,
+                emd_by_id_row.authority_type,
+                emd_by_id_row.authority_url,
+                discovery_date,
+                emd_by_id_row.id,
+            )
+            result[f"{emd_by_id_row.target[6:9]}_metadata:delete"] += 1
+        for emd_id in emd_ids:
+            self._cql_runner.raw_extrinsic_metadata_by_id_delete(emd_id)
+        return dict(result)
+
     def object_delete(self, swhids: List[ExtendedSWHID]) -> Dict[str, int]:
         """Delete objects from the storage
 
@@ -2203,18 +2243,65 @@ class CassandraStorage:
             swhids: list of SWHID of the objects to remove
 
         Returns:
-            Summary dict with the following keys and associated values:
+            dict: number of objects removed. Details of each key:
 
-                content:delete: Number of content objects removed
-                content:delete:bytes: Sum of the removed contents’ data length
-                skipped_content:delete: Number of skipped content objects removed
-                directory:delete: Number of directory objects removed
-                revision:delete: Number of revision objects removed
-                release:delete: Number of release objects removed
-                snapshot:delete: Number of snapshot objects removed
-                origin:delete: Number of origin objects removed
-                origin_visit:delete: Number of origin visit objects removed
-                origin_visit_status:delete: Number of origin visit status objects removed
+            content:delete
+                Number of content objects removed
+
+            content:delete:bytes
+                Sum of the removed contents’ data length
+
+            skipped_content:delete
+                Number of skipped content objects removed
+
+            directory:delete
+                Number of directory objects removed
+
+            revision:delete
+                Number of revision objects removed
+
+            release:delete
+                Number of release objects removed
+
+            snapshot:delete
+                Number of snapshot objects removed
+
+            origin:delete
+                Number of origin objects removed
+
+            origin_visit:delete
+                Number of origin visit objects removed
+
+            origin_visit_status:delete
+                Number of origin visit status objects removed
+
+            ori_metadata:delete
+                Number of raw extrinsic metadata objects targeting
+                an origin that have been removed
+
+            snp_metadata:delete
+                Number of raw extrinsic metadata objects targeting
+                a snapshot that have been removed
+
+            rev_metadata:delete
+                Number of raw extrinsic metadata objects targeting
+                a revision that have been removed
+
+            rel_metadata:delete
+                Number of raw extrinsic metadata objects targeting
+                a release that have been removed
+
+            dir_metadata:delete
+                Number ef raw extrinsic metadata objects targeting
+                a directory that have been removed
+
+            cnt_metadata:delete
+                Number of raw extrinsic metadata objects targeting
+                a content that have been removed
+
+            emd_metadata:delete
+                Number of raw extrinsic metadata objects targeting
+                a raw extrinsic metadata object that have been removed
         """
 
         # groupby() splits consecutive groups, so we need to order the list first
@@ -2229,6 +2316,31 @@ class CassandraStorage:
             object_ids = {swhid.object_id for swhid in grouped_swhids}
             result.update(_DELETE_METHODS[object_type](self, object_ids))
         return result
+
+    def extid_delete_for_target(self, target_swhids: List[CoreSWHID]) -> Dict[str, int]:
+        """Delete ExtID objects from the storage
+
+        Args:
+            target_swhids: list of SWHIDs targeted by the ExtID objects to remove
+
+        Returns:
+            Summary dict with the following keys and associated values:
+
+                extid:delete: Number of ExtID objects removed
+        """
+        deleted_extid_count = 0
+        for target_swhid in target_swhids:
+            target_type = target_swhid.object_type.value
+            target = target_swhid.object_id
+
+            extid_rows = list(
+                self._cql_runner.extid_get_from_target(target_type, target)
+            )
+            self._cql_runner.extid_delete_from_by_target_table(target_type, target)
+            for extid_row in extid_rows:
+                self._cql_runner.extid_delete(**extid_row.to_dict())
+                deleted_extid_count += 1
+        return {"extid:delete": deleted_extid_count}
 
     ##########################
     # misc.
@@ -2252,6 +2364,7 @@ _DELETE_METHODS: Dict[
     ExtendedObjectType.RELEASE: CassandraStorage._release_delete,
     ExtendedObjectType.SNAPSHOT: CassandraStorage._snapshot_delete,
     ExtendedObjectType.ORIGIN: CassandraStorage._origin_delete,
+    ExtendedObjectType.RAW_EXTRINSIC_METADATA: CassandraStorage._raw_extrinsic_metadata_delete,
 }
 
 _DELETE_ORDERING: Dict[ExtendedObjectType, int] = {

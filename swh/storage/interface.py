@@ -32,7 +32,7 @@ from swh.model.model import (
     Snapshot,
     SnapshotBranch,
 )
-from swh.model.swhids import ExtendedSWHID, ObjectType
+from swh.model.swhids import CoreSWHID, ExtendedSWHID, ObjectType
 
 
 class ListOrder(Enum):
@@ -1704,7 +1704,7 @@ class StorageInterface(Protocol):
 
 
 class ObjectDeletionInterface(Protocol):
-    def object_delete(self, swhids: List[ExtendedSWHID]):
+    def object_delete(self, swhids: List[ExtendedSWHID]) -> Dict[str, int]:
         """Delete objects from the storage
 
         All skipped content objects matching the given SWHID will be removed,
@@ -1721,17 +1721,76 @@ class ObjectDeletionInterface(Protocol):
             swhids: list of SWHID of the objects to remove
 
         Returns:
+            dict: number of objects removed. Details of each key:
+
+            content:delete
+                Number of content objects removed
+
+            content:delete:bytes
+                Sum of the removed contents’ data length
+
+            skipped_content:delete
+                Number of skipped content objects removed
+
+            directory:delete
+                Number of directory objects removed
+
+            revision:delete
+                Number of revision objects removed
+
+            release:delete
+                Number of release objects removed
+
+            snapshot:delete
+                Number of snapshot objects removed
+
+            origin:delete
+                Number of origin objects removed
+
+            origin_visit:delete
+                Number of origin visit objects removed
+
+            origin_visit_status:delete
+                Number of origin visit status objects removed
+
+            ori_metadata:delete
+                Number of raw extrinsic metadata objects targeting
+                an origin that have been removed
+
+            snp_metadata:delete
+                Number of raw extrinsic metadata objects targeting
+                a snapshot that have been removed
+
+            rev_metadata:delete
+                Number of raw extrinsic metadata objects targeting
+                a revision that have been removed
+
+            rel_metadata:delete
+                Number of raw extrinsic metadata objects targeting
+                a release that have been removed
+
+            dir_metadata:delete
+                Number ef raw extrinsic metadata objects targeting
+                a directory that have been removed
+
+            cnt_metadata:delete
+                Number of raw extrinsic metadata objects targeting
+                a content that have been removed
+
+            emd_metadata:delete
+                Number of raw extrinsic metadata objects targeting
+                a raw extrinsic metadata object that have been removed"""
+        ...
+
+    def extid_delete_for_target(self, target_swhids: List[CoreSWHID]) -> Dict[str, int]:
+        """Delete ExtID objects from the storage
+
+        Args:
+            target_swhids: list of SWHIDs targeted by the ExtID objects to remove
+
+        Returns:
             Summary dict with the following keys and associated values:
 
-                content:delete: Number of content objects removed
-                content:delete:bytes: Sum of the removed contents’ data length
-                skipped_content:delete: Number of skipped content objects removed
-                directory:delete: Number of directory objects removed
-                revision:delete: Number of revision objects removed
-                release:delete: Number of release objects removed
-                snapshot:delete: Number of snapshot objects removed
-                origin:delete: Number of origin objects removed
-                origin_visit:delete: Number of origin visit objects removed
-                origin_visit_status:delete: Number of origin visit status objects removed
+                extid:delete: Number of ExtID objects removed
         """
         ...
