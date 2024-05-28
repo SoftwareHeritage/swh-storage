@@ -11,7 +11,7 @@ from swh.model.model import Content, MissingData, Sha1
 from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.factory import get_objstorage
 from swh.objstorage.interface import CompositeObjId
-from swh.storage.interface import HashDict
+from swh.storage.interface import HashDict, StorageInterface
 
 from .exc import StorageArgumentException
 
@@ -22,7 +22,7 @@ class ObjStorage:
 
     """
 
-    def __init__(self, storage, objstorage_config: Optional[Dict]):
+    def __init__(self, storage: StorageInterface, objstorage_config: Optional[Dict]):
         self.storage = storage
         self.warn_usage = False
         if objstorage_config is None:

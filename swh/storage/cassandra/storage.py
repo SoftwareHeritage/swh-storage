@@ -235,7 +235,7 @@ class CassandraStorage:
     def port(self) -> int:
         return self._port
 
-    def _set_cql_runner(self):
+    def _set_cql_runner(self) -> None:
         """Used by tests when they need to reset the CqlRunner"""
         self._cql_runner: CqlRunner = CqlRunner(
             self._hosts,

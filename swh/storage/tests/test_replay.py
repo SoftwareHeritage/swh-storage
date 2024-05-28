@@ -8,13 +8,14 @@ import datetime
 import functools
 import logging
 import re
-from typing import Any, Container, Dict, Optional, cast
+from typing import Any, Container, Dict, Optional, Tuple, cast
 
 import attr
 import pytest
 
 from swh.journal.client import JournalClient
 from swh.journal.serializers import kafka_to_value, key_to_kafka, value_to_kafka
+from swh.journal.writer import JournalWriterInterface
 from swh.model.hashutil import MultiHash, hash_to_bytes, hash_to_hex
 from swh.model.model import Revision, RevisionType
 from swh.model.tests.swh_model_data import (
@@ -28,6 +29,7 @@ from swh.storage import get_storage
 from swh.storage.cassandra.model import ContentRow, SkippedContentRow
 from swh.storage.exc import StorageArgumentException
 from swh.storage.in_memory import InMemoryStorage
+from swh.storage.interface import StorageInterface
 from swh.storage.replay import ModelObjectDeserializer, process_replay_objects
 
 UTC = datetime.timezone.utc
@@ -54,7 +56,7 @@ WRONG_ID_REG = re.compile(
 )
 
 
-def nullify_ctime(obj):
+def nullify_ctime(obj: Any) -> Any:
     if isinstance(obj, (ContentRow, SkippedContentRow)):
         return dataclasses.replace(obj, ctime=None)
     else:
@@ -139,7 +141,9 @@ def test_storage_replayer(replayer_storage_and_client, caplog, buffered):
     assert collision == 0, "No collision should be detected"
 
 
-def test_storage_replay_with_collision(replayer_storage_and_client, caplog):
+def test_storage_replay_with_collision(
+    replayer_storage_and_client: Tuple[StorageInterface, JournalClient], caplog
+):
     """Another replayer scenario with collisions.
 
     This:
@@ -149,6 +153,8 @@ def test_storage_replay_with_collision(replayer_storage_and_client, caplog):
 
     """
     src, replayer = replayer_storage_and_client
+    journal: JournalWriterInterface = src.journal_writer.journal  # type: ignore
+    assert journal is not None
 
     # Fill Kafka using a source storage
     nb_sent = 0
@@ -156,12 +162,12 @@ def test_storage_replay_with_collision(replayer_storage_and_client, caplog):
         method = getattr(src, object_type + "_add")
         method(objects)
         nb_sent += len(objects)
-    src.journal_writer.journal.flush()
+    journal.flush()
 
     # Create collision in input data
     # These should not be written in the destination
-    producer = src.journal_writer.journal.producer
-    prefix = src.journal_writer.journal._prefix
+    producer = journal.producer  # type: ignore
+    prefix = journal._prefix  # type: ignore
     for content in DUPLICATE_CONTENTS:
         topic = f"{prefix}.content"
         key = content.sha1
@@ -368,7 +374,8 @@ def test_storage_replay_anonymized(
         method = getattr(storage, obj_type + "_add")
         method(objs)
         nb_sent += len(objs)
-    storage.journal_writer.journal.flush()  # type: ignore[attr-defined]
+    journal: JournalWriterInterface = storage.journal_writer.journal  # type:ignore
+    journal.flush()
 
     # Fill a destination storage from Kafka, potentially using privileged topics
     dst_storage = get_storage(cls="memory")

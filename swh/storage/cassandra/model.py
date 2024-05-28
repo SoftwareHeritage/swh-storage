@@ -96,7 +96,7 @@ class ContentRow(BaseRow):
     sha256: bytes
     blake2s256: bytes
     length: int
-    ctime: datetime.datetime
+    ctime: Optional[datetime.datetime]
     """creation time, i.e. time of (first) injection into the storage"""
     status: str
 

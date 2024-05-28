@@ -28,7 +28,10 @@ from swh.storage.cassandra.cql import BATCH_INSERT_MAX_SIZE
 import swh.storage.cassandra.model
 from swh.storage.cassandra.model import BaseRow, ContentRow, ExtIDRow
 from swh.storage.cassandra.schema import CREATE_TABLES_QUERIES, HASH_ALGORITHMS, TABLES
-from swh.storage.cassandra.storage import DIRECTORY_ENTRIES_INSERT_ALGOS
+from swh.storage.cassandra.storage import (
+    DIRECTORY_ENTRIES_INSERT_ALGOS,
+    CassandraStorage,
+)
 from swh.storage.tests.storage_data import StorageData
 from swh.storage.tests.storage_tests import (
     TestStorageGeneratedData as _TestStorageGeneratedData,
@@ -343,7 +346,10 @@ class TestCassandraStorage(_TestStorage):
         assert actual_result == [expected_content]
 
     def test_content_get_partition_murmur3_collision(
-        self, swh_storage, mocker, sample_data
+        self,
+        swh_storage: CassandraStorage,
+        mocker,
+        sample_data,
     ):
         """The Murmur3 token is used as link from index tables to the main table; and
         non-matching contents with colliding murmur3-hash are filtered-out when reading

@@ -220,12 +220,12 @@ class Storage:
 
     def __init__(
         self,
-        db,
-        objstorage=None,
-        min_pool_conns=1,
-        max_pool_conns=10,
-        journal_writer=None,
-        query_options=None,
+        db: Union[str, Db],
+        objstorage: Optional[Dict] = None,
+        min_pool_conns: int = 1,
+        max_pool_conns: int = 10,
+        journal_writer: Optional[Dict[str, Any]] = None,
+        query_options: Optional[Dict[str, Dict[str, Any]]] = None,
     ):
         """Instantiate a storage instance backed by a PostgreSQL database and an
         objstorage.
@@ -256,6 +256,8 @@ class Storage:
                See :mod:`swh.core.db.common` for more details.
 
         """
+
+        self._db: Optional[Db]
 
         try:
             if isinstance(db, psycopg2.extensions.connection):

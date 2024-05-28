@@ -7,7 +7,7 @@
 # control
 import logging
 import os
-from typing import Dict, Optional, Tuple
+from typing import IO, Callable, Dict, Optional, Tuple, Union, cast
 
 import click
 
@@ -227,7 +227,12 @@ def backfill(ctx, object_type, start_object, end_object, dry_run):
     ),
 )
 @click.pass_context
-def replay(ctx, stop_after_objects, object_types, invalid_hashes_file):
+def replay(
+    ctx: click.Context,
+    stop_after_objects: int,
+    object_types: str,
+    invalid_hashes_file: IO,
+):
     """Fill a Storage by reading a Journal.
 
     This is typically used for a mirror configuration, reading the Software
@@ -291,7 +296,9 @@ def replay(ctx, stop_after_objects, object_types, invalid_hashes_file):
             "'privileged' is False; we cannot validate anonymized objects."
         )
 
-    known_mismatched_hashes: Optional[Tuple[Tuple[str, bytes]]] = None
+    KMH = Optional[Tuple[Tuple[str, bytes, bytes]]]
+
+    known_mismatched_hashes: KMH = None
     if validate and invalid_hashes_file:
         inv_obj_ids = (
             row.strip().split(",") for row in invalid_hashes_file if row.strip()
@@ -301,13 +308,16 @@ def replay(ctx, stop_after_objects, object_types, invalid_hashes_file):
             for swhid, computed_id in inv_obj_ids
         )
 
-        known_mismatched_hashes = tuple(
-            (swhid.object_type.name.lower(), swhid.object_id, computed_id)
-            for swhid, computed_id in swhids
+        known_mismatched_hashes = cast(
+            KMH,
+            tuple(
+                (swhid.object_type.name.lower(), swhid.object_id, computed_id)
+                for swhid, computed_id in swhids
+            ),
         )
 
     deserializer = ModelObjectDeserializer(
-        reporter=reporter,
+        reporter=cast(Union[Callable[[str, bytes], None], None], reporter),
         validate=validate,
         known_mismatched_hashes=known_mismatched_hashes,
     )
@@ -321,7 +331,7 @@ def replay(ctx, stop_after_objects, object_types, invalid_hashes_file):
     try:
         client = get_journal_client(**client_cfg)
     except ValueError as exc:
-        ctx.fail(exc)
+        ctx.fail(str(exc))
 
     worker_fn = functools.partial(process_replay_objects, storage=storage)
 

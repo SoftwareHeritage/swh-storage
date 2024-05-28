@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Any, Dict, Iterable
+from typing import Any, Dict, Iterable, Optional
 
 from swh.model.model import (
     Content,
@@ -22,7 +22,8 @@ from swh.model.model import (
 )
 
 try:
-    from swh.journal.writer import get_journal_writer
+    from swh.journal.writer import JournalWriterInterface, get_journal_writer
+    from swh.journal.writer.interface import ValueProtocol
 except ImportError:
     get_journal_writer = None  # type: ignore
     # mypy limitation, see https://github.com/python/mypy/issues/1153
@@ -43,7 +44,8 @@ class JournalWriter:
 
     """
 
-    def __init__(self, journal_writer):
+    def __init__(self, journal_writer: Optional[Dict[str, Any]]):
+        self.journal: Optional[JournalWriterInterface] = None
         if journal_writer:
             if get_journal_writer is None:
                 raise EnvironmentError(
@@ -53,16 +55,16 @@ class JournalWriter:
             self.journal = get_journal_writer(
                 value_sanitizer=model_object_dict_sanitizer, **journal_writer
             )
-        else:
-            self.journal = None
 
-    def write_addition(self, object_type, value) -> None:
+    def write_addition(self, object_type: str, object_: ValueProtocol) -> None:
         if self.journal:
-            self.journal.write_addition(object_type, value)
+            self.journal.write_addition(object_type, object_)
 
-    def write_additions(self, object_type, values) -> None:
+    def write_additions(
+        self, object_type: str, objects: Iterable[ValueProtocol]
+    ) -> None:
         if self.journal:
-            self.journal.write_additions(object_type, values)
+            self.journal.write_additions(object_type, objects)
 
     def content_add(self, contents: Iterable[Content]) -> None:
         """Add contents to the journal. Drop the data field if provided."""
