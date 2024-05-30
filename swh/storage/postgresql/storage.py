@@ -2114,4 +2114,4 @@ class Storage:
         object_rows = [
             (swhid.object_type.name.lower(), swhid.object_id) for swhid in swhids
         ]
-        return db.object_delete(object_rows)
+        return db.object_delete(object_rows, cur=cur)
