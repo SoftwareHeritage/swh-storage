@@ -37,23 +37,6 @@ def now() -> datetime.datetime:
 
 
 @pytest.fixture
-def swh_storage_backend_config():
-    return {
-        "cls": "memory",
-        "journal_writer": {
-            "cls": "memory",
-        },
-    }
-
-
-@pytest.fixture
-def swh_storage(masking_db_postgresql, swh_storage_backend):
-    return MaskingProxyStorage(
-        masking_db=masking_db_postgresql.info.dsn, storage=swh_storage_backend
-    )
-
-
-@pytest.fixture
 def set_object_visibility(masking_admin):
     # Create a request
     request = masking_admin.create_request(slug="foo", reason="bar")
@@ -404,7 +387,7 @@ def test_revision_log(swh_storage, set_object_visibility):
 
     # But the parent is properly masked
     assert_masked_objects_raise(
-        lambda: swh_storage.revision_log([StorageData.revision2.id], limit=2),
+        lambda: list(swh_storage.revision_log([StorageData.revision2.id], limit=2)),
         [StorageData.revision.swhid().to_extended()],
         set_object_visibility,
     )
@@ -426,7 +409,9 @@ def test_revision_shortlog(swh_storage, set_object_visibility):
 
     # But the parent is properly masked
     assert_masked_objects_raise(
-        lambda: swh_storage.revision_shortlog([StorageData.revision2.id], limit=2),
+        lambda: list(
+            swh_storage.revision_shortlog([StorageData.revision2.id], limit=2)
+        ),
         [StorageData.revision.swhid().to_extended()],
         set_object_visibility,
     )

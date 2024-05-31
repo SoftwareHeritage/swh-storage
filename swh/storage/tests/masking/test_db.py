@@ -255,6 +255,20 @@ def test_swhid_lifecycle(masking_admin: MaskingAdmin, masking_query: MaskingQuer
     assert dict(masking_query.iter_masked_swhids()) == expected
 
 
+def test_set_display_name(masking_admin: MaskingAdmin, masking_query: MaskingQuery):
+    assert masking_query.display_name([b"author1@example.com"]) == {}
+    assert masking_query.display_name([b"author2@example.com"]) == {}
+
+    masking_admin.set_display_name(
+        b"author1@example.com", b"author2 <author2@example.com>"
+    )
+
+    assert masking_query.display_name([b"author1@example.com"]) == {
+        b"author1@example.com": b"author2 <author2@example.com>"
+    }
+    assert masking_query.display_name([b"author2@example.com"]) == {}
+
+
 def test_query_metrics(
     masking_admin: MaskingAdmin, masking_query: MaskingQuery, mocker
 ):

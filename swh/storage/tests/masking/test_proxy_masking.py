@@ -13,17 +13,6 @@ from swh.storage.proxies.masking.db import MaskedState
 from swh.storage.tests.storage_data import StorageData
 from swh.storage.tests.test_in_memory import TestInMemoryStorage as _TestStorage
 
-
-@pytest.fixture
-def swh_storage_backend_config():
-    yield {
-        "cls": "memory",
-        "journal_writer": {
-            "cls": "memory",
-        },
-    }
-
-
 MASKED_SWHIDS = {
     StorageData.content.swhid().to_extended(),
     StorageData.directory.swhid().to_extended(),

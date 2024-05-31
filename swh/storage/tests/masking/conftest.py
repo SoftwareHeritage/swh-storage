@@ -9,6 +9,7 @@ import pytest
 from pytest_postgresql import factories
 
 from swh.core.db.db_utils import initialize_database_for_module
+from swh.storage.proxies.masking import MaskingProxyStorage
 from swh.storage.proxies.masking.db import MaskingAdmin, MaskingQuery
 
 masking_db_postgresql_proc = factories.postgresql_proc(
@@ -35,3 +36,20 @@ def masking_admin(masking_db_postgresql) -> MaskingAdmin:
 @pytest.fixture
 def masking_query(masking_db_postgresql) -> MaskingQuery:
     return MaskingQuery.connect(masking_db_postgresql.info.dsn)
+
+
+@pytest.fixture
+def swh_storage_backend_config():
+    yield {
+        "cls": "memory",
+        "journal_writer": {
+            "cls": "memory",
+        },
+    }
+
+
+@pytest.fixture
+def swh_storage(masking_db_postgresql, swh_storage_backend):
+    return MaskingProxyStorage(
+        masking_db=masking_db_postgresql.info.dsn, storage=swh_storage_backend
+    )

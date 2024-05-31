@@ -6,22 +6,35 @@
 from contextlib import contextmanager
 import functools
 import inspect
-from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Union
+import itertools
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    TypeVar,
+    Union,
+)
 
+import attr
 import psycopg2.pool
 
-from swh.core.api.classes import PagedResult
+from swh.core.utils import grouper
 from swh.model.hashutil import MultiHash
-from swh.model.model import Origin
+from swh.model.model import Origin, Person, Release, Revision, Sha1Git
 from swh.model.swhids import ExtendedObjectType, ExtendedSWHID
 from swh.storage import get_storage
 from swh.storage.exc import MaskedObjectException
-from swh.storage.interface import HashDict, Sha1, StorageInterface
+from swh.storage.interface import HashDict, PagedResult, Sha1, StorageInterface, TResult
 from swh.storage.metrics import DifferentialTimer
 from swh.storage.proxies.masking.db import MaskedStatus
 
 from .db import MaskingQuery
 
+BATCH_SIZE = 1024
 MASKING_OVERHEAD_METRIC = "swh_storage_masking_overhead_seconds"
 
 
@@ -192,7 +205,6 @@ class MaskingProxyStorage:
 
     def __getattr__(self, key):
         method = None
-
         if key in self._methods_by_name:
             method = self._methods_by_name[key](key)
         else:
@@ -233,7 +245,6 @@ class MaskingProxyStorage:
             "origin_get_by_sha1": self._getter_list,
             "content_find": self._getter_list,
             "skipped_content_find": self._getter_list,
-            "revision_log": self._getter_list,
             "revision_shortlog": self._getter_list,
             "extid_get_from_target": self._getter_list,
             "raw_extrinsic_metadata_get_by_ids": self._getter_list,
@@ -431,17 +442,19 @@ class MaskingProxyStorage:
         return newf
 
     def _raise_if_masked_result_in_list(
-        self, method_name: str, results: Iterable[Any]
-    ) -> None:
+        self, method_name: str, results: Iterable[TResult]
+    ) -> List[TResult]:
         """Raise a :exc:`MaskedObjectException` if any non-:const:`None` object
         in ``results`` is masked."""
         result_swhids = set()
+        results = list(results)
         for result in results:
             if result is not None:
                 result_swhids.update(self._get_swhids_in_result(method_name, result))
 
         if result_swhids:
             self._raise_if_masked_swhids(list(result_swhids))
+        return results
 
     def _getter_list(
         self,
@@ -481,3 +494,162 @@ class MaskingProxyStorage:
                 return results
 
         return newf
+
+    # Patching proxy feature set
+
+    TRevision = TypeVar("TRevision", Revision, Optional[Revision])
+
+    def _apply_revision_display_names(
+        self, revisions: List[TRevision]
+    ) -> List[TRevision]:
+        emails = set()
+        for rev in revisions:
+            if (
+                rev is not None
+                and rev.author is not None
+                and rev.author.email  # ignore None or empty email addresses
+            ):
+                emails.add(rev.author.email)
+            if (
+                rev is not None
+                and rev.committer is not None
+                and rev.committer.email  # ignore None or empty email addresses
+            ):
+                emails.add(rev.committer.email)
+
+        with self._masking_query() as q:
+            display_names = q.display_name(list(emails))
+
+        # Short path for the common case
+        if not display_names:
+            return revisions
+
+        persons: Dict[Optional[bytes], Person] = {
+            email: Person.from_fullname(display_name)
+            for (email, display_name) in display_names.items()
+        }
+
+        return [
+            None
+            if revision is None
+            else attr.evolve(
+                revision,
+                author=revision.author
+                if revision.author is None
+                else persons.get(revision.author.email, revision.author),
+                committer=revision.committer
+                if revision.committer is None
+                else persons.get(revision.committer.email, revision.committer),
+            )
+            for revision in revisions
+        ]
+
+    TRelease = TypeVar("TRelease", Release, Optional[Release])
+
+    def _apply_release_display_names(self, releases: List[TRelease]) -> List[TRelease]:
+        emails = set()
+        for rel in releases:
+            if (
+                rel is not None
+                and rel.author is not None
+                and rel.author.email  # ignore None or empty email addresses
+            ):
+                emails.add(rel.author.email)
+
+        with self._masking_query() as q:
+            display_names = q.display_name(list(emails))
+        # Short path for the common case
+        if not display_names:
+            return releases
+
+        persons: Dict[Optional[bytes], Person] = {
+            email: Person.from_fullname(display_name)
+            for (email, display_name) in display_names.items()
+        }
+
+        return [
+            None
+            if release is None
+            else attr.evolve(
+                release,
+                author=release.author
+                if release.author is None
+                else persons.get(release.author.email, release.author),
+            )
+            for release in releases
+        ]
+
+    def revision_get(
+        self, revision_ids: List[Sha1Git], ignore_displayname: bool = False
+    ) -> List[Optional[Revision]]:
+        revisions = self.storage.revision_get(revision_ids)
+        self._raise_if_masked_result_in_list("revision_get", revisions)
+        return self._apply_revision_display_names(revisions)
+
+    def revision_log(
+        self,
+        revisions: List[Sha1Git],
+        ignore_displayname: bool = False,
+        limit: Optional[int] = None,
+    ) -> Iterable[Optional[Dict[str, Any]]]:
+        revision_batches = grouper(
+            self.storage.revision_log(revisions, limit=limit), BATCH_SIZE
+        )
+        yield from map(
+            Revision.to_dict,
+            itertools.chain.from_iterable(
+                self._apply_revision_display_names(
+                    self._raise_if_masked_result_in_list(
+                        "revision_log", list(map(Revision.from_dict, revision_batch))
+                    )
+                )
+                for revision_batch in revision_batches
+            ),
+        )
+
+    def revision_get_partition(
+        self,
+        partition_id: int,
+        nb_partitions: int,
+        page_token: Optional[str] = None,
+        limit: int = 1000,
+    ) -> PagedResult[Revision]:
+        page: PagedResult[Revision] = self.storage.revision_get_partition(
+            partition_id, nb_partitions, page_token, limit
+        )
+        return PagedResult(
+            results=self._apply_revision_display_names(
+                self._raise_if_masked_result_in_list(
+                    "revision_get_parition", page.results
+                )
+            ),
+            next_page_token=page.next_page_token,
+        )
+
+    def release_get(
+        self, releases: List[Sha1Git], ignore_displayname: bool = False
+    ) -> List[Optional[Release]]:
+        return self._apply_release_display_names(
+            self._raise_if_masked_result_in_list(
+                "release_get", self.storage.release_get(releases)
+            )
+        )
+
+    def release_get_partition(
+        self,
+        partition_id: int,
+        nb_partitions: int,
+        page_token: Optional[str] = None,
+        limit: int = 1000,
+    ) -> PagedResult[Release]:
+        page = self.storage.release_get_partition(
+            partition_id, nb_partitions, page_token, limit
+        )
+        return PagedResult(
+            results=self._apply_release_display_names(
+                self._raise_if_masked_result_in_list(
+                    "release_get_partition", page.results
+                )
+            ),
+            next_page_token=page.next_page_token,
+        )

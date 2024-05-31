@@ -88,9 +88,20 @@ class MaskedObject:
     state = attr.ib(type=MaskedState)
 
 
+@attr.s
+class DisplayName:
+    """A request for masking a set of objects"""
+
+    original_email = attr.ib(type=bytes)
+    """Email on revision/release objects to match before applying the display name"""
+
+    display_name = attr.ib(type=bytes)
+    """Full name, usually of the form ``Name <email>``, used for display queries"""
+
+
 class MaskingDb(BaseDb):
     # we started with 192, because this used to be part of the main storage db
-    current_version = 193
+    current_version = 194
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -329,6 +340,20 @@ class MaskingAdmin(MaskingDb):
 
         return MaskingRequestHistory(request=request_id, date=res[0], message=message)
 
+    def set_display_name(self, original_email: bytes, display_name: bytes) -> None:
+        """Updates the display name of the person identified by the email address."""
+        cur = self.cursor()
+
+        cur.execute(
+            """
+            INSERT INTO display_name (original_email, display_name)
+            VALUES (%s, %s)
+            ON CONFLICT (original_email) DO UPDATE
+            SET display_name=EXCLUDED.display_name
+            """,
+            (original_email, display_name),
+        )
+
     def get_history(self, request_id: UUID) -> List[MaskingRequestHistory]:
         """Get the history of a given request.
 
@@ -404,6 +429,29 @@ class MaskingQuery(MaskingDb):
 
         if ret:
             statsd.increment(METRIC_MASKED_TOTAL, len(ret))
+        return ret
+
+    def display_name(self, original_emails: List[bytes]) -> Dict[bytes, bytes]:
+        """Returns the display name of the person identified by each ``original_email``,
+        if any.
+        """
+        cur = self.cursor()
+
+        ret: Dict[bytes, bytes] = {}
+
+        for original_email, display_name in psycopg2.extras.execute_values(
+            cur,
+            """
+            SELECT original_email, display_name
+            FROM display_name
+            INNER JOIN (VALUES %s) v(original_email)
+            USING (original_email)
+            """,
+            [(email,) for email in original_emails],
+            fetch=True,
+        ):
+            ret[original_email] = display_name
+
         return ret
 
     def iter_masked_swhids(self) -> Iterator[Tuple[ExtendedSWHID, List[MaskedStatus]]]:
