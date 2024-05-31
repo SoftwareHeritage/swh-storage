@@ -159,12 +159,28 @@ def format_blocked_state(state: "BlockingState") -> str:
 
 
 def read_origins(file: TextIO) -> List[str]:
+    import logging
     import re
 
-    filter_re = re.compile(r"^(#|$)")
-    return [
-        line.strip() for line in file.read().split("\n") if not filter_re.match(line)
-    ]
+    filter_re = re.compile(r"^#")
+    urls = []
+
+    for line in file.readlines():
+        line = line.strip()
+
+        if not line:
+            continue
+
+        if filter_re.match(line):
+            continue
+
+        if line.endswith("/"):
+            logging.getLogger(__name__).warning(
+                "URL pattern ends with /, will only be used for exact matching"
+            )
+
+        urls.append(line)
+    return urls
 
 
 @blocking_cli_group.command(name="update-objects")
