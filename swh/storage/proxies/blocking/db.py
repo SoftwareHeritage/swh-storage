@@ -99,6 +99,50 @@ class BlockingDb(BaseDb):
         self.conn.autocommit = True
 
 
+def get_urls_to_check(url: str) -> Tuple[List[str], List[str]]:
+    """Get the entries to check in the database for the given `url`, in order.
+
+    Exact matching is done on the following strings, in order:
+     - the url with any trailing slashes removed (the so-called "trimmed url");
+     - the url passed exactly;
+     - if the trimmed url ends with a dot and one of the
+       :const:`KNOWN_SUFFIXES`, the url with this suffix stripped.
+
+    The prefix matching is done by splitting the path part of the URL on
+    slashes, and successively removing the last elements.
+
+    Returns:
+      A tuple with a list of exact matches, and a list of prefix matches
+
+    """
+
+    # Generate exact strings to match against
+    exact_matches = [url]
+
+    if url.endswith("/"):
+        trimmed_url = url.rstrip("/")
+        exact_matches.insert(0, trimmed_url)
+    else:
+        trimmed_url = url
+
+    if "." in trimmed_url:
+        stripped_url, suffix = trimmed_url.rsplit(".", 1)
+        if suffix in KNOWN_SUFFIXES:
+            exact_matches.append(stripped_url)
+
+    # Generate prefixes to match against
+    parsed_url = urlparse(trimmed_url)
+    base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+
+    prefix_matches = []
+
+    split_path = parsed_url.path.lstrip("/").split("/")
+    for i in range(1, len(split_path) + 1):
+        prefix_matches.append("/".join([base_url] + split_path[: len(split_path) - i]))
+
+    return exact_matches, prefix_matches
+
+
 class BlockingAdmin(BlockingDb):
     def create_request(self, slug: str, reason: str) -> BlockingRequest:
         """Record a new blocking request
@@ -411,23 +455,11 @@ class BlockingQuery(BlockingDb):
         Log the blocking event in the database (log only a matching events).
         """
         logging.debug("url: %s", url)
-        cur = self.cursor()
         statsd.increment(METRIC_QUERY_TOTAL, 1)
 
-        # first look for an exact match on
-        # 1. the given URL
-        # 2. the trimmed URL (if trailing /)
-        # 3. the extension-less URL (if any)
-        checked_urls = [url]
-        if url.endswith("/"):
-            trimmed_url = url.rstrip("/")
-            checked_urls.insert(0, trimmed_url)
-        else:
-            trimmed_url = url
-        if trimmed_url.rsplit(".", 1)[-1] in KNOWN_SUFFIXES:
-            checked_urls.append(trimmed_url.rsplit(".", 1)[0])
-        logger.debug("Checked urls for exact match: %s", checked_urls)
+        exact_matches, prefix_matches = get_urls_to_check(url)
 
+        cur = self.cursor()
         psycopg2.extras.execute_values(
             cur,
             """
@@ -437,39 +469,9 @@ class BlockingQuery(BlockingDb):
             USING (url_match)
             ORDER BY char_length(url_match) DESC LIMIT 1
             """,
-            ((_url,) for _url in checked_urls),
+            ((_url,) for _url in exact_matches + prefix_matches),
         )
         row = cur.fetchone()
-        if not row:
-            # no exact match found, check for prefix matches on sub-path urls
-            checked_urls = []
-            parsed_url = urlparse(trimmed_url)
-            path = parsed_url.path
-            baseurl = f"{parsed_url.scheme}://{parsed_url.netloc}"
-            checked_urls.append(baseurl)
-            for path_element in path.split("/"):
-                if path_element:
-                    checked_urls.append(f"{checked_urls[-1]}/{path_element}")
-
-            logger.debug("Checked urls for prefix match: %s", checked_urls)
-            # the request below is a bit tricky; joining on something like
-            #    ON v.url LIKE blocked_origin.url_match || '/%%'
-            # works but prevent pg from using the btree index.
-            # This below should allow pg to use index. This trick (suggested by
-            # vlorentz) is to know that '0' is the next character after '/'.
-            psycopg2.extras.execute_values(
-                cur,
-                """
-                SELECT url_match, request, state
-                FROM blocked_origin
-                INNER JOIN (VALUES %s) v(url)
-                ON   v.url > blocked_origin.url_match || '/'
-                 AND v.url < blocked_origin.url_match || '0'
-                ORDER BY char_length(url_match) DESC LIMIT 1
-                """,
-                ((_url,) for _url in checked_urls),
-            )
-            row = cur.fetchone()
 
         if row:
             url_match, request_id, state = row

@@ -16,8 +16,77 @@ from swh.storage.proxies.blocking.db import (
     BlockingStatus,
     DuplicateRequest,
     RequestNotFound,
+    get_urls_to_check,
 )
 from swh.storage.tests.storage_data import StorageData
+
+
+@pytest.mark.parametrize(
+    "url,exact,prefix",
+    [
+        pytest.param(
+            "https://github.com/user1/test1.git",
+            [
+                "https://github.com/user1/test1.git",
+                "https://github.com/user1/test1",
+            ],
+            ["https://github.com/user1", "https://github.com"],
+            id="known-suffix-git",
+        ),
+        pytest.param(
+            "https://foss.heptapod.net/user1/test1.hg",
+            [
+                "https://foss.heptapod.net/user1/test1.hg",
+                "https://foss.heptapod.net/user1/test1",
+            ],
+            ["https://foss.heptapod.net/user1", "https://foss.heptapod.net"],
+            id="known-suffix-hg",
+        ),
+        pytest.param(
+            "svn+ssh://example.com/svnroot/users/user1/test1.svn",
+            [
+                "svn+ssh://example.com/svnroot/users/user1/test1.svn",
+                "svn+ssh://example.com/svnroot/users/user1/test1",
+            ],
+            [
+                "svn+ssh://example.com/svnroot/users/user1",
+                "svn+ssh://example.com/svnroot/users",
+                "svn+ssh://example.com/svnroot",
+                "svn+ssh://example.com",
+            ],
+            id="known-suffix-svn",
+        ),
+        pytest.param(
+            "https://github.com/user1/test1",
+            [
+                "https://github.com/user1/test1",
+            ],
+            ["https://github.com/user1", "https://github.com"],
+            id="bare",
+        ),
+        pytest.param(
+            "https://github.com/user1/test1/",
+            [
+                "https://github.com/user1/test1",
+                "https://github.com/user1/test1/",
+            ],
+            ["https://github.com/user1", "https://github.com"],
+            id="slash",
+        ),
+        pytest.param(
+            "https://github.com/user1/test1.git/",
+            [
+                "https://github.com/user1/test1.git",
+                "https://github.com/user1/test1.git/",
+                "https://github.com/user1/test1",
+            ],
+            ["https://github.com/user1", "https://github.com"],
+            id="slash-suffix",
+        ),
+    ],
+)
+def test_get_urls_to_check(url, exact, prefix):
+    assert get_urls_to_check(url) == (exact, prefix)
 
 
 def test_db_version(blocking_admin: BlockingAdmin):
