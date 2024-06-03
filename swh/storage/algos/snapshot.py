@@ -54,6 +54,7 @@ def snapshot_get_latest(
     origin: str,
     allowed_statuses: Optional[List[str]] = None,
     branches_count: Optional[int] = None,
+    visit_type: Optional[str] = None,
 ) -> Optional[Snapshot]:
     """Get the latest snapshot for the given origin, optionally only from visits that have
     one of the given allowed_statuses.
@@ -71,6 +72,8 @@ def snapshot_get_latest(
         branches_count: Optional parameter to retrieve snapshot with all branches
             (default behavior when None) or not. If set to positive number, the snapshot
             will be partial with only that number of branches.
+        visit_type: Optional parameter to retrieve snapshot produced by a specific
+            visit type
 
     Raises:
         ValueError if branches_count is not a positive value
@@ -84,6 +87,7 @@ def snapshot_get_latest(
         origin,
         allowed_statuses=allowed_statuses,
         require_snapshot=True,
+        type=visit_type,
     )
     if not visit_status:
         return None

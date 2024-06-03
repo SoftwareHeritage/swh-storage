@@ -178,6 +178,60 @@ def test_snapshot_get_latest(swh_storage, sample_data):
         snapshot_get_latest(swh_storage, origin.url, branches_count="something-wrong")
 
 
+def test_snapshot_get_latest_for_visit_type(swh_storage, sample_data):
+    origin = sample_data.origin
+    swh_storage.origin_add(sample_data.origins)
+
+    visit1, visit2 = sample_data.origin_visits[:2]
+    visit1 = visit1.evolve(type="git")
+    visit2 = visit2.evolve(type="git-checkout")
+    assert visit1.origin == visit2.origin == origin.url
+
+    ov1, ov2 = swh_storage.origin_visit_add([visit1, visit2])
+
+    simple_snapshot = sample_data.snapshots[0]
+    complete_snapshot = sample_data.snapshots[2]
+    swh_storage.snapshot_add([simple_snapshot, complete_snapshot])
+
+    swh_storage.origin_visit_status_add(
+        [
+            OriginVisitStatus(
+                origin=origin.url,
+                visit=ov1.visit,
+                date=visit1.date,
+                status="full",
+                snapshot=complete_snapshot.id,
+            )
+        ]
+    )
+
+    swh_storage.origin_visit_status_add(
+        [
+            OriginVisitStatus(
+                origin=origin.url,
+                visit=ov2.visit,
+                date=visit2.date,
+                status="full",
+                snapshot=simple_snapshot.id,
+            )
+        ]
+    )
+
+    git_snapshot = snapshot_get_latest(
+        swh_storage,
+        origin.url,
+        visit_type="git",
+    )
+    assert git_snapshot == complete_snapshot
+
+    git_checkout_snapshot = snapshot_get_latest(
+        swh_storage,
+        origin.url,
+        visit_type="git-checkout",
+    )
+    assert git_checkout_snapshot == simple_snapshot
+
+
 def test_snapshot_id_get_from_revision(swh_storage, sample_data):
     origin = sample_data.origin
     swh_storage.origin_add([origin])
