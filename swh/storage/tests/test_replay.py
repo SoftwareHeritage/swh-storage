@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2020 The Software Heritage developers
+# Copyright (C) 2019-2024 The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -17,7 +17,7 @@ from swh.journal.client import JournalClient
 from swh.journal.serializers import kafka_to_value, key_to_kafka, value_to_kafka
 from swh.journal.writer import JournalWriterInterface
 from swh.model.hashutil import MultiHash, hash_to_bytes, hash_to_hex
-from swh.model.model import Revision, RevisionType
+from swh.model.model import ModelObjectType, Revision, RevisionType
 from swh.model.tests.swh_model_data import (
     COMMITTERS,
     DATES,
@@ -36,7 +36,9 @@ UTC = datetime.timezone.utc
 
 TEST_OBJECTS = _TEST_OBJECTS.copy()
 # add a revision with metadata to check this later is dropped while being replayed
-TEST_OBJECTS["revision"] = list(_TEST_OBJECTS["revision"]) + [
+TEST_OBJECTS[ModelObjectType.REVISION] = list(
+    _TEST_OBJECTS[ModelObjectType.REVISION]
+) + [
     Revision(
         id=hash_to_bytes("51d9d94ab08d3f75512e3a9fd15132e0a7ca7928"),
         message=b"hello again",
@@ -110,7 +112,7 @@ def test_storage_replayer(replayer_storage_and_client, caplog, buffered):
     # Fill Kafka using a source storage
     nb_sent = 0
     for object_type, objects in TEST_OBJECTS.items():
-        method = getattr(src, object_type + "_add")
+        method = getattr(src, f"{object_type}_add")
         method(objects)
         nb_sent += len(objects)
     src.journal_writer.journal.flush()
@@ -159,7 +161,7 @@ def test_storage_replay_with_collision(
     # Fill Kafka using a source storage
     nb_sent = 0
     for object_type, objects in TEST_OBJECTS.items():
-        method = getattr(src, object_type + "_add")
+        method = getattr(src, f"{object_type}_add")
         method(objects)
         nb_sent += len(objects)
     journal.flush()
@@ -368,10 +370,13 @@ def test_storage_replay_anonymized(
     # Fill the src storage
     nb_sent = 0
     for obj_type, objs in TEST_OBJECTS.items():
-        if obj_type in ("origin_visit", "origin_visit_status"):
+        if obj_type in (
+            ModelObjectType.ORIGIN_VISIT,
+            ModelObjectType.ORIGIN_VISIT_STATUS,
+        ):
             # these are unrelated with what we want to test here
             continue
-        method = getattr(storage, obj_type + "_add")
+        method = getattr(storage, f"{obj_type}_add")
         method(objs)
         nb_sent += len(objs)
     journal: JournalWriterInterface = storage.journal_writer.journal  # type:ignore
@@ -422,7 +427,7 @@ def test_storage_replayer_with_validation_ok(
     # Fill Kafka using a source storage
     nb_sent = 0
     for object_type, objects in TEST_OBJECTS.items():
-        method = getattr(src, object_type + "_add")
+        method = getattr(src, f"{object_type}_add")
         method(objects)
         nb_sent += len(objects)
     src.journal_writer.journal.flush()
@@ -467,13 +472,18 @@ def test_storage_replayer_with_validation_nok(
     # Fill Kafka using a source storage
     nb_sent = 0
     for object_type, objects in TEST_OBJECTS.items():
-        method = getattr(src, object_type + "_add")
+        method = getattr(src, f"{object_type}_add")
         method(objects)
         nb_sent += len(objects)
 
     # insert invalid objects
-    for object_type in ("revision", "directory", "release", "snapshot"):
-        method = getattr(src, object_type + "_add")
+    for object_type in (
+        ModelObjectType.REVISION,
+        ModelObjectType.DIRECTORY,
+        ModelObjectType.RELEASE,
+        ModelObjectType.SNAPSHOT,
+    ):
+        method = getattr(src, f"{object_type}_add")
         method([attr.evolve(TEST_OBJECTS[object_type][0], id=b"\x00" * 20)])
         nb_sent += 1
     # also add an object that won't even be possible to instantiate; this needs
@@ -482,7 +492,7 @@ def test_storage_replayer_with_validation_nok(
     # we use directory[1] because it actually have some entries
     dict_repr = {
         # copy each dir entry twice
-        "entries": TEST_OBJECTS["directory"][1].to_dict()["entries"] * 2,
+        "entries": TEST_OBJECTS[ModelObjectType.DIRECTORY][1].to_dict()["entries"] * 2,
         "id": b"\x01" * 20,
     }
     topic = f"{src.journal_writer.journal._prefix}.directory"
@@ -528,22 +538,30 @@ def test_storage_replayer_with_validation_nok(
 
     # check that valid objects did reach the dst storage
     # revisions
-    expected = [attr.evolve(rev, metadata=None) for rev in TEST_OBJECTS["revision"]]
-    result = dst.revision_get([obj.id for obj in TEST_OBJECTS["revision"]])
+    expected = [
+        attr.evolve(rev, metadata=None)
+        for rev in TEST_OBJECTS[ModelObjectType.REVISION]
+    ]
+    result = dst.revision_get(
+        [obj.id for obj in TEST_OBJECTS[ModelObjectType.REVISION]]
+    )
     assert result == expected
     # releases
-    expected = TEST_OBJECTS["release"]
-    result = dst.release_get([obj.id for obj in TEST_OBJECTS["release"]])
+    expected = TEST_OBJECTS[ModelObjectType.RELEASE]
+    result = dst.release_get([obj.id for obj in TEST_OBJECTS[ModelObjectType.RELEASE]])
     assert result == expected
     # snapshot
     # result from snapshot_get is paginated, so adapt the expected to be comparable
     expected = [
-        {"next_branch": None, **obj.to_dict()} for obj in TEST_OBJECTS["snapshot"]
+        {"next_branch": None, **obj.to_dict()}
+        for obj in TEST_OBJECTS[ModelObjectType.SNAPSHOT]
     ]
-    result = [dst.snapshot_get(obj.id) for obj in TEST_OBJECTS["snapshot"]]
+    result = [
+        dst.snapshot_get(obj.id) for obj in TEST_OBJECTS[ModelObjectType.SNAPSHOT]
+    ]
     assert result == expected
     # directories
-    for directory in TEST_OBJECTS["directory"]:
+    for directory in TEST_OBJECTS[ModelObjectType.DIRECTORY]:
         assert set(dst.directory_get_entries(directory.id).results) == set(
             directory.entries
         )
@@ -570,16 +588,21 @@ def test_storage_replayer_with_validation_nok_with_exceptions(
     # Fill Kafka using a source storage
     nb_sent = 0
     for object_type, objects in TEST_OBJECTS.items():
-        method = getattr(src, object_type + "_add")
+        method = getattr(src, f"{object_type}_add")
         method(objects)
         nb_sent += len(objects)
 
     # insert invalid objects
     known_invalid = []
     all_objs = {}
-    for object_type in ("revision", "directory", "release", "snapshot"):
+    for object_type in (
+        ModelObjectType.REVISION,
+        ModelObjectType.DIRECTORY,
+        ModelObjectType.RELEASE,
+        ModelObjectType.SNAPSHOT,
+    ):
         all_objs[object_type] = TEST_OBJECTS[object_type][:]
-        method = getattr(src, object_type + "_add")
+        method = getattr(src, f"{object_type}_add")
         invalid_obj = attr.evolve(TEST_OBJECTS[object_type][0], id=b"\x00" * 20)
         method([invalid_obj])
         nb_sent += 1
@@ -654,13 +677,18 @@ def test_storage_replayer_with_validation_nok_raises(
     # Fill Kafka using a source storage
     nb_sent = 0
     for object_type, objects in TEST_OBJECTS.items():
-        method = getattr(src, object_type + "_add")
+        method = getattr(src, f"{object_type}_add")
         method(objects)
         nb_sent += len(objects)
 
     # insert invalid objects
-    for object_type in ("revision", "directory", "release", "snapshot"):
-        method = getattr(src, object_type + "_add")
+    for object_type in (
+        ModelObjectType.REVISION,
+        ModelObjectType.DIRECTORY,
+        ModelObjectType.RELEASE,
+        ModelObjectType.SNAPSHOT,
+    ):
+        method = getattr(src, f"{object_type}_add")
         method([attr.evolve(TEST_OBJECTS[object_type][0], id=b"\x00" * 20)])
         nb_sent += 1
 

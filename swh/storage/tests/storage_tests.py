@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2023  The Software Heritage developers
+# Copyright (C) 2015-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -27,6 +27,7 @@ from swh.model.model import (
     Directory,
     DirectoryEntry,
     ExtID,
+    ModelObjectType,
     Origin,
     OriginVisit,
     OriginVisitStatus,
@@ -6439,7 +6440,7 @@ class TestStorageGeneratedData:
         random.shuffle(objects)
 
         for obj_type, obj in objects:
-            if obj.object_type == "origin_visit":
+            if obj_type == ModelObjectType.ORIGIN_VISIT:
                 swh_storage.origin_add([Origin(url=obj.origin)])
                 visit = OriginVisit(
                     origin=obj.origin,
@@ -6447,12 +6448,12 @@ class TestStorageGeneratedData:
                     type=obj.type,
                 )
                 swh_storage.origin_visit_add([visit])
-            elif obj.object_type == "raw_extrinsic_metadata":
+            elif obj_type == ModelObjectType.RAW_EXTRINSIC_METADATA:
                 swh_storage.metadata_authority_add([obj.authority])
                 swh_storage.metadata_fetcher_add([obj.fetcher])
                 swh_storage.raw_extrinsic_metadata_add([obj])
             else:
-                method = getattr(swh_storage, obj_type + "_add")
+                method = getattr(swh_storage, f"{obj_type}_add")
                 try:
                     method([obj])
                 except HashCollision:

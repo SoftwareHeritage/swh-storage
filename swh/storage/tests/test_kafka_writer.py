@@ -1,4 +1,4 @@
-# Copyright (C) 2018-2020 The Software Heritage developers
+# Copyright (C) 2018-2024 The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -12,7 +12,7 @@ from hypothesis.strategies import lists
 
 from swh.journal.pytest_plugin import assert_all_objects_consumed, consume_messages
 from swh.model.hypothesis_strategies import objects
-from swh.model.model import Person
+from swh.model.model import ModelObjectType, Person
 from swh.model.tests.swh_model_data import TEST_OBJECTS
 from swh.storage import get_storage
 
@@ -33,27 +33,29 @@ def test_storage_direct_writer(kafka_prefix: str, kafka_server, consumer: Consum
         ],
     }
 
+    object_types = (
+        ModelObjectType.CONTENT,
+        ModelObjectType.SKIPPED_CONTENT,
+        ModelObjectType.DIRECTORY,
+        ModelObjectType.EXTID,
+        ModelObjectType.METADATA_AUTHORITY,
+        ModelObjectType.METADATA_FETCHER,
+        ModelObjectType.REVISION,
+        ModelObjectType.RELEASE,
+        ModelObjectType.SNAPSHOT,
+        ModelObjectType.ORIGIN,
+        ModelObjectType.ORIGIN_VISIT,
+        ModelObjectType.ORIGIN_VISIT_STATUS,
+        ModelObjectType.RAW_EXTRINSIC_METADATA,
+    )
+
     storage = get_storage(**storage_config)
 
     expected_messages = 0
 
     for obj_type, objs in TEST_OBJECTS.items():
-        method = getattr(storage, obj_type + "_add")
-        if obj_type in (
-            "content",
-            "skipped_content",
-            "directory",
-            "extid",
-            "metadata_authority",
-            "metadata_fetcher",
-            "revision",
-            "release",
-            "snapshot",
-            "origin",
-            "origin_visit",
-            "origin_visit_status",
-            "raw_extrinsic_metadata",
-        ):
+        method = getattr(storage, f"{obj_type}_add")
+        if obj_type in object_types:
             method(objs)
             expected_messages += len(objs)
         else:
@@ -66,22 +68,7 @@ def test_storage_direct_writer(kafka_prefix: str, kafka_server, consumer: Consum
         if topic.startswith(f"{kafka_prefix}.")  # final . to exclude privileged topics
     )
     assert existing_topics == {
-        f"{kafka_prefix}.{obj_type}"
-        for obj_type in (
-            "content",
-            "directory",
-            "extid",
-            "metadata_authority",
-            "metadata_fetcher",
-            "origin",
-            "origin_visit",
-            "origin_visit_status",
-            "raw_extrinsic_metadata",
-            "release",
-            "revision",
-            "snapshot",
-            "skipped_content",
-        )
+        f"{kafka_prefix}.{obj_type}" for obj_type in object_types
     }
 
     consumed_messages = consume_messages(consumer, kafka_prefix, expected_messages)
@@ -111,11 +98,11 @@ def test_storage_direct_writer_anonymized(
     expected_messages = 0
 
     for obj_type, objs in TEST_OBJECTS.items():
-        if obj_type == "origin_visit":
+        if obj_type == ModelObjectType.ORIGIN_VISIT:
             # these have non-consistent API and are unrelated with what we
             # want to test here
             continue
-        method = getattr(storage, obj_type + "_add")
+        method = getattr(storage, f"{obj_type}_add")
         method(objs)
         expected_messages += len(objs)
     storage.journal_writer.journal.flush()  # type: ignore[attr-defined]

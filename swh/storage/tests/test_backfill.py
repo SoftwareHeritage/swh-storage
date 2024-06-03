@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2022 The Software Heritage developers
+# Copyright (C) 2019-2024 The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -372,7 +372,7 @@ def test_backfiller(
     storage = get_storage(**swh_storage_backend_config)
     # fill the storage and the journal (under prefix1)
     for object_type, objects in TEST_OBJECTS.items():
-        method = getattr(storage, object_type + "_add")
+        method = getattr(storage, f"{object_type}_add")
         method(objects)
     storage.journal_writer.journal.flush()  # type: ignore[attr-defined]
 

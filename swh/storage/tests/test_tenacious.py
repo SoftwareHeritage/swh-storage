@@ -10,7 +10,7 @@ from unittest.mock import patch
 import attr
 import pytest
 
-from swh.model import model
+from swh.model.model import Content, ModelObjectType, SkippedContent
 from swh.model.tests.swh_model_data import TEST_OBJECTS
 from swh.storage import get_storage
 from swh.storage.in_memory import InMemoryStorage
@@ -144,9 +144,9 @@ testdata = [
     pytest.param(
         "content",
         "content_add",
-        list(TEST_OBJECTS["content"]),
-        attr.evolve(model.Content.from_data(data=b"too big"), length=1000),
-        attr.evolve(model.Content.from_data(data=b"to fail"), length=1000),
+        list(TEST_OBJECTS[ModelObjectType.CONTENT]),
+        attr.evolve(Content.from_data(data=b"too big"), length=1000),
+        attr.evolve(Content.from_data(data=b"to fail"), length=1000),
         id="content",
     ),
     pytest.param(
@@ -154,23 +154,23 @@ testdata = [
         "content_add_metadata",
         [
             attr.evolve(cnt, ctime=now())
-            for cnt in TEST_OBJECTS["content"]
-            if isinstance(cnt, model.Content)  # to keep mypy happy
+            for cnt in TEST_OBJECTS[ModelObjectType.CONTENT]
+            if isinstance(cnt, Content)  # to keep mypy happy
         ],
-        attr.evolve(model.Content.from_data(data=b"too big"), length=1000, ctime=now()),
-        attr.evolve(model.Content.from_data(data=b"to fail"), length=1000, ctime=now()),
+        attr.evolve(Content.from_data(data=b"too big"), length=1000, ctime=now()),
+        attr.evolve(Content.from_data(data=b"to fail"), length=1000, ctime=now()),
         id="content_metadata",
     ),
     pytest.param(
         "skipped_content",
         "skipped_content_add",
-        list(TEST_OBJECTS["skipped_content"]),
+        list(TEST_OBJECTS[ModelObjectType.SKIPPED_CONTENT]),
         attr.evolve(
-            model.SkippedContent.from_data(data=b"too big", reason="too big"),
+            SkippedContent.from_data(data=b"too big", reason="too big"),
             length=1000,
         ),
         attr.evolve(
-            model.SkippedContent.from_data(data=b"to fail", reason="to fail"),
+            SkippedContent.from_data(data=b"to fail", reason="to fail"),
             length=1000,
         ),
         id="skipped_content",
@@ -178,7 +178,7 @@ testdata = [
     pytest.param(
         "directory",
         "directory_add",
-        list(TEST_OBJECTS["directory"]),
+        list(TEST_OBJECTS[ModelObjectType.DIRECTORY]),
         data.directory,
         data.directory2,
         id="directory",
@@ -186,7 +186,7 @@ testdata = [
     pytest.param(
         "revision",
         "revision_add",
-        list(TEST_OBJECTS["revision"]),
+        list(TEST_OBJECTS[ModelObjectType.REVISION]),
         data.revision,
         data.revision2,
         id="revision",
@@ -194,7 +194,7 @@ testdata = [
     pytest.param(
         "release",
         "release_add",
-        list(TEST_OBJECTS["release"]),
+        list(TEST_OBJECTS[ModelObjectType.RELEASE]),
         data.release,
         data.release2,
         id="release",
@@ -202,7 +202,7 @@ testdata = [
     pytest.param(
         "snapshot",
         "snapshot_add",
-        list(TEST_OBJECTS["snapshot"]),
+        list(TEST_OBJECTS[ModelObjectType.SNAPSHOT]),
         data.snapshot,
         data.complete_snapshot,
         id="snapshot",
@@ -210,7 +210,7 @@ testdata = [
     pytest.param(
         "origin",
         "origin_add",
-        list(TEST_OBJECTS["origin"]),
+        list(TEST_OBJECTS[ModelObjectType.ORIGIN]),
         data.origin,
         data.origin2,
         id="origin",

@@ -6,7 +6,7 @@ pytest-mock
 # the dep on swh.model in the main requirements-swh.txt file shadows this one
 # adding the [testing] extra.
 swh.core[testing] >= 3.0.0
-swh.model[testing] >= 6.13.0
+swh.model[testing] >= 6.14.0
 pytz
 pytest-postgresql
 pytest-redis
