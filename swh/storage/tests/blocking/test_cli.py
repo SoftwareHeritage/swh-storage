@@ -66,7 +66,9 @@ def test_cli_db_create(postgresql):
 
 @pytest.fixture
 def blocking_admin_config(blocking_db_postgresql):
-    return {"blocking_admin": {"blocking_db": blocking_db_postgresql.info.dsn}}
+    return {
+        "blocking_admin": {"cls": "postgresql", "db": blocking_db_postgresql.info.dsn}
+    }
 
 
 def test_blocking_admin_not_defined():

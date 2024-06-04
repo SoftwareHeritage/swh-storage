@@ -4,6 +4,7 @@
 # See top-level LICENSE file for more information
 
 from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Optional, TextIO
+import warnings
 
 import click
 
@@ -37,16 +38,24 @@ def masking_cli_group(ctx: click.Context) -> click.Context:
           …
         \b
         masking_admin:
-          masking_db: "service=swh-masking-admin"
+          cls: postgresql
+          db: "service=swh-masking-admin"
     """
 
-    if (
-        "masking_admin" not in ctx.obj["config"]
-        or "masking_db" not in ctx.obj["config"]["masking_admin"]
+    if "masking_admin" not in ctx.obj["config"] or (
+        "masking_db" not in ctx.obj["config"]["masking_admin"]
+        and "db" not in ctx.obj["config"]["masking_admin"]
     ):
         ctx.fail(
-            "You must have a masking_admin, with a masking_db entry, "
+            "You must have a masking_admin, with a db entry, "
             "configured in your config file."
+        )
+
+    if "masking_db" in ctx.obj["config"]["masking_admin"]:
+        warnings.warn(
+            "Please use the db field for the masking admin configuration, which "
+            "makes it compatible with the `swh db` command-line utilities",
+            DeprecationWarning,
         )
 
     from psycopg2 import OperationalError
@@ -54,9 +63,15 @@ def masking_cli_group(ctx: click.Context) -> click.Context:
     from .db import MaskingAdmin
 
     try:
-        ctx.obj["masking_admin"] = MaskingAdmin.connect(
-            ctx.obj["config"]["masking_admin"]["masking_db"]
-        )
+        db = None
+        for key in ("db", "masking_db"):
+            db = ctx.obj["config"]["masking_admin"].get(key)
+            if db:
+                break
+        if not db:
+            assert False, "Existence of config entries has been checked earlier"
+
+        ctx.obj["masking_admin"] = MaskingAdmin.connect(db)
     except OperationalError as ex:
         raise click.ClickException(str(ex))
 

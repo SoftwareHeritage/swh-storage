@@ -4,6 +4,7 @@
 # See top-level LICENSE file for more information
 
 from typing import TYPE_CHECKING, Iterator, List, Optional, TextIO
+import warnings
 
 import click
 
@@ -27,16 +28,24 @@ def blocking_cli_group(ctx: click.Context) -> click.Context:
           …
         \b
         blocking_admin:
-          blocking_db: "service=swh-blocking-admin"
+          cls: postgresql
+          db: "service=swh-blocking-admin"
     """
 
-    if (
-        "blocking_admin" not in ctx.obj["config"]
-        or "blocking_db" not in ctx.obj["config"]["blocking_admin"]
+    if "blocking_admin" not in ctx.obj["config"] or (
+        "blocking_db" not in ctx.obj["config"]["blocking_admin"]
+        and "db" not in ctx.obj["config"]["blocking_admin"]
     ):
         ctx.fail(
-            "You must have a blocking_admin section, with a blocking_db entry, "
+            "You must have a blocking_admin section, with a db entry, "
             "configured in your config file."
+        )
+
+    if "blocking_db" in ctx.obj["config"]["blocking_admin"]:
+        warnings.warn(
+            "Please use the db field for the blocking admin configuration, which "
+            "makes it compatible with the `swh db` command-line utilities",
+            DeprecationWarning,
         )
 
     from psycopg2 import OperationalError
@@ -44,9 +53,16 @@ def blocking_cli_group(ctx: click.Context) -> click.Context:
     from .db import BlockingAdmin
 
     try:
-        ctx.obj["blocking_admin"] = BlockingAdmin.connect(
-            ctx.obj["config"]["blocking_admin"]["blocking_db"]
-        )
+        db = None
+        for key in ("db", "blocking_db"):
+            db = ctx.obj["config"]["blocking_admin"].get(key)
+            if db:
+                break
+        if not db:
+            assert False, "Existence of config entries has been checked earlier"
+
+        ctx.obj["blocking_admin"] = BlockingAdmin.connect(db)
+
     except OperationalError as ex:
         raise click.ClickException(str(ex))
 

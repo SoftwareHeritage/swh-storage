@@ -66,7 +66,9 @@ def test_cli_db_create(postgresql):
 
 @pytest.fixture
 def masking_admin_config(masking_db_postgresql):
-    return {"masking_admin": {"masking_db": masking_db_postgresql.info.dsn}}
+    return {
+        "masking_admin": {"cls": "postgresql", "db": masking_db_postgresql.info.dsn}
+    }
 
 
 def test_masking_admin_not_defined():
