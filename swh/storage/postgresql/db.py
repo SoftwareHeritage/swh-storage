@@ -1987,38 +1987,27 @@ class Db(BaseDb):
                 WHERE origin.id IN (SELECT id FROM origins_to_remove)"""
         )
         result["origin:delete"] = cur.rowcount
-        # We need to remove lines from both `snapshot_branches`
-        # and `snapshot_branch`.
+        # We must not remove entries for snapshot_branch, they are shared across
+        # multiple snapshots, and we don't keep a reverse index (to know if the
+        # shared branches are still used by another snapshot).
         cur.execute(
             """CREATE TEMPORARY TABLE snapshots_to_remove
                   ON COMMIT DROP
                   AS
-                    SELECT object_id AS snapshot_id
+                    SELECT object_id
                       FROM snapshot s
                      INNER JOIN objects_to_remove otr
                         ON s.id = otr.id AND otr.type = 'snapshot'"""
         )
         cur.execute(
-            """CREATE TEMPORARY TABLE snapshot_branches_to_remove
-                 ON COMMIT DROP
-                 AS
-                    SELECT branch_id
-                      FROM snapshot_branches sb
-                     WHERE sb.snapshot_id IN (SELECT snapshot_id FROM snapshots_to_remove)"""
-        )
-        cur.execute(
             """DELETE FROM snapshot_branches
-                WHERE snapshot_branches.branch_id IN
-                  (SELECT branch_id FROM snapshot_branches_to_remove)"""
-        )
-        cur.execute(
-            """DELETE FROM snapshot_branch
-                WHERE snapshot_branch.object_id IN
-                  (SELECT branch_id FROM snapshot_branches_to_remove)"""
+                WHERE snapshot_branches.snapshot_id IN
+                  (SELECT object_id FROM snapshots_to_remove)"""
         )
         cur.execute(
             """DELETE FROM snapshot
-                WHERE snapshot.object_id IN (SELECT snapshot_id FROM snapshots_to_remove)"""
+                WHERE snapshot.object_id IN (SELECT object_id
+                                               FROM snapshots_to_remove)"""
         )
         result["snapshot:delete"] = cur.rowcount
         cur.execute(

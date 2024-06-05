@@ -14,8 +14,9 @@ import attr
 import pytest
 
 from swh.model import from_disk
-from swh.model.model import Directory, ExtID, Person
+from swh.model.model import Directory, ExtID, Person, Snapshot
 from swh.model.swhids import CoreSWHID, ObjectType
+from swh.storage.algos.snapshot import snapshot_get_all_branches
 from swh.storage.tests.storage_tests import TestStorage as _TestStorage
 from swh.storage.tests.storage_tests import TestStorageGeneratedData  # noqa
 from swh.storage.utils import now
@@ -489,7 +490,8 @@ class TestPgStorage:
             "origin_visit",
             "origin_visit_status",
             "snapshot",
-            "snapshot_branch",
+            # `snapshot_branch` is left out, we leave stale data there by
+            # design.
             "snapshot_branches",
             "release",
             "revision",
@@ -592,3 +594,48 @@ class TestPgStorage:
             [sample_data.hg_revision.swhid(), sample_data.directory.swhid()]
         )
         assert result == {"extid:delete": 2}
+
+    def test_delete_snapshot_common_branches(self, swh_storage):
+        common_branches = {
+            b"branch1": {"target": bytes(20), "target_type": "revision"},
+            b"branch2": {"target": bytes(20), "target_type": "release"},
+        }
+
+        snapshot1 = Snapshot.from_dict(
+            {
+                "branches": {
+                    **common_branches,
+                }
+            }
+        )
+        snapshot2 = Snapshot.from_dict(
+            {
+                "branches": {
+                    **common_branches,
+                    b"branch3": {"target": bytes(20), "target_type": "content"},
+                }
+            }
+        )
+
+        swh_storage.snapshot_add([snapshot1, snapshot2])
+
+        assert snapshot1 == snapshot_get_all_branches(swh_storage, snapshot1.id)
+        assert snapshot2 == snapshot_get_all_branches(swh_storage, snapshot2.id)
+
+        result = swh_storage.object_delete([snapshot2.swhid().to_extended()])
+
+        assert result == {
+            "content:delete": 0,
+            "content:delete:bytes": 0,
+            "skipped_content:delete": 0,
+            "directory:delete": 0,
+            "release:delete": 0,
+            "revision:delete": 0,
+            "snapshot:delete": 1,
+            "origin:delete": 0,
+            "origin_visit:delete": 0,
+            "origin_visit_status:delete": 0,
+        }
+
+        assert snapshot1 == snapshot_get_all_branches(swh_storage, snapshot1.id)
+        assert snapshot_get_all_branches(swh_storage, snapshot2.id) is None
