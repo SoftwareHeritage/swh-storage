@@ -6,6 +6,7 @@
 from functools import partial
 import logging
 from typing import Dict, Iterable, Mapping, Sequence, Tuple, cast
+import warnings
 
 from typing_extensions import Literal
 
@@ -157,6 +158,33 @@ class BufferingProxyStorage:
         self._sizes: Dict[LObjectType, int] = {k: 0 for k in OBJECT_TYPES}
         self._directory_entries: int = 0
         self._revision_parents: int = 0
+
+    def __del__(self):
+        if not hasattr(self, "_sizes"):
+            return
+
+        leftovers = False
+        for object_type in OBJECT_TYPES:
+            if self._sizes[object_type] != 0:
+                leftovers = True
+                break
+
+        if not leftovers:
+            return
+
+        # Attempts to flush nonetheless to minimize data loss
+        flush_failed = False
+        try:
+            self.flush()
+        except Exception:
+            flush_failed = True
+
+        warnings.warn(
+            "Some objects were still present in the memory of the buffering "
+            "proxy during shutdown. "
+            f"{'**They are now probably lost!** ' if flush_failed else ''}"
+            "A call to `storage.flush()` is probably missing."
+        )
 
     def __getattr__(self, key: str):
         if key.endswith("_add"):

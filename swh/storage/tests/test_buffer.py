@@ -7,6 +7,8 @@ from collections import Counter
 from typing import Optional
 from unittest.mock import Mock
 
+import pytest
+
 from swh.storage import get_storage
 from swh.storage.proxies.buffer import (
     BufferingProxyStorage,
@@ -831,3 +833,25 @@ def test_buffer_empty_batches() -> None:
     storage.flush()
     methods_called = {c[0] for c in mocked_storage.method_calls}
     assert methods_called == {"flush", "clear_buffers"}
+
+
+def test_buffer_warning_when_flush_is_missing_flush_ok(sample_data) -> None:
+    storage = get_storage_with_buffer_config()
+    storage.content_add(sample_data.contents)
+    # storage.flush() is intentionally missing
+
+    with pytest.warns(UserWarning, match="during shutdown. A call"):
+        del storage
+
+
+def test_buffer_warning_when_flush_is_missing_flush_fails(mocker, sample_data) -> None:
+    storage = get_storage_with_buffer_config()
+    storage.content_add(sample_data.contents)
+    # storage.flush() is intentionally missing
+
+    # Make underlying flush() on the underlying storage crash
+    # to test if we get the right warning.
+    mocker.patch.object(storage.storage, "flush", side_effect=RuntimeError("KO"))
+
+    with pytest.warns(UserWarning, match="They are now probably lost"):
+        del storage
