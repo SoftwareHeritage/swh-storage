@@ -1249,7 +1249,7 @@ class CassandraStorage:
     # Origin
     ##########################
 
-    def origin_get(self, origins: List[str]) -> Iterable[Optional[Origin]]:
+    def origin_get(self, origins: List[str]) -> List[Optional[Origin]]:
         return [self.origin_get_one(origin) for origin in origins]
 
     def origin_get_one(self, origin_url: str) -> Optional[Origin]:

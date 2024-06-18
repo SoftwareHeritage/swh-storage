@@ -1683,7 +1683,7 @@ class Storage:
     @db_transaction(statement_timeout=1000)
     def origin_get(
         self, origins: List[str], *, db: Db, cur=None
-    ) -> Iterable[Optional[Origin]]:
+    ) -> List[Optional[Origin]]:
         rows = db.origin_get_by_url(origins, cur)
         result: List[Optional[Origin]] = []
         for row in rows:

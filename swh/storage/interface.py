@@ -1331,7 +1331,7 @@ class StorageInterface(Protocol):
     ##########################
 
     @remote_api_endpoint("origin/get")
-    def origin_get(self, origins: List[str]) -> Iterable[Optional[Origin]]:
+    def origin_get(self, origins: List[str]) -> List[Optional[Origin]]:
         """Return origins.
 
         Args:
