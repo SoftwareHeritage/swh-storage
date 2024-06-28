@@ -1,4 +1,4 @@
-# Copyright (C) 2020 The Software Heritage developers
+# Copyright (C) 2020-2024 The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -15,18 +15,10 @@ from swh.storage.utils import now
 
 
 @pytest.fixture
-def storage_retry_sleep_mocks(mocker, swh_storage):
+def storage_retry_sleep_mock(mocker):
     """In test context, we don't want to wait, make test faster by mocking
-    the sleep function from retryable storage methods"""
-    mocks = {}
-    for method_name in dir(
-        swh_storage
-    ):  # swh_storage is an instance of RetryingProxyStorage
-        if "_add" in method_name or "_update" in method_name:
-            method = getattr(swh_storage, method_name)
-            mocks[method_name] = mocker.patch.object(method.retry, "sleep")
-
-    return mocks
+    the sleep function used by retryable storage methods"""
+    return mocker.patch("time.sleep")
 
 
 @pytest.fixture
@@ -62,7 +54,7 @@ def test_retrying_proxy_storage_content_add(swh_storage, sample_data):
 
 
 def test_retrying_proxy_storage_content_add_with_retry(
-    storage_retry_sleep_mocks,
+    storage_retry_sleep_mock,
     swh_storage,
     sample_data,
     mocker,
@@ -81,7 +73,7 @@ def test_retrying_proxy_storage_content_add_with_retry(
 
     sample_content = sample_data.content
 
-    sleep = storage_retry_sleep_mocks["content_add"]
+    sleep = storage_retry_sleep_mock
     content = swh_storage.content_get_data(sample_content.sha1)
     assert content is None
 
@@ -104,7 +96,7 @@ def test_retrying_proxy_storage_content_add_with_retry(
 
 
 def test_retrying_proxy_storage_content_add_with_retry_of_transient(
-    storage_retry_sleep_mocks,
+    storage_retry_sleep_mock,
     swh_storage,
     sample_data,
     mocker,
@@ -124,7 +116,7 @@ def test_retrying_proxy_storage_content_add_with_retry_of_transient(
     content = swh_storage.content_get_data(sample_content.sha1)
     assert content is None
 
-    sleep = storage_retry_sleep_mocks["content_add"]
+    sleep = storage_retry_sleep_mock
     s = swh_storage.content_add([sample_content])
     assert s == {"content:add": 1}
 
@@ -181,7 +173,7 @@ def test_retrying_proxy_storage_content_add_metadata(swh_storage, sample_data):
 
 
 def test_retrying_proxy_storage_content_add_metadata_with_retry(
-    storage_retry_sleep_mocks, swh_storage, sample_data, mocker, fake_hash_collision
+    storage_retry_sleep_mock, swh_storage, sample_data, mocker, fake_hash_collision
 ):
     """Multiple retries for hash collision and psycopg2 error but finally ok"""
     mock_memory = mocker.patch(
