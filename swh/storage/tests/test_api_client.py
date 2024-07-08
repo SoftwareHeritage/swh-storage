@@ -9,11 +9,13 @@ import psycopg2.errors
 import pytest
 
 from swh.core.api import RemoteException, TransientRemoteException
+from swh.model.model import Origin
 from swh.model.swhids import ExtendedSWHID
 import swh.storage
 from swh.storage import get_storage
 import swh.storage.api.server as server
-from swh.storage.exc import MaskedObjectException
+from swh.storage.exc import BlockedOriginException, MaskedObjectException
+from swh.storage.proxies.blocking.db import BlockingState, BlockingStatus
 from swh.storage.proxies.masking.db import MaskedState, MaskedStatus
 from swh.storage.tests.storage_tests import (
     TestStorageGeneratedData as _TestStorageGeneratedData,
@@ -151,6 +153,23 @@ class TestStorageApi(_TestStorage):
         with pytest.raises(MaskedObjectException) as e:
             swh_storage.revision_get(["\x01" * 20])
         assert e.value.masked == masked
+
+    def test_blocked_origin_exception(self, app_server, swh_storage, mocker):
+        """Checks the client re-raises masking proxy exceptions"""
+        assert swh_storage.origin_get(["https://example.com"]) == [None]
+        blocked = {
+            "https://example.com": BlockingStatus(
+                BlockingState.DECISION_PENDING, request=uuid4()
+            )
+        }
+        mocker.patch.object(
+            app_server.storage._cql_runner,
+            "origin_add_one",
+            side_effect=BlockedOriginException(blocked),
+        )
+        with pytest.raises(BlockedOriginException) as e:
+            swh_storage.origin_add([Origin(url="https://example.com")])
+        assert e.value.blocked == blocked
 
 
 class TestStorageApiGeneratedData(_TestStorageGeneratedData):

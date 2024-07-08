@@ -9,6 +9,7 @@ from swh.core.api import RemoteException, RPCClient
 from swh.model.model import Content
 
 from ..exc import (
+    BlockedOriginException,
     HashCollision,
     MaskedObjectException,
     NonRetryableException,
@@ -28,6 +29,7 @@ class RemoteStorage(RPCClient):
     api_exception = StorageAPIError
     backend_class = StorageInterface
     reraise_exceptions = [
+        BlockedOriginException,
         MaskedObjectException,
         NonRetryableException,
         QueryTimeout,
