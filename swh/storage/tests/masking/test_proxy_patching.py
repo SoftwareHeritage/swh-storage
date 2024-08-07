@@ -328,3 +328,47 @@ def test_release_get_partition_none_author(swh_storage, masking_admin: MaskingAd
     ) == {
         release,
     }
+
+
+def test_set_display_names(swh_storage, masking_admin: MaskingAdmin):
+    def get_all():
+        cur = masking_admin.cursor()
+        cur.execute("SELECT * FROM display_name")
+        return set(cur.fetchall())
+
+    display_names = {
+        (
+            f"Author {i} <author{i}@example.org>".encode(),
+            f"New Author {i} <new-author{i}example.org>".encode(),
+        )
+        for i in range(10)
+    }
+
+    masking_admin.set_display_names(display_names)
+    assert get_all() == display_names
+
+    # doing it again with clear=True should not change anything
+    masking_admin.set_display_names(display_names, clear=True)
+    assert get_all() == display_names
+
+    # doing it again should not change anything
+    masking_admin.set_display_names(display_names)
+    assert get_all() == display_names
+
+    more_display_names = {
+        (
+            f"Person {i} <person{i}@example.org>".encode(),
+            f"New Person {i} <new-person{i}example.org>".encode(),
+        )
+        for i in range(10)
+    }
+
+    masking_admin.set_display_names(more_display_names)
+    assert get_all() == (display_names | more_display_names)
+
+    masking_admin.set_display_names(more_display_names)
+    assert get_all() == (display_names | more_display_names)
+
+    # with clear=True, should only get the inserted objects
+    masking_admin.set_display_names(display_names, clear=True)
+    assert get_all() == display_names

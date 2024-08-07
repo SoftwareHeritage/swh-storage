@@ -53,8 +53,8 @@ def masking_overhead_timer(method_name: str) -> DifferentialTimer:
 class MaskingProxyStorage:
     """Masking storage proxy
 
-    This proxy filters out objects that are present in the archive but should
-    not be displayed for policy reasons.
+    This proxy can return modified objects or stop them from being retrieved at
+    all.
 
     It uses a specific PostgreSQL database (which for now is colocated with the
     swh.storage PostgreSQL database), the access to which is implemented in the

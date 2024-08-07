@@ -3,7 +3,18 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Optional, TextIO
+import csv
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    TextIO,
+    Tuple,
+)
 import warnings
 
 import click
@@ -426,3 +437,36 @@ def clear_request(
         raise click.ClickException(f"Request with id “{request.id}” not found.")
 
     click.echo(f"Masks cleared for request “{request.slug}”.")
+
+
+@masking_cli_group.group(name="patching")
+@click.pass_context
+def patching_cli_group(ctx: click.Context) -> click.Context:
+    """Tools to manage the patching of objects"""
+    return ctx
+
+
+def read_display_names(file: Iterable) -> List[Tuple[bytes, bytes]]:
+    data = list(csv.reader(file))
+    assert all(len(x) == 2 for x in data)
+    return [(name.encode(), newname.encode()) for (name, newname) in data]
+
+
+@patching_cli_group.command(name="set")
+@click.argument("input", type=click.File("r"))
+@click.option(
+    "--clear/--keep",
+    help="Clear the display names table before inserting new entries",
+)
+@click.pass_context
+def set_patching_entries(
+    ctx: click.Context,
+    input,
+    clear: bool,
+) -> None:
+    """Set display names (patching entries)"""
+    display_names = read_display_names(input)
+
+    db = ctx.obj["masking_admin"]
+    db.set_display_names(display_names, clear=clear)
+    click.echo("Display names updated")

@@ -7,7 +7,7 @@
 import datetime
 import enum
 import itertools
-from typing import Dict, Iterator, List, Optional, Tuple
+from typing import Dict, Iterable, Iterator, List, Optional, Tuple
 from uuid import UUID
 
 import attr
@@ -340,20 +340,6 @@ class MaskingAdmin(MaskingDb):
 
         return MaskingRequestHistory(request=request_id, date=res[0], message=message)
 
-    def set_display_name(self, original_email: bytes, display_name: bytes) -> None:
-        """Updates the display name of the person identified by the email address."""
-        cur = self.cursor()
-
-        cur.execute(
-            """
-            INSERT INTO display_name (original_email, display_name)
-            VALUES (%s, %s)
-            ON CONFLICT (original_email) DO UPDATE
-            SET display_name=EXCLUDED.display_name
-            """,
-            (original_email, display_name),
-        )
-
     def get_history(self, request_id: UUID) -> List[MaskingRequestHistory]:
         """Get the history of a given request.
 
@@ -378,6 +364,53 @@ class MaskingAdmin(MaskingDb):
                 MaskingRequestHistory(request=request_id, date=date, message=message)
             )
         return records
+
+    def set_display_name(self, original_email: bytes, display_name: bytes) -> None:
+        """Updates the display name of the person identified by the email address."""
+        cur = self.cursor()
+
+        cur.execute(
+            """
+            INSERT INTO display_name (original_email, display_name)
+            VALUES (%s, %s)
+            ON CONFLICT (original_email) DO UPDATE
+            SET display_name=EXCLUDED.display_name
+            """,
+            (original_email, display_name),
+        )
+
+    def set_display_names(
+        self, display_names: Iterable[Tuple[bytes, bytes]], clear=False
+    ) -> None:
+        """Insert a list of display names of persons identified by their email address.
+
+        If 'clear' is True, empty the existing display names before inserting
+        the new entries.
+
+        """
+        with self.transaction() as cur:
+            if clear:
+                cur.execute(
+                    """
+                    DELETE FROM display_name
+                    """
+                )
+            execute_values(
+                cur,
+                """
+                INSERT INTO display_name (original_email, display_name)
+                VALUES %s
+                ON CONFLICT (original_email)
+                DO UPDATE SET display_name=EXCLUDED.display_name
+                """,
+                (
+                    (
+                        original_email,
+                        display_name,
+                    )
+                    for (original_email, display_name) in display_names
+                ),
+            )
 
 
 class MaskingQuery(MaskingDb):
