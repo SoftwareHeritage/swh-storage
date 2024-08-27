@@ -20,7 +20,7 @@ comment on table extid is 'Correspondance SWH object (SWHID) <-> original revisi
 comment on column extid.extid_type is 'ExtID type';
 comment on column extid.extid is 'Intrinsic identifier of the object (e.g. hg revision)';
 comment on column extid.target_type is 'Type of SWHID of the referenced SWH object';
-comment on column extid.target is 'Value (hash) of SWHID of the refenced SWH object';
+comment on column extid.target is 'Value (hash) of SWHID of the referenced SWH object';
 
 -- Create entries in extid from tmp_extid
 -- operates in bulk: 0. swh_mktemp(extid), 1. COPY to tmp_extid,

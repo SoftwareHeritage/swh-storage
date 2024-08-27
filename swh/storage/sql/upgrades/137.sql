@@ -156,7 +156,7 @@ comment on column object_counts.single_update is 'standalone (true) or bucketed 
 
 -- comment for columns of object_counts_bucketed
 comment on table object_counts_bucketed is 'Bucketed count for objects ordered by type';
-comment on column object_counts_bucketed.line is 'Auto incremented idenitfier value';
+comment on column object_counts_bucketed.line is 'Auto incremented identifier value';
 comment on column object_counts_bucketed.object_type is 'Object type (''content'', ''directory'', ''revision'',
  ''release'', ''snapshot'')';
 comment on column object_counts_bucketed.identifier is 'Common identifier for bucketed objects';

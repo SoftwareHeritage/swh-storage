@@ -76,7 +76,6 @@ OBJECT_FIXERS = {
 
 
 class ModelObjectDeserializer:
-
     """A swh.journal object deserializer that checks object validity and reports
     invalid objects
 

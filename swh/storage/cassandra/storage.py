@@ -1778,19 +1778,21 @@ class CassandraStorage:
                     # from Cassandra.
                     origin=metadata_entry.origin or "",
                     visit=metadata_entry.visit or 0,
-                    snapshot=str(metadata_entry.snapshot)
-                    if metadata_entry.snapshot
-                    else "",
-                    release=str(metadata_entry.release)
-                    if metadata_entry.release
-                    else "",
-                    revision=str(metadata_entry.revision)
-                    if metadata_entry.revision
-                    else "",
+                    snapshot=(
+                        str(metadata_entry.snapshot) if metadata_entry.snapshot else ""
+                    ),
+                    release=(
+                        str(metadata_entry.release) if metadata_entry.release else ""
+                    ),
+                    revision=(
+                        str(metadata_entry.revision) if metadata_entry.revision else ""
+                    ),
                     path=metadata_entry.path or b"",
-                    directory=str(metadata_entry.directory)
-                    if metadata_entry.directory
-                    else "",
+                    directory=(
+                        str(metadata_entry.directory)
+                        if metadata_entry.directory
+                        else ""
+                    ),
                 )
 
             except TypeError as e:

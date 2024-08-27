@@ -530,16 +530,22 @@ class MaskingProxyStorage:
         }
 
         return [
-            None
-            if revision is None
-            else attr.evolve(
-                revision,
-                author=revision.author
-                if revision.author is None
-                else persons.get(revision.author.email, revision.author),
-                committer=revision.committer
-                if revision.committer is None
-                else persons.get(revision.committer.email, revision.committer),
+            (
+                None
+                if revision is None
+                else attr.evolve(
+                    revision,
+                    author=(
+                        revision.author
+                        if revision.author is None
+                        else persons.get(revision.author.email, revision.author)
+                    ),
+                    committer=(
+                        revision.committer
+                        if revision.committer is None
+                        else persons.get(revision.committer.email, revision.committer)
+                    ),
+                )
             )
             for revision in revisions
         ]
@@ -568,13 +574,17 @@ class MaskingProxyStorage:
         }
 
         return [
-            None
-            if release is None
-            else attr.evolve(
-                release,
-                author=release.author
-                if release.author is None
-                else persons.get(release.author.email, release.author),
+            (
+                None
+                if release is None
+                else attr.evolve(
+                    release,
+                    author=(
+                        release.author
+                        if release.author is None
+                        else persons.get(release.author.email, release.author)
+                    ),
+                )
             )
             for release in releases
         ]

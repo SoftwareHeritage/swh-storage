@@ -203,9 +203,11 @@ def test_date(model_date, db_date):
     assert converters.date_to_db(model_date) == db_date
     assert (
         converters.db_to_date(
-            date=None
-            if db_date["timestamp"] is None
-            else datetime.datetime.fromisoformat(db_date["timestamp"]),
+            date=(
+                None
+                if db_date["timestamp"] is None
+                else datetime.datetime.fromisoformat(db_date["timestamp"])
+            ),
             offset_bytes=db_date["offset_bytes"],
         )
         == model_date

@@ -5,10 +5,8 @@
 
 from functools import partial
 import logging
-from typing import Dict, Iterable, Mapping, Sequence, Tuple, cast
+from typing import Dict, Iterable, Literal, Mapping, Sequence, Tuple, cast
 import warnings
-
-from typing_extensions import Literal
 
 from swh.core.utils import grouper
 from swh.model.model import (
@@ -192,7 +190,7 @@ class BufferingProxyStorage:
             if object_type in OBJECT_TYPES:
                 return partial(
                     self.object_add,
-                    object_type=object_type,
+                    object_type=cast(LObjectType, object_type),
                     keys=["id"],
                 )
         if key == "storage":
