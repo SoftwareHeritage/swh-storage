@@ -3,9 +3,10 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-import importlib.metadata
 from typing import TYPE_CHECKING, Any, Dict, List
 import warnings
+
+from backports.entry_points_selectable import entry_points as get_entry_points
 
 if TYPE_CHECKING:
     from .interface import StorageInterface
@@ -53,7 +54,7 @@ def get_storage(cls: str, **kwargs) -> "StorageInterface":
             DeprecationWarning,
         )
 
-    entry_points = importlib.metadata.entry_points(group="swh.storage.classes")
+    entry_points = get_entry_points(group="swh.storage.classes")
     try:
         entry_point = entry_points[cls]
     except KeyError:
