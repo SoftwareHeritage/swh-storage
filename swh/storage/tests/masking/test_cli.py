@@ -99,7 +99,7 @@ def test_masking_admin_unreachable():
         obj={
             "config": {
                 "masking_admin": {
-                    "masking_db": (
+                    "db": (
                         "postgresql://localhost/postgres?"
                         f"port={erroneous_postgresql_port}"
                     )

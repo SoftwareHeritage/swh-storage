@@ -18,6 +18,7 @@ from typing import (
     TypeVar,
     Union,
 )
+import warnings
 
 import attr
 import psycopg2.pool
@@ -38,10 +39,12 @@ BATCH_SIZE = 1024
 MASKING_OVERHEAD_METRIC = "swh_storage_masking_overhead_seconds"
 
 
-def get_datastore(cls, db):
-    assert cls == "postgresql"
+def get_datastore(cls, db=None, masking_db=None, **kwargs):
+    assert cls in ("postgresql", "masking")
     from .db import MaskingAdmin
 
+    if db is None:
+        db = masking_db
     return MaskingAdmin.connect(db)
 
 
@@ -66,7 +69,7 @@ class MaskingProxyStorage:
 
         storage:
           cls: masking
-          masking_db: 'dbname=swh-storage'
+          db: 'dbname=swh-storage'
           max_pool_conns: 10
           storage:
           - cls: remote
@@ -76,17 +79,26 @@ class MaskingProxyStorage:
 
     def __init__(
         self,
-        masking_db: str,
         storage: Union[Dict, StorageInterface],
+        db: Optional[str] = None,
+        masking_db: Optional[str] = None,
         min_pool_conns: int = 1,
         max_pool_conns: int = 5,
     ):
+        if db is None:
+            assert masking_db is not None
+            warnings.warn(
+                "'masking_db' field in the masking storage configuration "
+                "was renamed 'db' field",
+                DeprecationWarning,
+            )
+            db = masking_db
         self.storage: StorageInterface = (
             get_storage(**storage) if isinstance(storage, dict) else storage
         )
 
         self._masking_pool = psycopg2.pool.ThreadedConnectionPool(
-            min_pool_conns, max_pool_conns, masking_db
+            min_pool_conns, max_pool_conns, db
         )
 
         # Generate the method dictionaries once per instantiation, instead of

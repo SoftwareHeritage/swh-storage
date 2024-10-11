@@ -955,3 +955,10 @@ def test_proxy_overhead_metric(swh_storage: MaskingProxyStorage, mocker) -> None
         pytest.approx(2500.0),
         tags={"endpoint": "content_get_data"},
     )
+
+
+def test_proxy_config_deprecation(masking_db_postgresql, swh_storage_backend):
+    with pytest.warns(DeprecationWarning):
+        assert MaskingProxyStorage(
+            masking_db=masking_db_postgresql.info.dsn, storage=swh_storage_backend
+        )

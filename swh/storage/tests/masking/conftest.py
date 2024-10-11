@@ -51,5 +51,5 @@ def swh_storage_backend_config():
 @pytest.fixture
 def swh_storage(masking_db_postgresql, swh_storage_backend):
     return MaskingProxyStorage(
-        masking_db=masking_db_postgresql.info.dsn, storage=swh_storage_backend
+        db=masking_db_postgresql.info.dsn, storage=swh_storage_backend
     )

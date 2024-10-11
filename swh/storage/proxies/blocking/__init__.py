@@ -4,7 +4,8 @@
 # See top-level LICENSE file for more information
 
 from contextlib import contextmanager
-from typing import Dict, Iterable, Iterator, List, Union
+from typing import Dict, Iterable, Iterator, List, Optional, Union
+import warnings
 
 import psycopg2.pool
 
@@ -20,10 +21,12 @@ from .db import BlockingQuery
 BLOCKING_OVERHEAD_METRIC = "swh_storage_blocking_overhead_seconds"
 
 
-def get_datastore(cls, db):
-    assert cls == "postgresql"
+def get_datastore(cls, db=None, blocking_db=None, **kwargs):
+    assert cls in ("postgresql", "blocking")
     from .db import BlockingAdmin
 
+    if db is None:
+        db = blocking_db
     return BlockingAdmin.connect(db)
 
 
@@ -47,7 +50,7 @@ class BlockingProxyStorage:
 
         storage:
           cls: blocking
-          blocking_db: 'dbname=swh-blocking-proxy'
+          db: 'dbname=swh-blocking-proxy'
           max_pool_conns: 10
           storage:
           - cls: remote
@@ -57,17 +60,26 @@ class BlockingProxyStorage:
 
     def __init__(
         self,
-        blocking_db: str,
         storage: Union[Dict, StorageInterface],
+        db: Optional[str] = None,
+        blocking_db: Optional[str] = None,
         min_pool_conns: int = 1,
         max_pool_conns: int = 5,
     ):
+        if db is None:
+            assert blocking_db is not None
+            warnings.warn(
+                "'blocking_db' field in the blocking storage configuration "
+                "was renamed 'db' field",
+                DeprecationWarning,
+            )
+            db = blocking_db
         self.storage: StorageInterface = (
             get_storage(**storage) if isinstance(storage, dict) else storage
         )
 
         self._blocking_pool = psycopg2.pool.ThreadedConnectionPool(
-            min_pool_conns, max_pool_conns, blocking_db
+            min_pool_conns, max_pool_conns, db
         )
 
     def origin_visit_status_add(

@@ -35,7 +35,7 @@ def swh_storage(masking_db_postgresql, masking_admin, swh_storage_backend):
     )
 
     return MaskingProxyStorage(
-        masking_db=masking_db_postgresql.info.dsn, storage=swh_storage_backend
+        db=masking_db_postgresql.info.dsn, storage=swh_storage_backend
     )
 
 

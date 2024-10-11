@@ -539,3 +539,10 @@ def test_blocking_log(swh_storage, blocking_admin, endpoint):
     for url in origins[None]:
         log = blocking_admin.get_log(url=url)
         assert len(log) == 0
+
+
+def test_proxy_config_deprecation(blocking_db_postgresql, swh_storage_backend):
+    with pytest.warns(DeprecationWarning):
+        assert BlockingProxyStorage(
+            blocking_db=blocking_db_postgresql.info.dsn, storage=swh_storage_backend
+        )
