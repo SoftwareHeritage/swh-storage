@@ -1,7 +1,4 @@
 
-create type masked_state as enum ('visible', 'decision_pending', 'restricted');
-comment on type masked_state is 'The degree to which an object is masked';
-
 create table if not exists masking_request (
   id uuid primary key default uuid_generate_v4(),
   slug text not null,
