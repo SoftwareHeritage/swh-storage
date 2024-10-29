@@ -6,8 +6,6 @@
 from typing import TYPE_CHECKING, Any, Dict, List
 import warnings
 
-from backports.entry_points_selectable import entry_points as get_entry_points
-
 if TYPE_CHECKING:
     from .interface import StorageInterface
 
@@ -38,6 +36,8 @@ def get_storage(cls: str, **kwargs) -> "StorageInterface":
         ValueError if passed an unknown storage class.
 
     """
+    from swh.core.config import get_swh_backend_module
+
     if "args" in kwargs:
         warnings.warn(
             'Explicit "args" key is deprecated, use keys directly instead.',
@@ -54,25 +54,14 @@ def get_storage(cls: str, **kwargs) -> "StorageInterface":
             DeprecationWarning,
         )
 
-    entry_points = get_entry_points(group="swh.storage.classes")
-    try:
-        entry_point = entry_points[cls]
-    except KeyError:
-        raise ValueError(
-            "Unknown storage class `%s`. Supported: %s"
-            % (cls, ", ".join(entry_point.name for entry_point in entry_points))
-        ) from None
-    Storage = entry_point.load()
-
+    _, Storage = get_swh_backend_module("storage", cls)
+    assert Storage is not None
     check_config = kwargs.pop("check_config", {})
     storage = Storage(**kwargs)
     if check_config:
         if not storage.check_config(**check_config):
             raise EnvironmentError("storage check config failed")
     return storage
-
-
-get_datastore = get_storage
 
 
 def get_storage_pipeline(
