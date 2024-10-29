@@ -14,6 +14,7 @@ import pytest
 
 from swh.core.cli.db import db as swhdb
 from swh.core.db.db_utils import get_database_info
+from swh.core.tests.test_cli import assert_result
 from swh.storage.tests.storage_data import StorageData as data
 
 from ...proxies.blocking.cli import (
@@ -39,27 +40,27 @@ from ...proxies.blocking.db import (
 )
 
 
-def test_cli_db_create(postgresql):
+@pytest.mark.parametrize(
+    "module_name", ["storage:blocking", "storage.proxies.blocking"]
+)
+def test_cli_db_create(postgresql, module_name):
     """Create a db then initializing it should be ok"""
-    module_name = "storage.proxies.blocking"
-
     db_params = postgresql.info
-    dbname = "blocking-db"
+    dbname = f"{module_name}-db"
     conninfo = (
         f"postgresql://{db_params.user}@{db_params.host}:{db_params.port}/{dbname}"
     )
 
     # This creates the db and installs the necessary admin extensions
     result = CliRunner().invoke(swhdb, ["create", module_name, "--dbname", conninfo])
-    assert result.exit_code == 0, f"Unexpected output: {result.output}"
+    assert_result(result)
 
     # This initializes the schema and data
     result = CliRunner().invoke(swhdb, ["init", module_name, "--dbname", conninfo])
-
-    assert result.exit_code == 0, f"Unexpected output: {result.output}"
+    assert_result(result)
 
     dbmodule, dbversion, dbflavor = get_database_info(conninfo)
-    assert dbmodule == "storage.proxies.blocking"
+    assert dbmodule == "storage:blocking"
     assert dbversion == BlockingAdmin.current_version
     assert dbflavor is None
 
@@ -262,7 +263,7 @@ def test_new_request(mocker, mocked_blocking_admin, request01):
     result = runner.invoke(
         new_request, ["request-01"], obj={"blocking_admin": mocked_blocking_admin}
     )
-    assert result.exit_code == 0
+    assert_result(result)
     mocked_blocking_admin.create_request.assert_called_once_with("request-01", "one")
     assert "da785a27-7e59-4a35-b82a-a5ae3714407c" in result.output
     assert "request-01" in result.output
@@ -277,7 +278,7 @@ def test_new_request_with_message(mocker, mocked_blocking_admin, request01):
         ["--message=one", "request-01"],
         obj={"blocking_admin": mocked_blocking_admin},
     )
-    assert result.exit_code == 0
+    assert_result(result)
     mocked_click_edit.assert_not_called()
     mocked_blocking_admin.create_request.assert_called_once_with("request-01", "one")
     assert "da785a27-7e59-4a35-b82a-a5ae3714407c" in result.output
@@ -303,7 +304,7 @@ def test_list_requests_default(mocked_blocking_admin):
     result = runner.invoke(
         list_requests, [], obj={"blocking_admin": mocked_blocking_admin}
     )
-    assert result.exit_code == 0
+    assert_result(result)
     mocked_blocking_admin.get_requests.assert_called_once_with(
         include_cleared_requests=False
     )
@@ -320,7 +321,7 @@ def test_list_requests_include_cleared_requests(mocked_blocking_admin):
         ["--include-cleared-requests"],
         obj={"blocking_admin": mocked_blocking_admin},
     )
-    assert result.exit_code == 0
+    assert_result(result)
     mocked_blocking_admin.get_requests.assert_called_once_with(
         include_cleared_requests=True
     )
@@ -356,7 +357,7 @@ def test_update_objects(mocker, mocked_blocking_admin, request01):
         input=ORIGINS_INPUT,
         obj={"blocking_admin": mocked_blocking_admin},
     )
-    assert result.exit_code == 0
+    assert_result(result)
     assert "2 origins" in result.output
     assert "request-01" in result.output
     mocked_click_edit.assert_called_once()
@@ -379,7 +380,7 @@ def test_update_objects_with_message(mocker, mocked_blocking_admin, request01):
         input=ORIGINS_INPUT,
         obj={"blocking_admin": mocked_blocking_admin},
     )
-    assert result.exit_code == 0
+    assert_result(result)
     mocked_click_edit.assert_not_called()
     mocked_blocking_admin.set_origins_state.assert_called_once()
     mocked_blocking_admin.record_history.assert_called_once_with(
@@ -412,7 +413,7 @@ def test_update_objects_with_file(tmp_path, mocker, mocked_blocking_admin, reque
         ["request-01", "decision-pending", f"--file={str(origins_file)}"],
         obj={"blocking_admin": mocked_blocking_admin},
     )
-    assert result.exit_code == 0
+    assert_result(result)
     assert "2 origins" in result.output
     mocked_blocking_admin.set_origins_state.assert_called_once_with(
         request01.id, BlockingState.DECISION_PENDING, ORIGINS_INPUT_PARSED
@@ -438,7 +439,7 @@ def test_status(mocked_blocking_admin, request01):
     result = runner.invoke(
         status_cmd, ["request-01"], obj={"blocking_admin": mocked_blocking_admin}
     )
-    assert result.exit_code == 0
+    assert_result(result)
     mocked_blocking_admin.get_states_for_request.assert_called_once_with(request01.id)
     assert result.output == textwrap.dedent(
         """\
@@ -464,7 +465,7 @@ def test_status_request_via_uuid(mocked_blocking_admin, request01):
         ["da785a27-7e59-4a35-b82a-a5ae3714407c"],
         obj={"blocking_admin": mocked_blocking_admin},
     )
-    assert result.exit_code == 0
+    assert_result(result)
     mocked_blocking_admin.get_states_for_request.assert_called_once_with(request01.id)
 
 
@@ -473,7 +474,7 @@ def test_history(mocked_blocking_admin, request01):
     result = runner.invoke(
         history_cmd, ["request-01"], obj={"blocking_admin": mocked_blocking_admin}
     )
-    assert result.exit_code == 0
+    assert_result(result)
     mocked_blocking_admin.get_history.assert_called_once_with(request01.id)
     assert (
         "History for request “request-01” (da785a27-7e59-4a35-b82a-a5ae3714407c)"
@@ -513,7 +514,7 @@ def test_object_state(mocked_blocking_admin, blocked_origin, blocked_origin2):
         ],
         obj={"blocking_admin": mocked_blocking_admin},
     )
-    assert result.exit_code == 0
+    assert_result(result)
     assert result.output == textwrap.dedent(
         """\
         blocked  https://github.com/user1/repo1
@@ -536,7 +537,7 @@ def test_clear_request(mocker, mocked_blocking_admin, request01):
         ["request-01"],
         obj={"blocking_admin": mocked_blocking_admin},
     )
-    assert result.exit_code == 0
+    assert_result(result)
     assert "Blockings cleared for request “request-01”." in result.output
     mocked_click_edit.assert_called_once()
     mocked_blocking_admin.delete_blocking_states.assert_called_once_with(request01.id)
@@ -553,7 +554,7 @@ def test_clear_request_with_message(mocker, mocked_blocking_admin, request01):
         ["--message=request cleared", "request-01"],
         obj={"blocking_admin": mocked_blocking_admin},
     )
-    assert result.exit_code == 0
+    assert_result(result)
     assert "Blockings cleared for request “request-01”." in result.output
     mocked_click_edit.assert_not_called()
     mocked_blocking_admin.delete_blocking_states.assert_called_once_with(request01.id)
