@@ -11,7 +11,6 @@ import pytest
 from swh.core.api import RemoteException, TransientRemoteException
 from swh.model.model import Origin
 from swh.model.swhids import ExtendedSWHID
-import swh.storage
 from swh.storage import get_storage
 import swh.storage.api.server as server
 from swh.storage.exc import BlockedOriginException, MaskedObjectException
@@ -28,10 +27,8 @@ from swh.storage.tests.storage_tests import TestStorage as _TestStorage
 
 
 @pytest.fixture
-def app_server():
-    server.storage = swh.storage.get_storage(
-        cls="memory", journal_writer={"cls": "memory"}
-    )
+def app_server(swh_storage_backend):
+    server.storage = swh_storage_backend
     yield server
 
 
@@ -73,8 +70,8 @@ def swh_storage(swh_rpc_client, app_server):
 
 
 @pytest.fixture
-def swh_storage_backend(app_server, swh_storage):
-    return app_server.storage
+def swh_storage_backend_config():
+    return {"cls": "memory", "journal_writer": {"cls": "memory"}}
 
 
 class TestStorageApi(_TestStorage):

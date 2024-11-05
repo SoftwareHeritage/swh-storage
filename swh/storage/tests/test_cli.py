@@ -34,7 +34,7 @@ CLI_CONFIG = {
 
 
 @pytest.fixture
-def swh_storage():
+def swh_storage_backend():
     """An swh-storage object that gets injected into the CLI functions."""
     storage = get_storage(**CLI_CONFIG["storage"])
     with patch("swh.storage.get_storage") as get_storage_mock:
