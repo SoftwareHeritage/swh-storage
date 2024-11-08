@@ -10,7 +10,7 @@ import inspect
 import itertools
 import math
 import random
-from typing import Any, ClassVar, Dict, Iterator, Optional
+from typing import Any, ClassVar, Dict, Iterator, List, Optional
 from unittest.mock import MagicMock
 
 import attr
@@ -45,6 +45,7 @@ from swh.model.model import (
     TimestampWithTimezone,
 )
 from swh.model.swhids import CoreSWHID, ExtendedSWHID, ObjectType
+from swh.storage.algos.snapshot import snapshot_get_all_branches
 from swh.storage.cassandra.storage import CassandraStorage
 from swh.storage.common import origin_url_to_sha1 as sha1
 from swh.storage.exc import (
@@ -138,13 +139,8 @@ def filter_dict(d):
 class TestStorage:
     """Main class for Storage testing.
 
-    This class is used as-is to test local storage (see TestLocalStorage
-    below) and remote storage (see TestRemoteStorage in
-    test_remote_storage.py.
-
-    We need to have the two classes inherit from this base class
-    separately to avoid nosetests running the tests from the base
-    class twice.
+    This class is used as-is to test cassandra, in-memory, postgresql, and remote storages,
+    and proxies.
     """
 
     maxDiff: ClassVar[Optional[int]] = None
@@ -6290,6 +6286,159 @@ class TestStorage:
         # db_transaction_generator on postgres, _execute_many_with_retries on cassandra
         with pytest.raises(QueryTimeout, match=message):
             list(swh_storage.revision_missing([b"\x00" * 20]))
+
+
+class TestStorageDeletion:
+    """Main class for Storage deletion testing.
+
+    This class is used as-is to test cassandra, in-memory, and postgresql storages.
+    """
+
+    def _affected_tables(self) -> List[str]:
+        """Returns the list of tables affected by deletion"""
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not implement _affected_tables"
+        )
+
+    def _count_from_table(self, swh_storage_backend, table: str) -> int:
+        """Returns the number of rows in the given table"""
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not implement _count_from_table"
+        )
+
+    def test_object_delete(self, swh_storage, swh_storage_backend, sample_data):
+        swh_storage.content_add(sample_data.contents)
+        swh_storage.skipped_content_add(sample_data.skipped_contents)
+        swh_storage.directory_add(sample_data.directories)
+        swh_storage.revision_add(sample_data.revisions)
+        swh_storage.release_add(sample_data.releases)
+        swh_storage.snapshot_add(sample_data.snapshots)
+        swh_storage.origin_add(sample_data.origins)
+        swh_storage.origin_visit_add(sample_data.origin_visits)
+        swh_storage.origin_visit_status_add(sample_data.origin_visit_statuses)
+        swh_storage.metadata_authority_add(sample_data.authorities)
+        swh_storage.metadata_fetcher_add(sample_data.fetchers)
+        swh_storage.raw_extrinsic_metadata_add(sample_data.content_metadata)
+        swh_storage.raw_extrinsic_metadata_add(sample_data.origin_metadata)
+        swhids = (
+            [content.swhid().to_extended() for content in sample_data.contents]
+            + [
+                skipped_content.swhid().to_extended()
+                for skipped_content in sample_data.skipped_contents
+            ]
+            + [directory.swhid().to_extended() for directory in sample_data.directories]
+            + [revision.swhid().to_extended() for revision in sample_data.revisions]
+            + [release.swhid().to_extended() for release in sample_data.releases]
+            + [snapshot.swhid().to_extended() for snapshot in sample_data.snapshots]
+            + [origin.swhid() for origin in sample_data.origins]
+            + [emd.swhid() for emd in sample_data.content_metadata]
+            + [emd.swhid() for emd in sample_data.origin_metadata]
+        )
+
+        # Ensure we properly loaded our data
+        for table in self._affected_tables():
+            assert (
+                self._count_from_table(swh_storage_backend, table) >= 1
+            ), f"{table} is not populated"
+
+        result = swh_storage.object_delete(swhids)
+        assert result == {
+            "content:delete": 3,
+            "content:delete:bytes": 0,
+            "skipped_content:delete": 2,
+            "directory:delete": 7,
+            "release:delete": 3,
+            "revision:delete": 8,
+            "snapshot:delete": 3,
+            "origin:delete": 7,
+            "origin_visit:delete": 3,
+            "origin_visit_status:delete": 3,
+            "cnt_metadata:delete": 3,
+            "ori_metadata:delete": 3,
+        }, result
+
+        # Ensure we properly removed our data
+        for table in self._affected_tables():
+            assert (
+                self._count_from_table(swh_storage_backend, table) == 0
+            ), f"something in table {table}"
+
+    def test_extid_delete_for_target(self, swh_storage, sample_data):
+        swh_storage.revision_add([sample_data.revision, sample_data.hg_revision])
+        swh_storage.directory_add([sample_data.directory, sample_data.directory2])
+        extid_for_same_target = ExtID(
+            target=CoreSWHID(
+                object_type=ObjectType.REVISION, object_id=sample_data.revision.id
+            ),
+            extid_type="drink_some",
+            extid=bytes.fromhex("c0ffee"),
+        )
+        result = swh_storage.extid_add(sample_data.extids + (extid_for_same_target,))
+        assert result == {"extid:add": 5}
+
+        result = swh_storage.extid_delete_for_target(
+            [sample_data.revision.swhid(), sample_data.directory2.swhid()]
+        )
+        assert result == {"extid:delete": 3}
+
+        extids = swh_storage.extid_get_from_target(
+            target_type=ObjectType.REVISION, ids=[sample_data.hg_revision.id]
+        )
+        assert extids == [sample_data.extid2]
+        extids = swh_storage.extid_get_from_target(
+            target_type=ObjectType.DIRECTORY, ids=[sample_data.directory.id]
+        )
+        assert extids == [sample_data.extid3]
+
+        result = swh_storage.extid_delete_for_target(
+            [sample_data.hg_revision.swhid(), sample_data.directory.swhid()]
+        )
+        assert result == {"extid:delete": 2}
+
+    def test_delete_snapshot_common_branches(self, swh_storage):
+        common_branches = {
+            b"branch1": {"target": bytes(20), "target_type": "revision"},
+            b"branch2": {"target": bytes(20), "target_type": "release"},
+        }
+
+        snapshot1 = Snapshot.from_dict(
+            {
+                "branches": {
+                    **common_branches,
+                }
+            }
+        )
+        snapshot2 = Snapshot.from_dict(
+            {
+                "branches": {
+                    **common_branches,
+                    b"branch3": {"target": bytes(20), "target_type": "content"},
+                }
+            }
+        )
+
+        swh_storage.snapshot_add([snapshot1, snapshot2])
+
+        assert snapshot1 == snapshot_get_all_branches(swh_storage, snapshot1.id)
+        assert snapshot2 == snapshot_get_all_branches(swh_storage, snapshot2.id)
+
+        result = swh_storage.object_delete([snapshot2.swhid().to_extended()])
+
+        assert result == {
+            "content:delete": 0,
+            "content:delete:bytes": 0,
+            "skipped_content:delete": 0,
+            "directory:delete": 0,
+            "release:delete": 0,
+            "revision:delete": 0,
+            "snapshot:delete": 1,
+            "origin:delete": 0,
+            "origin_visit:delete": 0,
+            "origin_visit_status:delete": 0,
+        }, result
+
+        assert snapshot1 == snapshot_get_all_branches(swh_storage, snapshot1.id)
+        assert snapshot_get_all_branches(swh_storage, snapshot2.id) is None
 
 
 class TestStorageGeneratedData:
