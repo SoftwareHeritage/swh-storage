@@ -2310,14 +2310,30 @@ class CassandraStorage:
         def key(swhid: ExtendedSWHID) -> int:
             return _DELETE_ORDERING[swhid.object_type]
 
-        result = {}
+        result = Counter(
+            {
+                k: 0
+                for k in [
+                    "content:delete",
+                    "content:delete:bytes",
+                    "skipped_content:delete",
+                    "directory:delete",
+                    "release:delete",
+                    "revision:delete",
+                    "snapshot:delete",
+                    "origin:delete",
+                    "origin_visit:delete",
+                    "origin_visit_status:delete",
+                ]
+            }
+        )
         sorted_swhids = sorted(swhids, key=key)
         for object_type, grouped_swhids in itertools.groupby(
             sorted_swhids, key=operator.attrgetter("object_type")
         ):
             object_ids = {swhid.object_id for swhid in grouped_swhids}
             result.update(_DELETE_METHODS[object_type](self, object_ids))
-        return result
+        return dict(result)
 
     def extid_delete_for_target(self, target_swhids: List[CoreSWHID]) -> Dict[str, int]:
         """Delete ExtID objects from the storage
