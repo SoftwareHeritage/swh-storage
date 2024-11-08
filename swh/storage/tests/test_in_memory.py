@@ -1,18 +1,22 @@
-# Copyright (C) 2018-2020  The Software Heritage developers
+# Copyright (C) 2018-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 import dataclasses
+import re
+from typing import List, cast
 
 import pytest
 
 from swh.storage.cassandra.model import BaseRow
+from swh.storage.cassandra.schema import TABLES
 from swh.storage.in_memory import Table
 from swh.storage.tests.storage_tests import (
     TestStorageGeneratedData as _TestStorageGeneratedData,
 )
 from swh.storage.tests.storage_tests import TestStorage as _TestStorage
+from swh.storage.tests.test_cassandra import TestStorageDeletion as _TestStorageDeletion
 
 # tests are executed using imported classes (TestStorage and
 # TestStorageGeneratedData) using overloaded swh_storage fixture
@@ -133,3 +137,36 @@ class TestInMemoryStorageGeneratedData(_TestStorageGeneratedData):
     @pytest.mark.skip("Not supported by Cassandra")
     def test_origin_count_with_visit_with_visits_no_snapshot(self):
         pass
+
+
+class TestStorageDeletion(_TestStorageDeletion):
+    def _affected_tables(self) -> List[str]:
+        cassandra_tables = set(TABLES) - {
+            "metadata_authority",
+            "metadata_fetcher",
+            "extid",
+            "extid_by_target",
+            "object_references",
+            "object_references_table",
+        }
+
+        # remove content_by_* and skipped_content_by_* index tables
+        tables = [table for table in cassandra_tables if "content_by" not in table]
+
+        def pluralize(s):
+            if s.endswith("data"):
+                return s
+            else:
+                return re.sub(
+                    "[yhs]s$",
+                    lambda m: {"ys": "ies", "hs": "hes", "ss": "ses"}[
+                        cast(str, m.group(0))
+                    ],
+                    s + "s",
+                )
+
+        return [pluralize(table) for table in tables]
+
+    def _count_from_table(self, swh_storage_backend, table: str) -> int:
+        cql_runner = getattr(swh_storage_backend, "_cql_runner")
+        return sum(1 for row in getattr(cql_runner, f"_{table}").iter_all())

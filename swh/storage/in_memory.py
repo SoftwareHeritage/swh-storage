@@ -10,6 +10,7 @@ import itertools
 import random
 from typing import (
     Any,
+    Callable,
     Dict,
     Generic,
     Iterable,
@@ -48,7 +49,8 @@ from swh.storage.cassandra.model import (
     SnapshotBranchRow,
     SnapshotRow,
 )
-from swh.storage.interface import ListOrder
+from swh.storage.cassandra.schema import HASH_ALGORITHMS
+from swh.storage.interface import ListOrder, TotalHashDict
 from swh.storage.objstorage import ObjStorage
 
 from .common import origin_url_to_sha1
@@ -104,11 +106,17 @@ class Table(Generic[TRow]):
 
     def get_partition(self, token: int) -> Dict[Tuple, TRow]:
         """Returns the partition that contains this token."""
-        return self.data[token]
+        return self.data.get(token, {})
 
-    def insert(self, row: TRow):
+    def insert(self, row: TRow) -> None:
         partition = self.data[self.token(self.partition_key(row))]
         partition[self.clustering_key(row)] = row
+
+    def delete(self, predicate: Callable[[TRow], bool]) -> None:
+        self.data = {
+            pk: dict((ck, row) for (ck, row) in partition.items() if not predicate(row))
+            for (pk, partition) in self.data.items()
+        }
 
     def split_primary_key(self, key: Tuple) -> Tuple[Tuple, Tuple]:
         """Returns (partition_key, clustering_key) from a partition key"""
@@ -233,6 +241,14 @@ class InMemoryCqlRunner:
             if not self.content_get_from_pk(content_hashes):
                 yield content_hashes
 
+    def content_delete(self, content_hashes: TotalHashDict) -> None:
+        self._contents.delete(
+            lambda row: all(
+                getattr(row, k) == content_hashes[k]  # type: ignore[literal-required]
+                for k in HASH_ALGORITHMS
+            )
+        )
+
     ##########################
     # 'content_by_*' tables
     ##########################
@@ -276,6 +292,14 @@ class InMemoryCqlRunner:
 
     def skipped_content_get_from_token(self, token: int) -> Iterable[SkippedContentRow]:
         return self._skipped_contents.get_from_token(token)
+
+    def skipped_content_delete(self, content_hashes: TotalHashDict) -> None:
+        self._skipped_contents.delete(
+            lambda row: all(
+                getattr(row, k) == content_hashes[k]  # type: ignore[literal-required]
+                for k in HASH_ALGORITHMS
+            )
+        )
 
     ##########################
     # 'skipped_content_by_*' tables
@@ -323,6 +347,9 @@ class InMemoryCqlRunner:
     ) -> Iterable[Tuple[int, DirectoryRow]]:
         return self._get_token_range(self._directories, start, end, limit)
 
+    def directory_delete(self, directory_id: Sha1Git) -> None:
+        self._directories.delete(lambda row: row.id == directory_id)
+
     ##########################
     # 'directory_entry' table
     ##########################
@@ -345,6 +372,9 @@ class InMemoryCqlRunner:
         entries = itertools.dropwhile(lambda entry: entry.name < from_, entries)
         # Apply limit
         return itertools.islice(entries, limit)
+
+    def directory_entry_delete(self, directory_id: Sha1Git) -> None:
+        self._directory_entries.delete(lambda row: row.directory_id == directory_id)
 
     ##########################
     # 'revision' table
@@ -385,6 +415,9 @@ class InMemoryCqlRunner:
     def revision_get_random(self) -> Optional[RevisionRow]:
         return self._revisions.get_random()
 
+    def revision_delete(self, revision_id: Sha1Git) -> None:
+        self._revisions.delete(lambda row: row.id == revision_id)
+
     ##########################
     # 'revision_parent' table
     ##########################
@@ -395,6 +428,9 @@ class InMemoryCqlRunner:
     def revision_parent_get(self, revision_id: Sha1Git) -> Iterable[bytes]:
         for parent in self._revision_parents.get_from_partition_key((revision_id,)):
             yield parent.parent_id
+
+    def revision_parent_delete(self, revision_id: Sha1Git) -> None:
+        self._revision_parents.delete(lambda row: row.id == revision_id)
 
     ##########################
     # 'release' table
@@ -430,6 +466,9 @@ class InMemoryCqlRunner:
     def release_get_random(self) -> Optional[ReleaseRow]:
         return self._releases.get_random()
 
+    def release_delete(self, release_id: Sha1Git) -> None:
+        self._releases.delete(lambda row: row.id == release_id)
+
     ##########################
     # 'snapshot' table
     ##########################
@@ -460,6 +499,9 @@ class InMemoryCqlRunner:
         self, snapshot_id: Sha1Git, from_: bytes, limit: int
     ) -> Iterable[SnapshotBranchRow]:
         return self.snapshot_branch_get(snapshot_id=snapshot_id, from_=from_, limit=1)
+
+    def snapshot_delete(self, snapshot_id: Sha1Git) -> None:
+        self._snapshots.delete(lambda row: row.id == snapshot_id)
 
     ##########################
     # 'snapshot_branch' table
@@ -506,6 +548,9 @@ class InMemoryCqlRunner:
             if count >= limit:
                 break
 
+    def snapshot_branch_delete(self, snapshot_id: Sha1Git) -> None:
+        self._snapshot_branches.delete(lambda row: row.snapshot_id == snapshot_id)
+
     ##########################
     # 'origin' table
     ##########################
@@ -549,6 +594,9 @@ class InMemoryCqlRunner:
         visit_id = origin.next_visit_id
         origin.next_visit_id += 1
         return visit_id
+
+    def origin_delete(self, sha1: bytes) -> None:
+        self._origins.delete(lambda row: row.sha1 == sha1)
 
     ##########################
     # 'origin_visit' table
@@ -595,6 +643,9 @@ class InMemoryCqlRunner:
             for (token, partition) in self._origin_visits.data.items()
             for (clustering_key, row) in partition.items()
         )
+
+    def origin_visit_delete(self, origin_url: str) -> None:
+        self._origin_visits.delete(lambda row: row.origin == origin_url)
 
     ##########################
     # 'origin_visit_status' table
@@ -669,6 +720,9 @@ class InMemoryCqlRunner:
             }
         )
 
+    def origin_visit_status_delete(self, origin_url: str) -> None:
+        self._origin_visit_statuses.delete(lambda row: row.origin == origin_url)
+
     ##########################
     # 'metadata_authority' table
     ##########################
@@ -709,6 +763,9 @@ class InMemoryCqlRunner:
             if result:
                 results.append(result)
         return results
+
+    def raw_extrinsic_metadata_by_id_delete(self, emd_id):
+        self._raw_extrinsic_metadata_by_id.delete(lambda row: row.id == emd_id)
 
     #########################
     # 'raw_extrinsic_metadata' table
@@ -764,6 +821,22 @@ class InMemoryCqlRunner:
         metadata = self._raw_extrinsic_metadata.get_from_partition_key((target,))
         return ((m.authority_type, m.authority_url) for m in metadata)
 
+    def raw_extrinsic_metadata_delete(
+        self,
+        target,
+        authority_type,
+        authority_url,
+        discovery_date,
+        emd_id,
+    ):
+        self._raw_extrinsic_metadata.delete(
+            lambda row: row.target == target
+            and row.authority_type == row.authority_type
+            and row.authority_url == authority_url
+            and row.discovery_date == discovery_date
+            and row.id == emd_id
+        )
+
     #########################
     # 'extid' table
     #########################
@@ -777,6 +850,29 @@ class InMemoryCqlRunner:
 
     def extid_index_add_one(self, row: ExtIDByTargetRow) -> None:
         pass
+
+    def extid_delete(
+        self,
+        extid_type: str,
+        extid: bytes,
+        extid_version: int,
+        target_type: str,
+        target: bytes,
+    ) -> None:
+        self._extid.delete(
+            lambda row: row.extid_type == extid_type
+            and row.extid == extid
+            and row.extid_version == extid_version
+            and row.target_type == target_type
+            and row.target == target
+        )
+
+    def extid_delete_from_by_target_table(
+        self, target_type: str, target: bytes
+    ) -> None:
+        self._extid.delete(
+            lambda row: row.target_type == target_type and row.target == target
+        )
 
     def extid_get_from_pk(
         self,
