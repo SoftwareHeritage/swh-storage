@@ -151,10 +151,12 @@ def create_keyspace(
     *,
     durable_writes=True,
     auth_provider: Optional[Dict] = None,
+    table_options: Optional[Dict[str, str]] = None,
 ):
     auth_provider_inst: Optional[AuthProvider] = None
     if auth_provider:
         auth_provider_inst = _instantiate_auth_provider(auth_provider)
+    table_options = table_options or {}
 
     cluster = Cluster(
         hosts,
@@ -178,7 +180,11 @@ def create_keyspace(
         % (keyspace, extra_params)
     )
     session.execute('USE "%s"' % keyspace)
-    for query in CREATE_TABLES_QUERIES:
+    for table_name, query in CREATE_TABLES_QUERIES.items():
+        current_table_options = table_options.get(table_name, "")
+        if current_table_options.strip():
+            current_table_options = "AND " + current_table_options
+        query = query.format(table_options=current_table_options)
         logger.debug("Running:\n%s", query)
         session.execute(query)
 
@@ -350,10 +356,12 @@ class CqlRunner:
         port: int,
         consistency_level: str,
         auth_provider: Optional[Dict] = None,
+        table_options: Optional[Dict[str, str]] = None,
     ):
         auth_provider_impl: Optional[AuthProvider] = None
         if auth_provider:
             auth_provider_impl = _instantiate_auth_provider(auth_provider)
+        self.table_options = table_options or {}
 
         self._cluster = Cluster(
             hosts,
@@ -1902,8 +1910,16 @@ class CqlRunner:
         # if this process did not create it yet (or crashed in between).
         # Conversely, creating the table is idempotent, so it is not an issue if this process
         # crashes between creating the table and adding the row.
+        table_options = self.table_options.get("object_references_*", "")
+        if table_options.strip():
+            table_options = "AND " + table_options
         self._execute_with_retries(
-            OBJECT_REFERENCES_TEMPLATE.format(keyspace=self.keyspace, name=name), []
+            OBJECT_REFERENCES_TEMPLATE.format(
+                keyspace=self.keyspace,
+                name=name,
+                table_options=table_options,
+            ),
+            [],
         )
 
         row = ObjectReferencesTableRow(

@@ -176,6 +176,7 @@ class CassandraStorage:
         consistency_level="ONE",
         directory_entries_insert_algo="one-by-one",
         auth_provider: Optional[Dict] = None,
+        table_options: Optional[Dict[str, str]] = None,
     ):
         """
         A backend of swh-storage backed by Cassandra
@@ -209,12 +210,15 @@ class CassandraStorage:
                         cls: cassandra.auth.PlainTextAuthProvider
                         username: myusername
                         password: mypassword
-        """
+            table_options: An optional dict mapping each table name (or the literal
+                ``object_references_*``) to `CQL table options <https://cassandra.apache.org/doc/latest/cassandra/reference/cql-commands/create-table.html#table_options>`_
+        """  # noqa: B950
         self._hosts = hosts
         self._keyspace = keyspace
         self._port = port
         self._consistency_level = consistency_level
         self._auth_provider = auth_provider
+        self._table_options = table_options
         self._set_cql_runner()
         self.journal_writer: JournalWriter = JournalWriter(journal_writer)
         self.objstorage: ObjStorage = ObjStorage(self, objstorage)
@@ -247,6 +251,7 @@ class CassandraStorage:
             self._port,
             self._consistency_level,
             self._auth_provider,
+            self._table_options,
         )
 
     def check_config(self, *, check_write: bool) -> bool:
