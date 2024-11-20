@@ -119,7 +119,7 @@ def test_add_content_column(
     session = swh_storage._cql_runner._cluster.connect(swh_storage._cql_runner.keyspace)
     session.execute("ALTER TABLE content ADD byte_xor blob")
     for statement in CONTENT_INDEX_TEMPLATE.split("\n\n"):
-        session.execute(statement.format(main_algo="byte_xor"))
+        session.execute(statement.format(main_algo="byte_xor").format(table_options=""))
 
     # Should not affect the running code at all:
     assert swh_storage.content_get([StorageData.content.sha1]) == [
@@ -268,7 +268,7 @@ def test_change_content_pk(
         );"""
     )
     for statement in CONTENT_INDEX_TEMPLATE.split("\n\n"):
-        session.execute(statement.format(main_algo="byte_xor"))
+        session.execute(statement.format(main_algo="byte_xor").format(table_options=""))
 
     # Should not affect the running code at all:
     assert swh_storage.content_get([StorageData.content.sha1]) == [
