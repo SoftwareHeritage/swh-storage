@@ -1,6 +1,5 @@
-#!/usr/bin/env python3
-
 from collections import defaultdict
+import datetime
 from typing import Set, Tuple
 
 import pytest
@@ -19,6 +18,10 @@ def swh_storage(mocker):
             {"cls": "record_references"},
             {"cls": "memory"},
         ],
+    )
+
+    storage.object_references_create_partition(
+        *datetime.date.today().isocalendar()[0:2]
     )
 
     return mocker.Mock(wraps=storage)

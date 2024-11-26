@@ -37,6 +37,8 @@ from typing import (
 if TYPE_CHECKING:
     from _typeshed import DataclassInstance
 
+from cassandra.util import Date
+
 from swh.model.model import Person, TimestampWithTimezone
 
 MAGIC_NULL_PK = b"<null>"
@@ -66,6 +68,13 @@ class BaseRow:
     TABLE: ClassVar[str]
     PARTITION_KEY: ClassVar[Tuple[str, ...]]
     CLUSTERING_KEY: ClassVar[Tuple[str, ...]] = ()
+
+    @classmethod
+    def denullify_clustering_key(self, ck: Tuple) -> Tuple:
+        """If this class has a Optional fields used as a clustering key, this replaces
+        such values from the given clustering key so it is suitable for sorting purposes
+        """
+        return ck
 
     @classmethod
     def from_dict(cls: Type[T], d: Dict[str, Any]) -> T:
@@ -116,6 +125,10 @@ class SkippedContentRow(BaseRow):
     status: str
     reason: str
     origin: str
+
+    @classmethod
+    def denullify_clustering_key(self, ck: Tuple) -> Tuple:
+        return tuple(MAGIC_NULL_PK if v is None else v for v in ck)
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "SkippedContentRow":
@@ -424,3 +437,20 @@ class ObjectReferenceRow(BaseRow):
     target: bytes
     source_type: str
     source: bytes
+
+
+@dataclasses.dataclass(frozen=True)
+class ObjectReferencesTableRow(BaseRow):
+    TABLE = "object_references_table"
+    PARTITION_KEY = ("pk",)
+    CLUSTERING_KEY = ("name",)
+
+    pk: int
+    """always zero, puts everything in the same Cassandra partition for faster querying"""
+    name: str
+    year: int
+    """ISO year."""
+    week: int
+    """ISO week."""
+    start: Date
+    end: Date

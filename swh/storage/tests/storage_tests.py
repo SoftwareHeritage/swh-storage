@@ -4,6 +4,7 @@
 # See top-level LICENSE file for more information
 
 from collections import defaultdict
+from contextlib import contextmanager
 import datetime
 from datetime import timedelta
 import inspect
@@ -11,7 +12,7 @@ import itertools
 import math
 import random
 from typing import Any, ClassVar, Dict, Iterator, List, Optional
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import attr
 import cassandra
@@ -50,6 +51,7 @@ from swh.storage.cassandra.storage import CassandraStorage
 from swh.storage.common import origin_url_to_sha1 as sha1
 from swh.storage.exc import (
     HashCollision,
+    NonRetryableException,
     QueryTimeout,
     StorageArgumentException,
     UnknownMetadataAuthority,
@@ -134,6 +136,13 @@ def assert_contents_ok(
 def filter_dict(d):
     "Filter None value from a dict"
     return {k: v for k, v in d.items() if v is not None}
+
+
+@contextmanager
+def db_transaction(storage):
+    with storage.db() as db:
+        with db.transaction() as cur:
+            yield db, cur
 
 
 class TestStorage:
@@ -668,7 +677,7 @@ class TestStorage:
                 "sha256": duplicated.sha256,
             }
         )
-        assert set(results) == {skipped_content, duplicated}
+        assert set(results) == {skipped_content, duplicated}, results
 
     def test_skipped_content_find_with_duplicate_but_precise_search(
         self, swh_storage, sample_data
@@ -694,7 +703,7 @@ class TestStorage:
                 "sha256": duplicated.sha256,
             }
         )
-        assert len(results) == 2
+        assert len(results) == 2, results
 
         # Search with more precision should return only one
         results = swh_storage.skipped_content_find(
@@ -6245,6 +6254,9 @@ class TestStorage:
             ]
         ) == {"object_reference:add": 1}
 
+        refs = swh_storage.object_find_recent_references(target_swhid=target, limit=10)
+        assert refs == [source]
+
     def test_object_references_add_twice(self, swh_storage):
         """Ensure adding the same reference twice does not crash"""
         source = ExtendedSWHID.from_string(f"swh:1:dir:{0:040x}")
@@ -6257,6 +6269,128 @@ class TestStorage:
         assert swh_storage.object_references_add(
             [ObjectReference(source=source, target=target)]
         ) == {"object_reference:add": 1}
+
+        refs = swh_storage.object_find_recent_references(target_swhid=target, limit=10)
+        assert refs == [source]
+
+    def test_object_references_create_and_list_partition(
+        self, swh_storage, swh_storage_backend
+    ):
+        swh_storage_backend.object_references_create_partition(year=2020, week=6)
+        partitions = swh_storage_backend.object_references_list_partitions()
+
+        # We get a partition for this week initialized by the pytest plugin when
+        # creating the swh_storage instance
+        assert len(partitions) == 2, partitions
+        assert partitions[0].table_name == "object_references_2020w06", partitions
+        assert partitions[0].year == 2020
+        assert partitions[0].week == 6
+        assert partitions[0].start == datetime.date.fromisoformat("2020-02-03")
+        assert partitions[0].end == datetime.date.fromisoformat("2020-02-10")
+        this_year, this_week = datetime.date.today().isocalendar()[0:2]
+        assert (
+            partitions[1].table_name
+            == f"object_references_{this_year:04d}w{this_week:02d}"
+        )
+        assert partitions[1].year == this_year
+        assert partitions[1].week == this_week
+
+    def test_object_references_add_to_missing_partition(
+        self, swh_storage, swh_storage_backend
+    ):
+        """Ensure adding the same reference twice does not crash"""
+        source = ExtendedSWHID.from_string(f"swh:1:dir:{0:040x}")
+        target = ExtendedSWHID.from_string(f"swh:1:cnt:{1:040x}")
+
+        partitions = swh_storage_backend.object_references_list_partitions()
+        assert len(partitions) == 1
+        swh_storage_backend.object_references_drop_partition(partitions[0])
+
+        # insert reference (while in the past)
+
+        with pytest.raises(NonRetryableException):
+            swh_storage.object_references_add(
+                [ObjectReference(source=source, target=target)]
+            )
+
+    def test_object_references_drop_partition(self, swh_storage, swh_storage_backend):
+        """Ensure adding the same reference twice does not crash"""
+        source1 = ExtendedSWHID.from_string(f"swh:1:dir:{0:040x}")
+        source2 = ExtendedSWHID.from_string(f"swh:1:dir:{1:040x}")
+        target = ExtendedSWHID.from_string(f"swh:1:cnt:{2:040x}")
+
+        swh_storage_backend.object_references_create_partition(year=2020, week=6)
+
+        # move time backward to 2020-02-06
+
+        if isinstance(swh_storage_backend, PostgreSQLStorage):
+
+            @contextmanager
+            def in_the_past():
+                with db_transaction(swh_storage_backend) as (db, cur):
+                    cur.execute(
+                        """
+                        ALTER TABLE object_references
+                            ALTER COLUMN insertion_date
+                            SET DEFAULT '2020-02-06'
+                        """
+                    )
+
+                try:
+                    yield
+                finally:
+                    with db_transaction(swh_storage_backend) as (db, cur):
+                        cur.execute(
+                            """
+                            ALTER TABLE object_references
+                                ALTER COLUMN insertion_date
+                                SET DEFAULT now()
+                            """
+                        )
+
+        elif isinstance(swh_storage_backend, CassandraStorage):
+
+            @contextmanager
+            def in_the_past():
+                with patch(
+                    "time.time",
+                    return_value=datetime.datetime.fromisoformat(
+                        "2020-02-06 10:10:10"
+                    ).timestamp(),
+                ):
+                    yield
+
+        else:
+            raise Exception(f"Unknown storage backend: {swh_storage_backend}")
+
+        # insert reference (while in the past)
+        with in_the_past():
+            assert swh_storage.object_references_add(
+                [ObjectReference(source=source1, target=target)]
+            ) == {"object_reference:add": 1}
+
+        # insert reference (today)
+        assert swh_storage.object_references_add(
+            [ObjectReference(source=source2, target=target)]
+        ) == {"object_reference:add": 1}
+
+        # check both are recorded
+        refs = swh_storage.object_find_recent_references(target_swhid=target, limit=10)
+        assert refs == [source1, source2]
+
+        # drop partition
+        partitions = swh_storage_backend.object_references_list_partitions()
+        assert len(partitions) == 2, partitions
+        assert partitions[0].table_name == "object_references_2020w06", partitions
+        assert partitions[0].year == 2020
+        assert partitions[0].week == 6
+        swh_storage_backend.object_references_drop_partition(partitions[0])
+        partitions = swh_storage_backend.object_references_list_partitions()
+        assert len(partitions) == 1, partitions
+
+        # check the old reference was dropped along with the partition
+        refs = swh_storage.object_find_recent_references(target_swhid=target, limit=10)
+        assert refs == [source2], refs
 
     def test_querytimeout(self, swh_storage, sample_data, mocker):
         origin_url = "https://example.org/"

@@ -62,6 +62,7 @@ from swh.model.model import (
 from swh.model.swhids import CoreSWHID, ExtendedObjectType, ExtendedSWHID, ObjectType
 from swh.storage.exc import (
     HashCollision,
+    NonRetryableException,
     QueryTimeout,
     StorageArgumentException,
     StorageDBError,
@@ -73,6 +74,7 @@ from swh.storage.interface import (
     HashDict,
     ListOrder,
     ObjectReference,
+    ObjectReferencesPartition,
     OriginVisitWithStatuses,
     PagedResult,
     PartialBranches,
@@ -2050,10 +2052,15 @@ class Storage:
         self, references: List[ObjectReference], *, db: Db, cur=None
     ) -> Dict[str, int]:
         to_add = list({converters.object_reference_to_db(ref) for ref in references})
-        db.object_references_add(
-            to_add,
-            cur=cur,
-        )
+        try:
+            db.object_references_add(
+                to_add,
+                cur=cur,
+            )
+        except psycopg2.errors.CheckViolation:
+            raise NonRetryableException(
+                "No 'object_references_*' table open for writing."
+            )
 
         return {"object_reference:add": len(to_add)}
 
@@ -2181,3 +2188,26 @@ class Storage:
             (swhid.object_type.name.lower(), swhid.object_id) for swhid in target_swhids
         ]
         return db.extid_delete_for_target(target_rows, cur=cur)
+
+    @db_transaction()
+    def object_references_create_partition(
+        self, year: int, week: int, *, db: Db, cur=None
+    ) -> Tuple[datetime.date, datetime.date]:
+        """Create the partition of the object_references table for the given ISO
+        ``year`` and ``week``."""
+        return db.object_references_create_partition(year, week, cur=cur)
+
+    @db_transaction()
+    def object_references_drop_partition(
+        self, partition: ObjectReferencesPartition, *, db: Db, cur=None
+    ) -> None:
+        """Delete the partition of the object_references table for the given partition."""
+        db.object_references_drop_partition(partition.year, partition.week, cur=cur)
+
+    @db_transaction()
+    def object_references_list_partitions(
+        self, *, db: Db, cur=None
+    ) -> List[ObjectReferencesPartition]:
+        """List existing partitions of the object_references table, ordered from
+        oldest to the most recent."""
+        return db.object_references_list_partitions(cur=cur)

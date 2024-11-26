@@ -59,6 +59,7 @@ from swh.storage.interface import (
     HashDict,
     ListOrder,
     ObjectReference,
+    ObjectReferencesPartition,
     OriginVisitWithStatuses,
     PagedResult,
     PartialBranches,
@@ -2066,7 +2067,7 @@ class CassandraStorage:
         return result
 
     #########################
-    # 'object_references' table
+    # 'object_references' tables
     #########################
 
     def object_find_recent_references(
@@ -2087,6 +2088,37 @@ class CassandraStorage:
         )
         self._cql_runner.object_reference_add_concurrent(to_add)
         return {"object_reference:add": len(to_add)}
+
+    #########################
+    # 'object_references' tables management
+    #########################
+
+    def object_references_create_partition(
+        self, year: int, week: int
+    ) -> Tuple[datetime.date, datetime.date]:
+        """Create the partition of the object_references table for the given ISO
+        ``year`` and ``week``."""
+        return self._cql_runner.object_references_create_table((year, week))
+
+    def object_references_drop_partition(
+        self, partition: ObjectReferencesPartition
+    ) -> None:
+        """Delete the partition of the object_references table for the given partition."""
+        self._cql_runner.object_references_drop_table(partition.year, partition.week)
+
+    def object_references_list_partitions(self) -> List[ObjectReferencesPartition]:
+        """List existing partitions of the object_references table, ordered from
+        oldest to the most recent."""
+        return [
+            ObjectReferencesPartition(
+                table_name=row.name,
+                year=row.year,
+                week=row.week,
+                start=row.start.date(),  # cassandra.util.Date -> datetime.date
+                end=row.end.date(),  # ditto
+            )
+            for row in self._cql_runner.object_references_list_tables()
+        ]
 
     #########################
     # Deletion

@@ -8,6 +8,7 @@ import datetime
 import functools
 import itertools
 import random
+import threading
 from typing import (
     Any,
     Callable,
@@ -23,6 +24,8 @@ from typing import (
     Union,
 )
 
+from cassandra.util import Date
+
 from swh.model.model import Content, Sha1Git, SkippedContent
 from swh.model.swhids import ExtendedSWHID
 from swh.storage.cassandra import CassandraStorage
@@ -37,6 +40,7 @@ from swh.storage.cassandra.model import (
     MetadataFetcherRow,
     ObjectCountRow,
     ObjectReferenceRow,
+    ObjectReferencesTableRow,
     OriginRow,
     OriginVisitRow,
     OriginVisitStatusRow,
@@ -50,6 +54,7 @@ from swh.storage.cassandra.model import (
     SnapshotRow,
 )
 from swh.storage.cassandra.schema import HASH_ALGORITHMS
+from swh.storage.exc import NonRetryableException
 from swh.storage.interface import ListOrder, TotalHashDict
 from swh.storage.objstorage import ObjStorage
 
@@ -152,7 +157,9 @@ class Table(Generic[TRow]):
         return (
             (self.primary_key(row), row)
             for (token, partition) in self.data.items()
-            for (clustering_key, row) in partition.items()
+            for (clustering_key, row) in sorted(
+                partition.items(), key=lambda ck_and_row: ck_and_row[0]
+            )
         )
 
     def get_random(self) -> Optional[TRow]:
@@ -180,8 +187,22 @@ class InMemoryCqlRunner:
         self._raw_extrinsic_metadata = Table(RawExtrinsicMetadataRow)
         self._raw_extrinsic_metadata_by_id = Table(RawExtrinsicMetadataByIdRow)
         self._extid = Table(ExtIDRow)
-        self._object_references = Table(ObjectReferenceRow)
+        self._object_references = {}
+        self._object_references_tables_lock = threading.Lock()
+        self._object_references_tables = Table(ObjectReferencesTableRow)
         self._stat_counters = defaultdict(int)
+
+    def __getstate__(self):
+        """Overrides default :meth:`__getstate__` to exclude the lock, because
+        :file:`migrate_extrinsic_metadata/test_debian.py` needs this object to be deepcopiable
+        """
+        try:
+            state = super().__getstate__()
+        except AttributeError:
+            # Python <3.10 does provide a default __getstate__ implementation.
+            state = self.__dict__.copy()
+        state.pop("_object_references_tables_lock", None)
+        return state
 
     def _get_token_range(
         self, table: Table[TRow], start: int, end: int, limit: int
@@ -967,15 +988,69 @@ class InMemoryCqlRunner:
     def object_reference_add_concurrent(
         self, entries: List[ObjectReferenceRow]
     ) -> None:
+        today = datetime.date.today()
         for entry in entries:
-            self._object_references.insert(entry)
+            try:
+                table = next(
+                    table
+                    for table in self.object_references_list_tables()
+                    if table.start.date() <= today < table.end.date()
+                )
+            except StopIteration:
+                raise NonRetryableException(
+                    "No 'object_references_*' table open for writing."
+                )
+            self._object_references[table.name].insert(entry)
 
     def object_reference_get(
         self, target: Sha1Git, target_type: str, limit: int
     ) -> Iterable[ObjectReferenceRow]:
         return itertools.islice(
-            self._object_references.get_from_partition_key((target_type, target)), limit
+            itertools.chain.from_iterable(
+                self._object_references[table.name].get_from_partition_key(
+                    (target_type, target)
+                )
+                for table in self.object_references_list_tables()
+            ),
+            limit,
         )
+
+    def object_references_list_tables(self) -> List[ObjectReferencesTableRow]:
+        return [row for (pk, row) in self._object_references_tables.iter_all()]
+
+    def object_references_create_table(
+        self,
+        date: Tuple[int, int],  # _prepared_insert_statement supports only one arg
+    ) -> Tuple[datetime.date, datetime.date]:
+        (year, week) = date
+
+        # This date is guaranteed to be in week 1 by the ISO standard
+        in_week1 = datetime.date(year=year, month=1, day=4)
+        monday_of_week1 = in_week1 + datetime.timedelta(days=-in_week1.weekday())
+
+        monday = monday_of_week1 + datetime.timedelta(weeks=week - 1)
+        next_monday = monday + datetime.timedelta(days=7)
+
+        name = "object_references_%04dw%02d" % (year, week)
+        row = ObjectReferencesTableRow(
+            pk=0,  # always the same value, puts everything in the same Cassandra partition
+            name=name,
+            year=year,
+            week=week,
+            start=Date(monday),  # datetime.date -> cassandra.util.Date
+            end=Date(next_monday),  # ditto
+        )
+
+        self._object_references[name] = Table(ObjectReferenceRow)
+        self._object_references_tables.insert(row)
+
+        return (monday, next_monday)
+
+    def object_references_drop_table(self, year: int, week: int) -> None:
+        name = "object_references_%04dw%02d" % (year, week)
+
+        self._object_references_tables.delete(lambda row: row.name == name)
+        del self._object_references[name]
 
 
 class InMemoryStorage(CassandraStorage):

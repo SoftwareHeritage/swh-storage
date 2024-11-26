@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2023  The Software Heritage developers
+# Copyright (C) 2015-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -1793,4 +1793,39 @@ class ObjectDeletionInterface(Protocol):
 
                 extid:delete: Number of ExtID objects removed
         """
+        ...
+
+
+@attr.s
+class ObjectReferencesPartition:
+    """Represents a subset of :class:`ObjectReference` rows inserted into the database
+    within a certain time range"""
+
+    table_name = attr.ib(type=str)
+    year = attr.ib(type=int)
+    """ISO year."""
+    week = attr.ib(type=int)
+    """ISO week."""
+    start = attr.ib(type=datetime.date)
+    end = attr.ib(type=datetime.date)
+
+
+@runtime_checkable
+class PartitionsManagementInterface(Protocol):
+    def object_references_create_partition(
+        self, year: int, week: int
+    ) -> Tuple[datetime.date, datetime.date]:
+        """Create the partition of the object_references table for the given ISO
+        ``year`` and ``week``."""
+        ...
+
+    def object_references_drop_partition(
+        self, partition: ObjectReferencesPartition
+    ) -> None:
+        """Delete the partition of the object_references table for the given partition."""
+        ...
+
+    def object_references_list_partitions(self) -> List[ObjectReferencesPartition]:
+        """List existing partitions of the object_references table, ordered from
+        oldest to the most recent."""
         ...

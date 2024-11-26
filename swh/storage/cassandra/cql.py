@@ -31,9 +31,10 @@ from typing import (
 from cassandra import ConsistencyLevel, CoordinationFailure, ReadTimeout, WriteTimeout
 from cassandra.auth import AuthProvider
 from cassandra.cluster import EXEC_PROFILE_DEFAULT, Cluster, ExecutionProfile, ResultSet
-from cassandra.concurrent import execute_concurrent_with_args
+from cassandra.concurrent import execute_concurrent, execute_concurrent_with_args
 from cassandra.policies import DCAwareRoundRobinPolicy, TokenAwarePolicy
 from cassandra.query import BoundStatement, PreparedStatement, dict_factory
+from cassandra.util import Date
 from mypy_extensions import NamedArg
 from tenacity import (
     retry,
@@ -55,7 +56,7 @@ from swh.model.model import (
     TimestampWithTimezone,
 )
 from swh.model.swhids import CoreSWHID
-from swh.storage.exc import QueryTimeout
+from swh.storage.exc import NonRetryableException, QueryTimeout
 from swh.storage.interface import ListOrder, TotalHashDict
 
 from ..utils import remove_keys
@@ -72,6 +73,7 @@ from .model import (
     MetadataFetcherRow,
     ObjectCountRow,
     ObjectReferenceRow,
+    ObjectReferencesTableRow,
     OriginRow,
     OriginVisitRow,
     OriginVisitStatusRow,
@@ -85,7 +87,7 @@ from .model import (
     SnapshotRow,
     content_index_table_name,
 )
-from .schema import CREATE_TABLES_QUERIES, HASH_ALGORITHMS
+from .schema import CREATE_TABLES_QUERIES, HASH_ALGORITHMS, OBJECT_REFERENCES_TEMPLATE
 
 PARTITION_KEY_RESTRICTION_MAX_SIZE = 100
 """Maximum number of restrictions in a single query.
@@ -428,6 +430,31 @@ class CqlRunner:
         for _ in self._execute_many_with_retries(statement, rows):
             # Need to consume the generator to actually run the INSERTs
             pass
+
+    @retry(
+        wait=wait_random_exponential(multiplier=1, max=10),
+        stop=stop_after_attempt(MAX_RETRIES),
+        retry=retry_if_exception_type(CoordinationFailure),
+    )
+    def _execute_many_statements_with_retries_inner(
+        self,
+        statements_and_parameters: Sequence[Tuple[Any, Tuple]],
+    ) -> Iterable[Dict[str, Any]]:
+        for res in execute_concurrent(
+            self._session, statements_and_parameters, results_generator=True
+        ):
+            yield from res.result_or_exc
+
+    def _execute_many_statements_with_retries(
+        self,
+        statements_and_parameters: Sequence[Tuple[Any, Tuple]],
+    ) -> Iterable[Dict[str, Any]]:
+        try:
+            return self._execute_many_statements_with_retries_inner(
+                statements_and_parameters
+            )
+        except (ReadTimeout, WriteTimeout) as e:
+            raise QueryTimeout(*e.args) from None
 
     _T = TypeVar("_T", bound=BaseRow)
 
@@ -1741,6 +1768,10 @@ class CqlRunner:
     # 'object_references' table
     ##########################
 
+    _object_reference_current_table_and_insert_statement: Optional[
+        Tuple[ObjectReferencesTableRow, PreparedStatement]
+    ] = None
+
     @_prepared_insert_statement(ObjectReferenceRow)
     def object_reference_add_concurrent(
         self, entries: List[ObjectReferenceRow], *, statement
@@ -1748,18 +1779,166 @@ class CqlRunner:
         if len(entries) == 0:
             # nothing to do
             return
+
+        # find which table we are currently supposed to insert to
+        today = datetime.date.today()
+        table_and_statement = self._object_reference_current_table_and_insert_statement
+        if table_and_statement is None:
+            refresh_table_cache = True
+        else:
+            (table, statement) = table_and_statement
+            refresh_table_cache = not (table.start <= Date(today) < table.end)
+
+        # Update cached value _object_reference_current_table_and_statement
+        # if we went out of its range
+        if refresh_table_cache:
+            columns = ObjectReferenceRow.cols()
+            try:
+                table = next(
+                    table
+                    for table in self.object_references_list_tables()
+                    if table.start.date() <= today < table.end.date()
+                )
+            except StopIteration:
+                raise NonRetryableException(
+                    "No 'object_references_*' table open for writing."
+                )
+            statement = self._session.prepare(
+                f"INSERT INTO {self.keyspace}.{table.name} ({', '.join(columns)}) "
+                f"VALUES ({', '.join('?' for _ in columns)})"
+            )
+            self._object_reference_current_table_and_insert_statement = (
+                table,
+                statement,
+            )
+
+        # actually add rows to the table
         self._add_many(statement, entries)
 
-    @_prepared_select_statement(
-        ObjectReferenceRow, "WHERE target_type = ? AND target = ? LIMIT ?"
-    )
     def object_reference_get(
-        self, target: Sha1Git, target_type: str, limit: int, *, statement
+        self,
+        target: Sha1Git,
+        target_type: str,
+        limit: int,
     ) -> Iterable[ObjectReferenceRow]:
-        return map(
+        cols = ", ".join(ObjectReferenceRow.cols())
+        table_names = [table.name for table in self.object_references_list_tables()]
+        table_names.append("object_references")  # legacy, unsharded table
+        statements_and_parameters = [
+            (
+                f"SELECT {cols} FROM {self.keyspace}.{table_name} "
+                f"WHERE target_type = %s AND target = %s LIMIT %s",
+                (target_type, target, limit),
+            )
+            for table_name in table_names
+        ]
+        rows = map(
             ObjectReferenceRow.from_dict,
-            self._execute_with_retries(statement, [target_type, target, limit]),
+            self._execute_many_statements_with_retries(statements_and_parameters),
         )
+        return itertools.islice(rows, limit)
+
+    ##########################
+    # 'object_references_*' tables management
+    ##########################
+
+    _object_references_tables_cache_expiry = datetime.datetime.min.replace(
+        tzinfo=datetime.timezone.utc
+    )
+    _object_references_tables_cache: List[ObjectReferencesTableRow] = []
+    """Sorted by start date"""
+
+    @_prepared_select_statement(
+        ObjectReferencesTableRow, "WHERE pk = 0"
+    )  # every row has pk=0
+    def object_references_list_tables(
+        self, *, statement
+    ) -> List[ObjectReferencesTableRow]:
+        """List existing tables of the object_references table, ordered from
+        oldest to the most recent.
+
+        Its result is cached per-:class:`CqlRunner` instance for an hour, to avoid
+        a round-trip on every object write."""
+        now = datetime.datetime.now(tz=datetime.timezone.utc)
+        if self._object_references_tables_cache_expiry < now:
+            rows = map(
+                ObjectReferencesTableRow.from_dict,
+                self._execute_with_retries(statement, []),
+            )
+            self._object_references_tables_cache = list(
+                sorted(rows, key=lambda row: row.start)
+            )
+            self._object_references_tables_cache_expiry = now + datetime.timedelta(
+                hours=1
+            )
+
+            # Clear object_reference_add_concurrent's cache
+            self._object_reference_current_table_and_insert_statement = None
+
+        return self._object_references_tables_cache
+
+    @_prepared_insert_statement(ObjectReferencesTableRow)
+    def object_references_create_table(
+        self,
+        date: Tuple[int, int],  # _prepared_insert_statement supports only one arg
+        *,
+        statement,
+    ) -> Tuple[datetime.date, datetime.date]:
+        """Create the table of the object_references table for the given ISO
+        ``year`` and ``week``."""
+        (year, week) = date
+
+        # This date is guaranteed to be in week 1 by the ISO standard
+        in_week1 = datetime.date(year=year, month=1, day=4)
+        monday_of_week1 = in_week1 + datetime.timedelta(days=-in_week1.weekday())
+
+        monday = monday_of_week1 + datetime.timedelta(weeks=week - 1)
+        next_monday = monday + datetime.timedelta(days=7)
+
+        name = "object_references_%04dw%02d" % (year, week)
+
+        # We need to create the table before adding a row to object_references_table, because
+        # object writers may try writing to the new table as soon as we added that row, even
+        # if this process did not create it yet (or crashed in between).
+        # Conversely, creating the table is idempotent, so it is not an issue if this process
+        # crashes between creating the table and adding the row.
+        self._execute_with_retries(
+            OBJECT_REFERENCES_TEMPLATE.format(keyspace=self.keyspace, name=name), []
+        )
+
+        row = ObjectReferencesTableRow(
+            pk=0,  # always the same value, puts everything in the same Cassandra partition
+            name=name,
+            year=year,
+            week=week,
+            start=Date(monday),  # datetime.date -> cassandra.util.Date
+            end=Date(next_monday),  # ditto
+        )
+        self._execute_with_retries(statement, dataclasses.astuple(row))
+
+        return (monday, next_monday)
+
+    def object_references_drop_table(self, year: int, week: int) -> None:
+        """Delete the table of the object_references table for the given ISO
+        ``year`` and ``week``."""
+        name = "object_references_%04dw%02d" % (year, week)
+
+        # must delete the row first, so other writers don't try to write to it.
+        # Note that if we delete the last table, there is still a small chance
+        # writers have read this row before, and will write to the table later.
+        # Then they'll just crash and try again. This shouldn't happen in practice,
+        # because we only delete old tables.
+        self._execute_with_retries(
+            f"DELETE FROM {self.keyspace}.object_references_table WHERE pk = 0 AND name = %s",
+            [name],
+        )
+
+        # invalidate cache
+        self._object_references_tables_cache_expiry = datetime.datetime.min.replace(
+            tzinfo=datetime.timezone.utc
+        )
+
+        self._execute_with_retries(f"DROP TABLE {self.keyspace}.{name}", [])
 
     ##########################
     # Miscellaneous

@@ -254,6 +254,16 @@ CREATE TABLE IF NOT EXISTS object_references (
     source_type     ascii,
     source          blob,
     PRIMARY KEY ((target_type, target), source_type, source)
+);""",  # Not written to anymore, but still supported for reads
+    """
+CREATE TABLE IF NOT EXISTS object_references_table (
+    pk              int, -- always zero, puts everything in the same Cassandra partition
+    name            ascii,
+    year            int, -- ISO year
+    week            int, -- ISO week
+    start           date,
+    end             date,
+    PRIMARY KEY ((pk), name)
 );""",
 ]
 
@@ -270,6 +280,16 @@ CREATE TABLE IF NOT EXISTS skipped_content_by_{main_algo} (
     {main_algo}   blob,
     target_token  bigint, -- value of token(pk) on the "primary" table
     PRIMARY KEY (({main_algo}), target_token)
+);
+"""
+
+OBJECT_REFERENCES_TEMPLATE = """
+CREATE TABLE IF NOT EXISTS {keyspace}.{name} (
+    target_type     ascii,
+    target          blob,
+    source_type     ascii,
+    source          blob,
+    PRIMARY KEY ((target_type, target), source_type, source)
 );
 """
 
@@ -292,6 +312,7 @@ TABLES = [
     "extid",
     "extid_by_target",
     "object_references",
+    "object_references_table",
 ]
 
 HASH_ALGORITHMS = ["sha1", "sha1_git", "sha256", "blake2s256"]

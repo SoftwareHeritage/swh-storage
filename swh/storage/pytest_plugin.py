@@ -19,7 +19,6 @@ from pytest_postgresql import factories
 
 from swh.core.db.db_utils import initialize_database_for_module
 from swh.storage import get_storage
-from swh.storage.postgresql.db import Db as PostgreSQLDb
 from swh.storage.postgresql.storage import Storage as StorageDatastore
 from swh.storage.tests.storage_data import StorageData
 
@@ -262,6 +261,9 @@ def swh_storage_cassandra_backend_config(
 
     storage = get_storage(**storage_config)
 
+    for partition in storage.object_references_list_partitions():
+        storage.object_references_drop_partition(partition)
+
     for table in TABLES:
         table_rows = storage._cql_runner._session.execute(
             f"SELECT * from {keyspace}.{table} LIMIT 1"
@@ -272,14 +274,6 @@ def swh_storage_cassandra_backend_config(
     storage._cql_runner._cluster.shutdown()
 
 
-def create_object_references_partition(**kwargs):
-    db = PostgreSQLDb.connect(**kwargs)
-    with db.transaction() as cur:
-        db.object_references_create_partition(
-            *datetime.date.today().isocalendar()[0:2], cur=cur
-        )
-
-
 swh_storage_postgresql_proc = factories.postgresql_proc(
     load=[
         partial(
@@ -287,7 +281,6 @@ swh_storage_postgresql_proc = factories.postgresql_proc(
             modname="storage",
             version=StorageDatastore.current_version,
         ),
-        create_object_references_partition,
     ],
 )
 
@@ -330,7 +323,13 @@ def swh_storage_backend(swh_storage_backend_config):
     behind all proxies.
 
     This is useful to introspect the state of backends from proxy tests"""
-    return get_storage(**swh_storage_backend_config)
+    storage = get_storage(**swh_storage_backend_config)
+
+    storage.object_references_create_partition(
+        *datetime.date.today().isocalendar()[0:2]
+    )
+
+    return storage
 
 
 @pytest.fixture

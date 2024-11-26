@@ -360,18 +360,20 @@ def create_object_reference_partitions(ctx: click.Context, start: str, end: str)
     import datetime
 
     from swh.storage import get_storage
-    from swh.storage.postgresql.storage import Storage as PostgreSQLStorage
+    from swh.storage.interface import PartitionsManagementInterface
 
     storage = get_storage(**ctx.obj["config"]["storage"])
 
-    # This function uses the PostgreSQL swh.storage.db attribute directly, so we
+    # This function uses the storage backend directly, so we
     # need unwrap all the layers of proxies (e.g. record_references, buffer,
     # filter, etc.) to get access to the "concrete" underlying storage.
     while hasattr(storage, "storage"):
         storage = storage.storage
 
-    if not isinstance(storage, PostgreSQLStorage):
-        ctx.fail("Storage instance needs to be a direct PostgreSQL storage")
+    if not isinstance(storage, PartitionsManagementInterface):
+        ctx.fail(
+            "Storage instance needs to be a direct PostgreSQL or Cassandra storage"
+        )
 
     start_date = datetime.date.fromisoformat(start)
     end_date = datetime.date.fromisoformat(end)
@@ -386,11 +388,7 @@ def create_object_reference_partitions(ctx: click.Context, start: str, end: str)
         if (year, week) > (end_year, end_week):
             break
 
-        with storage.db() as db:
-            with db.transaction() as cur:
-                monday, sunday = db.object_references_create_partition(
-                    year, week, cur=cur
-                )
+        monday, sunday = storage.object_references_create_partition(year, week)
 
         click.echo(
             "Created object references table for dates between %s and %s"
@@ -416,52 +414,52 @@ def remove_old_object_reference_partitions(
     import datetime
 
     from swh.storage import get_storage
-    from swh.storage.postgresql.storage import Storage as PostgreSQLStorage
+    from swh.storage.interface import PartitionsManagementInterface
 
     storage = get_storage(**ctx.obj["config"]["storage"])
 
-    # This function uses the PostgreSQL swh.storage.db attribute directly, so we
+    # This function uses the storage backend directly, so we
     # need unwrap all the layers of proxies (e.g. record_references, buffer,
     # filter, etc.) to get access to the "concrete" underlying storage.
     while hasattr(storage, "storage"):
         storage = storage.storage
 
-    if not isinstance(storage, PostgreSQLStorage):
-        ctx.fail("Storage instance needs to be a direct PostgreSQL storage")
+    if not isinstance(storage, PartitionsManagementInterface):
+        ctx.fail(
+            "Storage instance needs to be a direct PostgreSQL or Cassandra storage"
+        )
 
-    before_date = datetime.datetime.fromisoformat(before)
+    before_date = datetime.date.fromisoformat(before)
 
-    with storage.db() as db:
-        existing_partitions = db.object_references_list_partitions()
-        to_remove = []
-        for partition in existing_partitions:
-            # If it ends after the specified date, we should keep this partition
-            # and the ones after.
-            if partition.end > before_date:
-                break
-            to_remove.append((partition.year, partition.week))
+    existing_partitions = storage.object_references_list_partitions()
+    to_remove = []
+    for partition in existing_partitions:
+        # If it ends after the specified date, we should keep this partition
+        # and the ones after.
+        if partition.end > before_date:
+            break
+        to_remove.append(partition)
 
-        if len(to_remove) == 0:
-            click.echo("Nothing needs to be removed.")
-            ctx.exit(0)
+    if len(to_remove) == 0:
+        click.echo("Nothing needs to be removed.")
+        ctx.exit(0)
 
-        if len(existing_partitions) == len(to_remove):
-            ctx.fail(
-                "Trying to remove all existing partitions. This can’t be right, sorry."
-            )
+    if len(existing_partitions) == len(to_remove):
+        ctx.fail(
+            "Trying to remove all existing partitions. This can’t be right, sorry."
+        )
 
-        if not force:
-            click.echo(
-                "We will remove the following partitions before "
-                f"{before_date.strftime('%Y-%m-%d')}:"
-            )
-            for year, week in to_remove:
-                click.echo(f"- {year:04d} week {week:02d}")
-            click.confirm("Do you want to proceed?", default=False, abort=True)
+    if not force:
+        click.echo(
+            "We will remove the following partitions before "
+            f"{before_date.strftime('%Y-%m-%d')}:"
+        )
+        for partition in to_remove:
+            click.echo(f"- {partition.year:04d} week {partition.week:02d}")
+        click.confirm("Do you want to proceed?", default=False, abort=True)
 
-        with db.transaction() as cur:
-            for year, week in to_remove:
-                db.object_references_drop_partition(year, week, cur)
+    for partition in to_remove:
+        storage.object_references_drop_partition(partition)
 
 
 def ensure_check_config(storage_cfg: Dict, check_config: Optional[str], default: str):

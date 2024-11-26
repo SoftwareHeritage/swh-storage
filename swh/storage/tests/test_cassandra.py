@@ -1,4 +1,4 @@
-# Copyright (C) 2018-2023  The Software Heritage developers
+# Copyright (C) 2018-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Union
 
 import attr
 from cassandra.cluster import NoHostAvailable
+from cassandra.util import Date
 import pytest
 
 from swh.core.api.classes import stream_results
@@ -63,6 +64,8 @@ def _python_type_to_cql_type_re(ty: type) -> str:
         return "boolean"
     elif ty is dict:
         return "frozen<list <list<blob>> >"
+    elif ty is Date:
+        return "date"
     elif getattr(ty, "__origin__", None) is Union:
         if len(ty.__args__) == 2 and type(None) in ty.__args__:  # type: ignore
             (inner_type,) = [

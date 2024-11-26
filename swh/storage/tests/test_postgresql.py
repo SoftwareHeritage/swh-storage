@@ -4,7 +4,6 @@
 # See top-level LICENSE file for more information
 
 from contextlib import contextmanager
-import datetime
 import queue
 import threading
 import time
@@ -476,26 +475,6 @@ class TestPgStorage:
             [release.id, release2.id], ignore_displayname=True
         )
         assert releases == [release, release2]
-
-    def test_object_references_create_and_list_partition(self, swh_storage):
-        with db_transaction(swh_storage) as (db, cur):
-            db.object_references_create_partition(year=2020, week=6, cur=cur)
-            partitions = db.object_references_list_partitions(cur=cur)
-
-        # We get a partition for this week initialized on schema creation
-        assert len(partitions) == 2
-        assert partitions[0].table_name == "object_references_2020w06"
-        assert partitions[0].year == 2020
-        assert partitions[0].week == 6
-        assert partitions[0].start == datetime.datetime.fromisoformat("2020-02-03")
-        assert partitions[0].end == datetime.datetime.fromisoformat("2020-02-10")
-        this_year, this_week = datetime.datetime.now().isocalendar()[0:2]
-        assert (
-            partitions[1].table_name
-            == f"object_references_{this_year:04d}w{this_week:02d}"
-        )
-        assert partitions[1].year == this_year
-        assert partitions[1].week == this_week
 
     def test_clear_buffers(self, swh_storage):
         """Calling clear buffers on real storage does nothing"""

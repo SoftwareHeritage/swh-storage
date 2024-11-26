@@ -3,7 +3,6 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from dataclasses import dataclass
 import datetime
 import logging
 import random
@@ -20,7 +19,7 @@ from swh.core.db.db_utils import stored_procedure
 from swh.model.hashutil import DEFAULT_ALGORITHMS
 from swh.model.model import SHA1_SIZE, OriginVisit, OriginVisitStatus, Sha1Git
 from swh.model.swhids import ExtendedObjectType, ObjectType
-from swh.storage.interface import ListOrder
+from swh.storage.interface import ListOrder, ObjectReferencesPartition
 
 logger = logging.getLogger(__name__)
 
@@ -92,15 +91,6 @@ class QueryBuilder:
         # Compose and execute
         query = self.parts.join(separator)
         db_cursor.execute(query, self.params)
-
-
-@dataclass
-class ObjectReferencesPartition:
-    table_name: str
-    year: int
-    week: int
-    start: datetime.datetime
-    end: datetime.datetime
 
 
 class Db(BaseDb):
@@ -1913,8 +1903,8 @@ class Db(BaseDb):
                     table_name=row[0],
                     year=int(name_m[1]),
                     week=int(name_m[2]),
-                    start=datetime.datetime.fromisoformat(bounds_m[1]),
-                    end=datetime.datetime.fromisoformat(bounds_m[2]),
+                    start=datetime.date.fromisoformat(bounds_m[1]),
+                    end=datetime.date.fromisoformat(bounds_m[2]),
                 )
             )
         return partitions
