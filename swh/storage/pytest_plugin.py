@@ -325,7 +325,15 @@ def swh_storage_backend(swh_storage_backend_config):
     This is useful to introspect the state of backends from proxy tests"""
     storage = get_storage(**swh_storage_backend_config)
 
-    storage.object_references_create_partition(
+    backend = storage
+
+    # handle storage pipeline for backward-compatibility as
+    # object_references_create_partition is only available on
+    # real storage backend, not on proxies.
+    while hasattr(backend, "storage"):
+        backend = backend.storage
+
+    backend.object_references_create_partition(
         *datetime.date.today().isocalendar()[0:2]
     )
 

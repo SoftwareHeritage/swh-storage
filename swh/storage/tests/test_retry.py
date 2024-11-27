@@ -10,7 +10,6 @@ import psycopg2
 import pytest
 
 from swh.core.api import TransientRemoteException
-from swh.storage import get_storage
 from swh.storage.exc import HashCollision, StorageArgumentException
 from swh.storage.utils import now
 
@@ -28,16 +27,14 @@ def fake_hash_collision(sample_data):
 
 
 @pytest.fixture
-def swh_storage():
-    storage_config = {
+def swh_storage_backend_config():
+    return {
         "cls": "pipeline",
         "steps": [
             {"cls": "retry"},
             {"cls": "memory"},
         ],
     }
-
-    yield get_storage(**storage_config)
 
 
 def test_retrying_proxy_storage_content_add(swh_storage, sample_data):
