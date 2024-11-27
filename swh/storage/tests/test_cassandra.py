@@ -95,26 +95,14 @@ def test_schema_matches_model():
 
     del models["object_count"]  # https://forge.softwareheritage.org/D6150
 
-    statements = {}  # {table_name: statement}
-    for statement in CREATE_TABLES_QUERIES:
-        statement = re.sub(" +", " ", statement.strip())  # normalize whitespace
-        if statement.startswith(
-            (
-                "CREATE TYPE ",
-                "CREATE OR REPLACE FUNCTION",
-                "CREATE OR REPLACE AGGREGATE",
-                "-- Secondary table",
-            )
-        ):
-            continue
-        prefix = "CREATE TABLE IF NOT EXISTS "
-        assert statement.startswith(prefix)
-        table_name = statement[len(prefix) :].split(" ", 1)[0]
-        assert (
-            table_name not in statements
-        ), f"Duplicate statement for table {table_name}"
-
-        statements[table_name] = statement
+    statements = {
+        table_name: re.sub(
+            " +", " ", CREATE_TABLES_QUERIES[table_name].strip()
+        )  # normalize whitespace
+        for table_name in TABLES
+        if table_name in CREATE_TABLES_QUERIES
+        and not table_name.startswith(("content_by_", "skipped_content_by_"))
+    }
 
     assert set(models) - set(statements) == set(), "Missing statements"
     assert set(statements) - set(models) == set(), "Missing models"
@@ -132,14 +120,15 @@ def test_schema_matches_model():
         partition_key = ", ".join(model.PARTITION_KEY)
         clustering_key = "".join(", " + col for col in model.CLUSTERING_KEY)
         expected_lines.append(rf" PRIMARY KEY \(\({partition_key}\){clustering_key}\)")
+        expected_lines.append(r"\) WITH")
 
         if table_name == "origin_visit_status":
             # we need to special-case this one
-            expected_lines.append(r"\)")
-            expected_lines.append(r"WITH CLUSTERING ORDER BY \(visit DESC, date DESC\)")
-            expected_lines.append(r";")
+            expected_lines.append(r" CLUSTERING ORDER BY \(visit DESC, date DESC\)")
+            expected_lines.append(r" AND comment = '.*'")
         else:
-            expected_lines.append(r"\);")
+            expected_lines.append(r" comment = '.*'")
+        expected_lines.append(r" {table_options};")
 
         statement = statements[table_name]
         actual_lines = statement.split("\n")

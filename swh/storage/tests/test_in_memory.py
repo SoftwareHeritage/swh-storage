@@ -146,6 +146,7 @@ class TestStorageDeletion(_TestStorageDeletion):
             "metadata_fetcher",
             "extid",
             "extid_by_target",
+            "raw_extrinsic_metadata_by_id",
             "object_references",
             "object_references_table",
         }

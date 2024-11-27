@@ -86,6 +86,7 @@ def create_keyspace(ctx):
         port=config.get("port", 9042),
         keyspace=config["keyspace"],
         auth_provider=config["auth_provider"],
+        table_options=config.get("table_options", {}),
     )
 
     print("Done.")
