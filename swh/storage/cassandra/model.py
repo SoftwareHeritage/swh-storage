@@ -193,8 +193,19 @@ class RevisionRow(BaseRow):
     directory: bytes = dataclasses.field(metadata={"points_to": ["directory.id"]})
     """source code "root" directory"""
     message: bytes
+
     author: Person
+    """deprecated alternative for ``author_*``"""
+    author_fullname: bytes
+    author_name: bytes
+    author_email: bytes
+
     committer: Person
+    """deprecated alternative for ``committer_*``"""
+    committer_fullname: bytes
+    committer_name: bytes
+    committer_email: bytes
+
     synthetic: bool
     """true iff revision has been created by Software Heritage"""
     metadata: str
@@ -237,7 +248,13 @@ class ReleaseRow(BaseRow):
     date: TimestampWithTimezone
     name: bytes
     message: bytes
+
     author: Person
+    """deprecated alternative for ``author_*``"""
+    author_fullname: bytes
+    author_name: bytes
+    author_email: bytes
+
     synthetic: bool
     """true iff release has been created by Software Heritage"""
     raw_manifest: Optional[bytes]

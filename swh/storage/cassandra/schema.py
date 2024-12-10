@@ -109,8 +109,14 @@ CREATE TABLE IF NOT EXISTS revision (
     type                            ascii,
     directory                       blob,
     message                         blob,
-    author                          person,
-    committer                       person,
+    author                          person, -- deprecated alternative for author_*
+    author_fullname                 blob,
+    author_name                     blob,
+    author_email                    blob,
+    committer                       person, -- deprecated alternative for committer_*
+    committer_fullname              blob,
+    committer_name                  blob,
+    committer_email                 blob,
     synthetic                       boolean,
     metadata                        text,
     extra_headers                   frozen<list <list<blob>> >,
@@ -136,7 +142,10 @@ CREATE TABLE IF NOT EXISTS release (
     date                            microtimestamp_with_timezone,
     name                            blob,
     message                         blob,
-    author                          person,
+    author                          person, -- deprecated alternative for author_*
+    author_fullname                 blob,
+    author_name                     blob,
+    author_email                    blob,
     synthetic                       boolean,
     raw_manifest                    blob,
     PRIMARY KEY ((id))
