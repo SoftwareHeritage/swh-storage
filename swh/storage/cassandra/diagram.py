@@ -7,6 +7,7 @@
 :mod:`swh.storage.cassandra.model`.
 """
 import dataclasses
+import types
 from typing import Tuple, Union
 
 from . import model
@@ -163,12 +164,13 @@ def dot_diagram() -> str:
             # TODO: use CQL types instead of Python types
             ty = field.type
             if getattr(ty, "__origin__", None) is Union:
+                assert isinstance(ty, types.UnionType)  # for mypy
                 assert (
                     len(ty.__args__) == 2 and type(None) in ty.__args__
                 ), f"{cls.__name__}.{field.name} as unsupported type: {ty}"
                 # this is Optional[], unwrap it
                 (ty,) = [arg for arg in ty.__args__ if arg is not type(None)]  # noqa
-            col_type = ty.__name__
+            col_type = ty if isinstance(ty, str) else ty.__name__
             out.write(
                 textwrap.dedent(
                     f"""
