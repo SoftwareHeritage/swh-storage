@@ -5,11 +5,13 @@
 
 from collections import Counter
 from contextlib import contextmanager
+import functools
 from unittest.mock import patch
 
 import attr
 import pytest
 
+import swh.core.config
 from swh.model.model import Content, ModelObjectType, SkippedContent
 from swh.model.tests.swh_model_data import TEST_OBJECTS
 from swh.storage import get_storage
@@ -266,7 +268,23 @@ class LimitedInMemoryStorage(InMemoryStorage):
         return add_func(objects)
 
 
-@patch("swh.storage.in_memory.InMemoryStorage", LimitedInMemoryStorage)
+def with_limited_inmemory_storage(f):
+    """Monkey-patches ``swh.storage.in_memory.InMemoryStorage`` to return
+    :class:`LimitedInMemoryStorage`."""
+
+    @functools.wraps(f)
+    def newf(*args, **kwargs):
+        try:
+            with patch("swh.storage.in_memory.InMemoryStorage", LimitedInMemoryStorage):
+                swh.core.config.get_swh_backend_module.cache_clear()
+                swh.core.config.get_swh_backend_from_fullmodule.cache_clear()
+                return f(*args, **kwargs)
+        finally:
+            swh.core.config.get_swh_backend_module.cache_clear()
+            swh.core.config.get_swh_backend_from_fullmodule.cache_clear()
+
+
+@with_limited_inmemory_storage
 @pytest.mark.parametrize("object_type, add_func_name, objects, bad1, bad2", testdata)
 def test_tenacious_proxy_storage(object_type, add_func_name, objects, bad1, bad2):
     storage = get_tenacious_storage()
@@ -374,7 +392,7 @@ def test_tenacious_proxy_storage(object_type, add_func_name, objects, bad1, bad2
     tenacious.reset()
 
 
-@patch("swh.storage.in_memory.InMemoryStorage", LimitedInMemoryStorage)
+@with_limited_inmemory_storage
 @pytest.mark.parametrize("object_type, add_func_name, objects, bad1, bad2", testdata)
 def test_tenacious_proxy_storage_rate_limit(
     object_type, add_func_name, objects, bad1, bad2
