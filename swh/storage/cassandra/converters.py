@@ -43,8 +43,8 @@ def parse_person(d: Dict[str, Any], prefix: Literal["author", "committer"]) -> N
     """If present, pops ``{prefix}_fullname``, ``{prefix}_name``, and ``{prefix}_email``
     and uses them to build a Person with key ``{prefix}``.
 
-    This allows parsing the ``author`` and ``committer`` fields of :cls:`Revision`
-    and :cls:`Release`.
+    This allows parsing the ``author`` and ``committer`` fields of :class:`Revision`
+    and :class:`Release`.
     """
     if d[f"{prefix}_fullname"]:
         # recently written row
