@@ -6,7 +6,7 @@
 from copy import deepcopy
 import datetime
 import json
-from typing import Dict, Tuple
+from typing import Any, Dict, Literal, Tuple
 
 import attr
 
@@ -18,6 +18,7 @@ from swh.model.model import (
     ObjectType,
     OriginVisit,
     OriginVisitStatus,
+    Person,
     RawExtrinsicMetadata,
     Release,
     Revision,
@@ -27,7 +28,7 @@ from swh.model.model import (
 from swh.model.swhids import CoreSWHID, ExtendedObjectType, ExtendedSWHID
 from swh.storage.interface import ObjectReference
 
-from ..utils import remove_keys
+from ..utils import map_optional, remove_keys
 from .model import (
     ObjectReferenceRow,
     OriginVisitRow,
@@ -36,6 +37,29 @@ from .model import (
     ReleaseRow,
     RevisionRow,
 )
+
+
+def parse_person(d: Dict[str, Any], prefix: Literal["author", "committer"]) -> None:
+    """If present, pops ``{prefix}_fullname``, ``{prefix}_name``, and ``{prefix}_email``
+    and uses them to build a Person with key ``{prefix}``.
+
+    This allows parsing the ``author`` and ``committer`` fields of :cls:`Revision`
+    and :cls:`Release`.
+    """
+    if d[f"{prefix}_fullname"]:
+        # recently written row
+        person = Person(
+            fullname=d.pop(f"{prefix}_fullname") or b"",
+            name=d.pop(f"{prefix}_name"),
+            email=d.pop(f"{prefix}_email"),
+        )
+        d[prefix] = d.pop(prefix) if person.fullname == b"" else person
+    else:
+        # legacy row, or no author/committer
+        d[prefix] = d.pop(prefix)
+        d.pop(f"{prefix}_fullname")
+        d.pop(f"{prefix}_name")
+        d.pop(f"{prefix}_email")
 
 
 def revision_to_db(revision: Revision) -> RevisionRow:
@@ -53,6 +77,14 @@ def revision_to_db(revision: Revision) -> RevisionRow:
     )
     db_revision["extra_headers"] = extra_headers
     db_revision["type"] = db_revision["type"].value
+    db_revision["author_fullname"] = map_optional(lambda a: a.fullname, revision.author)
+    db_revision["author_name"] = map_optional(lambda a: a.name, revision.author)
+    db_revision["author_email"] = map_optional(lambda a: a.email, revision.author)
+    db_revision["committer_fullname"] = map_optional(
+        lambda c: c.fullname, revision.committer
+    )
+    db_revision["committer_name"] = map_optional(lambda c: c.name, revision.committer)
+    db_revision["committer_email"] = map_optional(lambda c: c.email, revision.committer)
     return RevisionRow(**remove_keys(db_revision, ("parents",)))
 
 
@@ -66,6 +98,10 @@ def revision_from_db(
         extra_headers = metadata.pop("extra_headers")
     if extra_headers is None:
         extra_headers = ()
+
+    parse_person(revision, "author")
+    parse_person(revision, "committer")
+
     return Revision(
         parents=parents,
         type=RevisionType(revision.pop("type")),
@@ -78,11 +114,17 @@ def revision_from_db(
 def release_to_db(release: Release) -> ReleaseRow:
     db_release = attr.asdict(release, recurse=False)
     db_release["target_type"] = db_release["target_type"].value
+    db_release["author_fullname"] = map_optional(lambda a: a.fullname, release.author)
+    db_release["author_name"] = map_optional(lambda a: a.name, release.author)
+    db_release["author_email"] = map_optional(lambda a: a.email, release.author)
     return ReleaseRow(**remove_keys(db_release, ("metadata",)))
 
 
 def release_from_db(db_release: ReleaseRow) -> Release:
     release = db_release.to_dict()
+
+    parse_person(release, "author")
+
     return Release(
         target_type=ObjectType(release.pop("target_type")),
         **release,

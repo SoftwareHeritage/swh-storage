@@ -17,6 +17,7 @@ import pytest
 
 from swh.model.model import Content
 from swh.storage import get_storage
+import swh.storage.cassandra.converters as converters
 from swh.storage.cassandra.cql import (
     CqlRunner,
     _prepared_insert_statement,
@@ -343,3 +344,100 @@ def test_change_content_pk(
 
     # Clean up this table, test teardown does not know about it:
     session.execute("DROP TABLE content_v2;")
+
+
+def test_read_legacy_revision_rows(swh_storage, swh_storage_backend, sample_data):
+    """Checks that reading rows with null values for author_fullname/author_email/author_name
+    falls back to the legacy 'author' column; ditto for committer"""
+
+    d = dataclasses.asdict(converters.revision_to_db(sample_data.revision))
+
+    # Remove fields that old storage versions did not write
+    del d["author_fullname"], d["author_name"], d["author_email"]
+    del d["committer_fullname"], d["committer_name"], d["committer_email"]
+
+    # Write like an old storage version
+    keyspace = swh_storage_backend._cql_runner.keyspace
+    swh_storage_backend._cql_runner._execute_with_retries(
+        f"""
+        INSERT INTO {keyspace}.revision ({', '.join(d)})
+        VALUES({', '.join('%s' for _ in d)})
+        """,
+        list(d.values()),
+    )
+
+    assert swh_storage.revision_get([sample_data.revision.id]) == [sample_data.revision]
+
+
+def test_write_new_revision_cols(swh_storage, swh_storage_backend, sample_data):
+    """Checks that reading rows with null values for author_fullname/author_email/author_name
+    falls back to the legacy 'author' column; ditto for committer"""
+
+    rev = sample_data.revision
+    swh_storage.revision_add([rev])
+
+    keyspace = swh_storage_backend._cql_runner.keyspace
+    res = swh_storage_backend._cql_runner._execute_with_retries(
+        f"""
+        SELECT
+            author_fullname, author_email, author_name,
+            committer_fullname, committer_email, committer_name
+        FROM {keyspace}.revision
+        """,
+        [],
+    )
+
+    assert list(res) == [
+        {
+            "author_fullname": rev.author.fullname,
+            "author_email": rev.author.email,
+            "author_name": rev.author.name,
+            "committer_fullname": rev.committer.fullname,
+            "committer_email": rev.committer.email,
+            "committer_name": rev.committer.name,
+        }
+    ]
+
+
+def test_read_legacy_release_rows(swh_storage, swh_storage_backend, sample_data):
+    """Checks that reading rows with null values for author_fullname/author_email/author_name
+    falls back to the legacy 'author' column; ditto for committer"""
+
+    d = dataclasses.asdict(converters.release_to_db(sample_data.release))
+
+    # Remove fields that old storage versions did not write
+    del d["author_fullname"], d["author_name"], d["author_email"]
+
+    # Write like an old storage version
+    keyspace = swh_storage_backend._cql_runner.keyspace
+    swh_storage_backend._cql_runner._execute_with_retries(
+        f"INSERT INTO {keyspace}.release ({', '.join(d)}) VALUES({', '.join('%s' for _ in d)})",
+        list(d.values()),
+    )
+
+    assert swh_storage.release_get([sample_data.release.id]) == [sample_data.release]
+
+
+def test_write_new_release_cols(swh_storage, swh_storage_backend, sample_data):
+    """Checks that reading rows with null values for author_fullname/author_email/author_name
+    falls back to the legacy 'author' column; ditto for committer"""
+
+    rev = sample_data.release
+    swh_storage.release_add([rev])
+
+    keyspace = swh_storage_backend._cql_runner.keyspace
+    res = swh_storage_backend._cql_runner._execute_with_retries(
+        f"""
+        SELECT author_fullname, author_email, author_name
+        FROM {keyspace}.release
+        """,
+        [],
+    )
+
+    assert list(res) == [
+        {
+            "author_fullname": rev.author.fullname,
+            "author_email": rev.author.email,
+            "author_name": rev.author.name,
+        }
+    ]
