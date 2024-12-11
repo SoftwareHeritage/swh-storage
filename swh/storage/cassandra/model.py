@@ -187,8 +187,19 @@ class RevisionRow(BaseRow):
     PARTITION_KEY = ("id",)
 
     id: bytes
+
     date: Optional[TimestampWithTimezone]
+    """deprecated alternative for ``date_*``"""
+    date_seconds: int
+    date_microseconds: int
+    date_offset_bytes: bytes
+
     committer_date: Optional[TimestampWithTimezone]
+    """deprecated alternative for ``committer_date_*``"""
+    committer_date_seconds: int
+    committer_date_microseconds: int
+    committer_date_offset_bytes: bytes
+
     type: str
     directory: bytes = dataclasses.field(metadata={"points_to": ["directory.id"]})
     """source code "root" directory"""
@@ -245,7 +256,13 @@ class ReleaseRow(BaseRow):
             ]
         }
     )
+
     date: TimestampWithTimezone
+    """deprecated alternative for ``date_*``"""
+    date_seconds: int
+    date_microseconds: int
+    date_offset_bytes: bytes
+
     name: bytes
     message: bytes
 

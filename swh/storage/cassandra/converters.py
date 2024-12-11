@@ -24,11 +24,13 @@ from swh.model.model import (
     Revision,
     RevisionType,
     Sha1Git,
+    Timestamp,
+    TimestampWithTimezone,
 )
 from swh.model.swhids import CoreSWHID, ExtendedObjectType, ExtendedSWHID
 from swh.storage.interface import ObjectReference
 
-from ..utils import map_optional, remove_keys
+from ..utils import remove_keys
 from .model import (
     ObjectReferenceRow,
     OriginVisitRow,
@@ -39,27 +41,83 @@ from .model import (
 )
 
 
-def parse_person(d: Dict[str, Any], prefix: Literal["author", "committer"]) -> None:
+def _inflate_person(d: Dict[str, Any], prefix: Literal["author", "committer"]) -> None:
     """If present, pops ``{prefix}_fullname``, ``{prefix}_name``, and ``{prefix}_email``
-    and uses them to build a Person with key ``{prefix}``.
+    and uses them to build a :class:`Person` with key ``{prefix}``.
 
     This allows parsing the ``author`` and ``committer`` fields of :class:`Revision`
     and :class:`Release`.
     """
     if d[f"{prefix}_fullname"]:
         # recently written row
-        person = Person(
-            fullname=d.pop(f"{prefix}_fullname") or b"",
+        d[prefix] = Person(
+            fullname=d.pop(f"{prefix}_fullname"),
             name=d.pop(f"{prefix}_name"),
             email=d.pop(f"{prefix}_email"),
         )
-        d[prefix] = d.pop(prefix) if person.fullname == b"" else person
     else:
         # legacy row, or no author/committer
-        d[prefix] = d.pop(prefix)
         d.pop(f"{prefix}_fullname")
         d.pop(f"{prefix}_name")
         d.pop(f"{prefix}_email")
+
+
+def _flatten_person(d: Dict[str, Any], prefix: Literal["author", "committer"]) -> None:
+    """Adds ``{prefix}_fullname``, ``{prefix}_name``, and ``{prefix}_email`` to the dictionary
+    from the :class:`Person` with key ``{prefix}``.
+
+    This allows serializing the ``author`` and ``committer`` fields of :class:`Revision`
+    and :class:`Release`.
+    """
+    if d[prefix] is None:
+        d[f"{prefix}_fullname"] = None
+        d[f"{prefix}_name"] = None
+        d[f"{prefix}_email"] = None
+    else:
+        d[f"{prefix}_fullname"] = d[prefix].fullname
+        d[f"{prefix}_name"] = d[prefix].name
+        d[f"{prefix}_email"] = d[prefix].email
+
+
+def _inflate_date(d: Dict[str, Any], prefix: Literal["date", "committer_date"]) -> None:
+    """If present, pops ``{prefix}_seconds``, ``{prefix}_microseconds``, and
+    ``{prefix}_offset_bytes`` and uses them to build a `TimestampWithTimezone`
+    with key ``{prefix}``.
+
+    This allows parsing the ``date`` and ``committer_date`` fields of :class:`Revision`
+    and :class:`Release`.
+    """
+    if d[f"{prefix}_seconds"] is not None:
+        # recently written row
+        d[prefix] = TimestampWithTimezone(
+            timestamp=Timestamp(
+                seconds=d.pop(f"{prefix}_seconds"),
+                microseconds=d.pop(f"{prefix}_microseconds"),
+            ),
+            offset_bytes=d.pop(f"{prefix}_offset_bytes"),
+        )
+    else:
+        # legacy row, or no date/committer_date
+        d.pop(f"{prefix}_seconds")
+        d.pop(f"{prefix}_microseconds")
+        d.pop(f"{prefix}_offset_bytes")
+
+
+def _flatten_date(d: Dict[str, Any], prefix: Literal["date", "committer_date"]) -> None:
+    """Adds ``{prefix}_seconds``, ``{prefix}_microseconds``, and ``{prefix}_offset_bytes``
+    to the dictionary from the :class:`TimestampWithTimezone` with key ``{prefix}``.
+
+    This allows serializing the ``date`` and ``committer_date`` fields of :class:`Revision`
+    and :class:`Release`.
+    """
+    if d[prefix] is None:
+        d[f"{prefix}_seconds"] = None
+        d[f"{prefix}_microseconds"] = None
+        d[f"{prefix}_offset_bytes"] = None
+    else:
+        d[f"{prefix}_seconds"] = d[prefix].timestamp.seconds
+        d[f"{prefix}_microseconds"] = d[prefix].timestamp.microseconds
+        d[f"{prefix}_offset_bytes"] = d[prefix].offset_bytes
 
 
 def revision_to_db(revision: Revision) -> RevisionRow:
@@ -77,14 +135,12 @@ def revision_to_db(revision: Revision) -> RevisionRow:
     )
     db_revision["extra_headers"] = extra_headers
     db_revision["type"] = db_revision["type"].value
-    db_revision["author_fullname"] = map_optional(lambda a: a.fullname, revision.author)
-    db_revision["author_name"] = map_optional(lambda a: a.name, revision.author)
-    db_revision["author_email"] = map_optional(lambda a: a.email, revision.author)
-    db_revision["committer_fullname"] = map_optional(
-        lambda c: c.fullname, revision.committer
-    )
-    db_revision["committer_name"] = map_optional(lambda c: c.name, revision.committer)
-    db_revision["committer_email"] = map_optional(lambda c: c.email, revision.committer)
+
+    _flatten_person(db_revision, "author")
+    _flatten_person(db_revision, "committer")
+    _flatten_date(db_revision, "date")
+    _flatten_date(db_revision, "committer_date")
+
     return RevisionRow(**remove_keys(db_revision, ("parents",)))
 
 
@@ -99,8 +155,10 @@ def revision_from_db(
     if extra_headers is None:
         extra_headers = ()
 
-    parse_person(revision, "author")
-    parse_person(revision, "committer")
+    _inflate_person(revision, "author")
+    _inflate_person(revision, "committer")
+    _inflate_date(revision, "date")
+    _inflate_date(revision, "committer_date")
 
     return Revision(
         parents=parents,
@@ -114,16 +172,18 @@ def revision_from_db(
 def release_to_db(release: Release) -> ReleaseRow:
     db_release = attr.asdict(release, recurse=False)
     db_release["target_type"] = db_release["target_type"].value
-    db_release["author_fullname"] = map_optional(lambda a: a.fullname, release.author)
-    db_release["author_name"] = map_optional(lambda a: a.name, release.author)
-    db_release["author_email"] = map_optional(lambda a: a.email, release.author)
+
+    _flatten_person(db_release, "author")
+    _flatten_date(db_release, "date")
+
     return ReleaseRow(**remove_keys(db_release, ("metadata",)))
 
 
 def release_from_db(db_release: ReleaseRow) -> Release:
     release = db_release.to_dict()
 
-    parse_person(release, "author")
+    _inflate_person(release, "author")
+    _inflate_date(release, "date")
 
     return Release(
         target_type=ObjectType(release.pop("target_type")),

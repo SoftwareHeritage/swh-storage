@@ -349,54 +349,100 @@ def test_change_content_pk(
 def test_read_legacy_revision_rows(swh_storage, swh_storage_backend, sample_data):
     """Checks that reading rows with null values for author_fullname/author_email/author_name
     falls back to the legacy 'author' column; ditto for committer"""
+    for rev in [sample_data.revision, sample_data.minimal_revision]:
+        d = dataclasses.asdict(converters.revision_to_db(rev))
 
-    d = dataclasses.asdict(converters.revision_to_db(sample_data.revision))
+        # Remove fields that old storage versions did not write
+        for k in (
+            "author_fullname",
+            "author_name",
+            "author_email",
+            "committer_fullname",
+            "committer_name",
+            "committer_email",
+            "date_seconds",
+            "date_microseconds",
+            "date_offset_bytes",
+            "committer_date_seconds",
+            "committer_date_microseconds",
+            "committer_date_offset_bytes",
+        ):
+            del d[k]
 
-    # Remove fields that old storage versions did not write
-    del d["author_fullname"], d["author_name"], d["author_email"]
-    del d["committer_fullname"], d["committer_name"], d["committer_email"]
+        # Write like an old storage version
+        keyspace = swh_storage_backend._cql_runner.keyspace
+        swh_storage_backend._cql_runner._execute_with_retries(
+            f"""
+            INSERT INTO {keyspace}.revision ({', '.join(d)})
+            VALUES({', '.join('%s' for _ in d)})
+            """,
+            list(d.values()),
+        )
 
-    # Write like an old storage version
-    keyspace = swh_storage_backend._cql_runner.keyspace
-    swh_storage_backend._cql_runner._execute_with_retries(
-        f"""
-        INSERT INTO {keyspace}.revision ({', '.join(d)})
-        VALUES({', '.join('%s' for _ in d)})
-        """,
-        list(d.values()),
-    )
-
-    assert swh_storage.revision_get([sample_data.revision.id]) == [sample_data.revision]
+    assert list(
+        sorted(
+            swh_storage.revision_get(
+                [sample_data.revision.id, sample_data.minimal_revision.id]
+            ),
+            key=lambda r: r.id,
+        )
+    ) == [sample_data.revision, sample_data.minimal_revision]
 
 
 def test_write_new_revision_cols(swh_storage, swh_storage_backend, sample_data):
     """Checks that reading rows with null values for author_fullname/author_email/author_name
     falls back to the legacy 'author' column; ditto for committer"""
 
-    rev = sample_data.revision
-    swh_storage.revision_add([rev])
+    swh_storage.revision_add([sample_data.revision, sample_data.minimal_revision])
 
     keyspace = swh_storage_backend._cql_runner.keyspace
     res = swh_storage_backend._cql_runner._execute_with_retries(
         f"""
         SELECT
+            id,
             author_fullname, author_email, author_name,
-            committer_fullname, committer_email, committer_name
+            committer_fullname, committer_email, committer_name,
+            date_seconds, date_microseconds, date_offset_bytes,
+            committer_date_seconds, committer_date_microseconds, committer_date_offset_bytes
         FROM {keyspace}.revision
         """,
         [],
     )
 
-    assert list(res) == [
+    expected = [
         {
-            "author_fullname": rev.author.fullname,
-            "author_email": rev.author.email,
-            "author_name": rev.author.name,
-            "committer_fullname": rev.committer.fullname,
-            "committer_email": rev.committer.email,
-            "committer_name": rev.committer.name,
-        }
+            "id": sample_data.revision.id,
+            "author_fullname": sample_data.revision.author.fullname,
+            "author_email": sample_data.revision.author.email,
+            "author_name": sample_data.revision.author.name,
+            "date_seconds": sample_data.revision.date.timestamp.seconds,
+            "date_microseconds": sample_data.revision.date.timestamp.microseconds,
+            "date_offset_bytes": sample_data.revision.date.offset_bytes,
+            "committer_fullname": sample_data.revision.committer.fullname,
+            "committer_email": sample_data.revision.committer.email,
+            "committer_name": sample_data.revision.committer.name,
+            "committer_date_seconds": sample_data.revision.committer_date.timestamp.seconds,
+            "committer_date_microseconds": sample_data.revision.committer_date.timestamp.microseconds,  # noqa: B950
+            "committer_date_offset_bytes": sample_data.revision.committer_date.offset_bytes,
+        },
+        {
+            "id": sample_data.minimal_revision.id,
+            "author_fullname": None,
+            "author_email": None,
+            "author_name": None,
+            "date_seconds": None,
+            "date_microseconds": None,
+            "date_offset_bytes": None,
+            "committer_fullname": None,
+            "committer_email": None,
+            "committer_name": None,
+            "committer_date_seconds": None,
+            "committer_date_microseconds": None,
+            "committer_date_offset_bytes": None,
+        },
     ]
+
+    assert list(sorted(res, key=lambda r: r["id"])) == expected
 
 
 def test_read_legacy_release_rows(swh_storage, swh_storage_backend, sample_data):
@@ -406,7 +452,15 @@ def test_read_legacy_release_rows(swh_storage, swh_storage_backend, sample_data)
     d = dataclasses.asdict(converters.release_to_db(sample_data.release))
 
     # Remove fields that old storage versions did not write
-    del d["author_fullname"], d["author_name"], d["author_email"]
+    for k in (
+        "author_fullname",
+        "author_name",
+        "author_email",
+        "date_seconds",
+        "date_microseconds",
+        "date_offset_bytes",
+    ):
+        del d[k]
 
     # Write like an old storage version
     keyspace = swh_storage_backend._cql_runner.keyspace
@@ -422,13 +476,15 @@ def test_write_new_release_cols(swh_storage, swh_storage_backend, sample_data):
     """Checks that reading rows with null values for author_fullname/author_email/author_name
     falls back to the legacy 'author' column; ditto for committer"""
 
-    rev = sample_data.release
-    swh_storage.release_add([rev])
+    rel = sample_data.release
+    swh_storage.release_add([rel])
 
     keyspace = swh_storage_backend._cql_runner.keyspace
     res = swh_storage_backend._cql_runner._execute_with_retries(
         f"""
-        SELECT author_fullname, author_email, author_name
+        SELECT
+            author_fullname, author_email, author_name,
+            date_seconds, date_microseconds, date_offset_bytes
         FROM {keyspace}.release
         """,
         [],
@@ -436,8 +492,11 @@ def test_write_new_release_cols(swh_storage, swh_storage_backend, sample_data):
 
     assert list(res) == [
         {
-            "author_fullname": rev.author.fullname,
-            "author_email": rev.author.email,
-            "author_name": rev.author.name,
+            "author_fullname": rel.author.fullname,
+            "author_email": rel.author.email,
+            "author_name": rel.author.name,
+            "date_seconds": rel.date.timestamp.seconds,
+            "date_microseconds": rel.date.timestamp.microseconds,
+            "date_offset_bytes": rel.date.offset_bytes,
         }
     ]
