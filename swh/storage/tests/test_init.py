@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
+import swh.core.config
 from swh.core.pytest_plugin import RPCTestAdapter
 from swh.storage import get_storage
 from swh.storage.api import client, server
@@ -171,27 +172,35 @@ def test_get_storage_pipeline_check_config(monkeypatch):
 def test_get_storage_remote_check_config(monkeypatch):
     """Test that the check_config option works as intended for a remote storage"""
 
-    monkeypatch.setattr(
-        server, "storage", get_storage(cls="memory", journal_writer={"cls": "memory"})
-    )
-    test_client = server.app.test_client()
+    swh.core.config.get_swh_backend_module.cache_clear()
+    swh.core.config.get_swh_backend_from_fullmodule.cache_clear()
+    try:
+        monkeypatch.setattr(
+            server,
+            "storage",
+            get_storage(cls="memory", journal_writer={"cls": "memory"}),
+        )
+        test_client = server.app.test_client()
 
-    class MockedRemoteStorage(client.RemoteStorage):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self.session.adapters.clear()
-            self.session.mount("mock://", RPCTestAdapter(test_client))
+        class MockedRemoteStorage(client.RemoteStorage):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.session.adapters.clear()
+                self.session.mount("mock://", RPCTestAdapter(test_client))
 
-    monkeypatch.setattr(client, "RemoteStorage", MockedRemoteStorage)
+        monkeypatch.setattr(client, "RemoteStorage", MockedRemoteStorage)
 
-    config = {
-        "cls": "remote",
-        "url": "mock://example.com",
-    }
-    check_backend_check_config(
-        monkeypatch,
-        config,
-    )
+        config = {
+            "cls": "remote",
+            "url": "mock://example.com",
+        }
+        check_backend_check_config(
+            monkeypatch,
+            config,
+        )
+    finally:
+        swh.core.config.get_swh_backend_module.cache_clear()
+        swh.core.config.get_swh_backend_from_fullmodule.cache_clear()
 
 
 def check_backend_check_config(
