@@ -539,7 +539,22 @@ class StorageData:
         hg_revision3,
         hg_revision4,
     )
-    revisions: Tuple[Revision, ...] = git_revisions + hg_revisions
+
+    minimal_revision = Revision(
+        message=b"hello world",
+        author=None,
+        date=None,
+        committer=None,
+        committer_date=None,
+        parents=(),
+        type=RevisionType.MERCURIAL,
+        directory=directory.id,
+        metadata={},
+        extra_headers=(),
+        synthetic=True,
+    )
+
+    revisions: Tuple[Revision, ...] = (*git_revisions, *hg_revisions, minimal_revision)
 
     origins: Tuple[Origin, ...] = (
         Origin(url="https://github.com/user1/repo1"),

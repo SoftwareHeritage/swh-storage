@@ -104,8 +104,14 @@ CREATE TABLE IF NOT EXISTS skipped_content (
     "revision": """
 CREATE TABLE IF NOT EXISTS revision (
     id                              blob,
-    date                            microtimestamp_with_timezone,
-    committer_date                  microtimestamp_with_timezone,
+    date                            microtimestamp_with_timezone, -- deprecated alternative for date_*
+    date_seconds                    bigint,
+    date_microseconds               int,
+    date_offset_bytes               blob,
+    committer_date                  microtimestamp_with_timezone, -- deprecated alternative for committer_date_*
+    committer_date_seconds          bigint,
+    committer_date_microseconds     int,
+    committer_date_offset_bytes     blob,
     type                            ascii,
     directory                       blob,
     message                         blob,
@@ -124,7 +130,7 @@ CREATE TABLE IF NOT EXISTS revision (
     PRIMARY KEY ((id))
 ) WITH
     comment = 'Intermediary state of development of a project'
-    {table_options};""",
+    {table_options};""",  # noqa: B950
     "revision_parent": """
 CREATE TABLE IF NOT EXISTS revision_parent (
     id                     blob,
@@ -139,7 +145,10 @@ CREATE TABLE IF NOT EXISTS release (
     id                              blob,
     target_type                     ascii,
     target                          blob,
-    date                            microtimestamp_with_timezone,
+    date                            microtimestamp_with_timezone, -- deprecated alternative for date_*
+    date_seconds                    bigint,
+    date_microseconds               int,
+    date_offset_bytes               blob,
     name                            blob,
     message                         blob,
     author                          person, -- deprecated alternative for author_*
@@ -151,7 +160,7 @@ CREATE TABLE IF NOT EXISTS release (
     PRIMARY KEY ((id))
 ) WITH
     comment = 'Published versions of a software project'
-    {table_options};""",
+    {table_options};""",  # noqa: B950
     "directory": """
 CREATE TABLE IF NOT EXISTS directory (
     id              blob,
