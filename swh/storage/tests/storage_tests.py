@@ -6413,7 +6413,7 @@ class TestStorage:
             side_effect=cassandra.ReadTimeout(message),
         )
 
-        # db_transaction on postgres, _execute_with_retries on cassandra
+        # db_transaction on postgres, execute_with_retries on cassandra
         with pytest.raises(QueryTimeout, match=message):
             swh_storage.origin_visit_get_latest(origin_url, require_snapshot=True)
 

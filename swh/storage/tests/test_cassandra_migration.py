@@ -75,7 +75,7 @@ class CqlRunnerWithXor(CqlRunner):
         self, content_hashes: Dict[str, bytes], *, statement
     ) -> Optional[ContentRow]:
         rows = list(
-            self._execute_with_retries(
+            self.execute_with_retries(
                 statement, [content_hashes[algo] for algo in HASH_ALGORITHMS]
             )
         )
@@ -94,7 +94,7 @@ class CqlRunnerWithXor(CqlRunner):
     ) -> Iterable[ContentRowWithXor]:
         return map(
             ContentRowWithXor.from_dict,
-            self._execute_many_with_retries(statement, [(token,) for token in tokens]),
+            self.execute_many_with_retries(statement, [(token,) for token in tokens]),
         )
 
     # Redecorate content_add_prepare with the new ContentRow class
@@ -208,7 +208,7 @@ class CqlRunnerWithXorPK(CqlRunner):
         self, content_hashes: Dict[str, bytes], *, statement
     ) -> Optional[ContentRow]:
         rows = list(
-            self._execute_with_retries(
+            self.execute_with_retries(
                 statement,
                 [content_hashes[algo] for algo in HASH_ALGORITHMS + ["byte_xor"]],
             )
@@ -228,7 +228,7 @@ class CqlRunnerWithXorPK(CqlRunner):
     ) -> Iterable[ContentRowWithXorPK]:
         return map(
             ContentRowWithXorPK.from_dict,
-            self._execute_many_with_retries(statement, [(token,) for token in tokens]),
+            self.execute_many_with_retries(statement, [(token,) for token in tokens]),
         )
 
     # Redecorate content_add_prepare with the new ContentRow class

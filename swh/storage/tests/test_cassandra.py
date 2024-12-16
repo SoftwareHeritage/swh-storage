@@ -655,7 +655,7 @@ class TestStorageDeletion(_TestStorageDeletion):
     def _count_from_table(self, swh_storage_backend, table: str) -> int:
         # XXX: Not ideal…
         cql_runner = getattr(swh_storage_backend, "_cql_runner")
-        execute_query = getattr(cql_runner, "_execute_with_retries")
+        execute_query = getattr(cql_runner, "execute_with_retries")
         row = execute_query(
             f"SELECT COUNT(*) AS count FROM {cql_runner.keyspace}.{table}", []
         ).one()

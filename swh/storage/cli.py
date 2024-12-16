@@ -71,6 +71,7 @@ def create_keyspace(ctx):
     """Creates a Cassandra keyspace with table definitions suitable for use
     by swh-storage's Cassandra backend"""
     from swh.storage.cassandra import create_keyspace
+    from swh.storage.cassandra.cql import CqlRunner
 
     config = ctx.obj["config"]["storage"]
 
@@ -81,13 +82,17 @@ def create_keyspace(ctx):
     if config["cls"] != "cassandra":
         ctx.fail(f"cls must be 'cassandra', not '{config['cls']}'")
 
-    create_keyspace(
+    cql_runner = CqlRunner(
         hosts=config["hosts"],
         port=config.get("port", 9042),
         keyspace=config["keyspace"],
         auth_provider=config["auth_provider"],
+        consistency_level="ONE",
         table_options=config.get("table_options", {}),
+        register_user_types=False,  # requires the keyspace to exist first
     )
+
+    create_keyspace(cql_runner)
 
     print("Done.")
 
