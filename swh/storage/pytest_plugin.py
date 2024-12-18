@@ -227,6 +227,8 @@ def swh_storage_cassandra_keyspace(
 ):
     from swh.storage.cassandra import create_keyspace
     from swh.storage.cassandra.cql import CqlRunner
+    from swh.storage.cassandra.migrations import MIGRATIONS, MigrationStatus
+    from swh.storage.cassandra.model import MigrationRow
 
     (hosts, port) = swh_storage_cassandra_cluster
     keyspace = "test" + os.urandom(10).hex()
@@ -241,6 +243,18 @@ def swh_storage_cassandra_keyspace(
     )
 
     create_keyspace(cql_runner)
+
+    cql_runner.migration_add_concurrent(
+        [
+            MigrationRow(
+                id=migration.id,
+                dependencies=migration.dependencies,
+                min_read_version=migration.min_read_version,
+                status=MigrationStatus.COMPLETED.value,
+            )
+            for migration in MIGRATIONS
+        ]
+    )
 
     return keyspace
 

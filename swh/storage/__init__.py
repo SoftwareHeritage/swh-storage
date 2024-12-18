@@ -6,8 +6,13 @@
 from typing import TYPE_CHECKING, Any, Dict, List
 import warnings
 
+import pkg_resources
+
 if TYPE_CHECKING:
     from .interface import StorageInterface
+
+
+__version__ = pkg_resources.get_distribution("swh.storage").version
 
 
 StorageSpec = Dict[str, Any]

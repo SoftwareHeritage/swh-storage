@@ -71,6 +71,7 @@ from .model import (
     ExtIDRow,
     MetadataAuthorityRow,
     MetadataFetcherRow,
+    MigrationRow,
     ObjectCountRow,
     ObjectReferenceRow,
     ObjectReferencesTableRow,
@@ -476,6 +477,37 @@ class CqlRunner:
             found_ids.add(row["id"])
 
         return [id_ for id_ in ids if id_ not in found_ids]
+
+    ##########################
+    # 'migration' table
+    ##########################
+
+    @_prepared_insert_statement(MigrationRow)
+    def migration_add_one(self, migration: MigrationRow, *, statement) -> None:
+        self._add_one(statement, migration)
+
+    @_prepared_insert_statement(MigrationRow)
+    def migration_add_concurrent(
+        self, migrations: List[MigrationRow], *, statement
+    ) -> None:
+        if len(migrations) == 0:
+            # nothing to do
+            return
+        self._add_many(statement, migrations)
+
+    @_prepared_select_statement(MigrationRow, "WHERE id IN ?")
+    def migration_get(self, migration_ids, *, statement) -> Iterable[MigrationRow]:
+        return map(
+            MigrationRow.from_dict,
+            self.execute_with_retries(statement, [migration_ids]),
+        )
+
+    @_prepared_select_statement(MigrationRow)
+    def migration_list(self, *, statement) -> Iterable[MigrationRow]:
+        return map(
+            MigrationRow.from_dict,
+            self.execute_with_retries(statement, []),
+        )
 
     ##########################
     # 'content' table

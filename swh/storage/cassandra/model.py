@@ -98,6 +98,18 @@ class BaseRow:
 
 
 @dataclasses.dataclass
+class MigrationRow(BaseRow):
+    TABLE = "migration"
+    PARTITION_KEY = ("id",)
+
+    id: str
+    dependencies: set[str]
+    min_read_version: str
+    status: str
+    """``pending``/``running``/``completed``"""
+
+
+@dataclasses.dataclass
 class ContentRow(BaseRow):
     TABLE = "content"
     PARTITION_KEY: ClassVar[Tuple[str, ...]] = ("sha256",)
