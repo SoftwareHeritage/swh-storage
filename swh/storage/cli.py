@@ -123,8 +123,6 @@ def cassandra_list_migrations(ctx):
 @click.pass_context
 def cassandra_upgrade(ctx):
     """Applies all pending migrations that can run automatically"""
-    import sys
-
     from swh.storage.cassandra.migrations import MIGRATIONS, apply_migrations
 
     cql_runner = ctx.obj["cql_runner"]
@@ -140,7 +138,7 @@ def cassandra_upgrade(ctx):
             "Some migrations need to be manually applied: "
             + ", ".join(migration.id for migration in remaining_manual_migrations)
         )
-        sys.exit(1)
+        ctx.exit(1)
     elif remaining_migrations_missing_dependencies:
         click.echo(
             "Some migrations could not be applied because a dependency is missing:: "
@@ -148,13 +146,13 @@ def cassandra_upgrade(ctx):
                 migration.id for migration in remaining_migrations_missing_dependencies
             )
         )
-        sys.exit(2)
+        ctx.exit(2)
     elif applied_any:
         click.echo("Done")
-        sys.exit(0)
+        ctx.exit(0)
     else:
         click.echo("No migration to run")
-        sys.exit(3)
+        ctx.exit(3)
 
 
 @cassandra.command(name="mark-upgraded")
