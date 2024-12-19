@@ -67,7 +67,7 @@ def storage(ctx, config_file, check_config):
 
 @storage.group(name="cassandra", context_settings=CONTEXT_SETTINGS)
 @click.pass_context
-def cassandra(ctx):
+def cassandra(ctx) -> None:
     from swh.storage.cassandra.cql import CqlRunner
 
     config = ctx.obj["config"]["storage"]
@@ -79,7 +79,7 @@ def cassandra(ctx):
     if config["cls"] != "cassandra":
         ctx.fail(f"cls must be 'cassandra', not '{config['cls']}'")
 
-    ctx.obj["sql_runner"] = CqlRunner(
+    ctx.obj["cql_runner"] = CqlRunner(
         hosts=config["hosts"],
         port=config.get("port", 9042),
         keyspace=config["keyspace"],
@@ -92,7 +92,7 @@ def cassandra(ctx):
 
 @cassandra.command(name="init")
 @click.pass_context
-def keyspace_init(ctx):
+def cassandra_init(ctx) -> None:
     """Creates a Cassandra keyspace with table definitions suitable for use
     by swh-storage's Cassandra backend"""
     from swh.storage.cassandra.cql import create_keyspace
@@ -104,7 +104,7 @@ def keyspace_init(ctx):
 
 @cassandra.command(name="list-migrations")
 @click.pass_context
-def cassandra_list_migrations(ctx):
+def cassandra_list_migrations(ctx) -> None:
     """Creates a Cassandra keyspace with table definitions suitable for use
     by swh-storage's Cassandra backend"""
     import textwrap
@@ -113,15 +113,17 @@ def cassandra_list_migrations(ctx):
 
     for migration, status in list_migrations(ctx.obj["cql_runner"]):
         click.echo(
-            f"{migration.id}{' (required)' if migration.required else ''}: {status}"
+            f"{migration.id}{' (required)' if migration.required else ''}: {status.value}"
         )
         if migration.help:
-            click.echo(textwrap.indent(migration.help))
+            click.echo(textwrap.indent(migration.help, prefix="    "))
+        click.echo("")
 
 
 @cassandra.command(name="upgrade")
+@click.option("--migration", "migration_ids", multiple=True)
 @click.pass_context
-def cassandra_upgrade(ctx):
+def cassandra_upgrade(ctx, migration_ids: tuple[str, ...]) -> None:
     """Applies all pending migrations that can run automatically"""
     from swh.storage.cassandra.migrations import MIGRATIONS, apply_migrations
 
@@ -131,7 +133,10 @@ def cassandra_upgrade(ctx):
         applied_any,
         remaining_manual_migrations,
         remaining_migrations_missing_dependencies,
-    ) = apply_migrations(cql_runner, {migration.id for migration in MIGRATIONS})
+    ) = apply_migrations(
+        cql_runner,
+        (migration_ids or {migration.id for migration in MIGRATIONS}),
+    )
 
     if remaining_manual_migrations:
         click.echo(
@@ -148,7 +153,7 @@ def cassandra_upgrade(ctx):
         )
         ctx.exit(2)
     elif applied_any:
-        click.echo("Done")
+        click.echo("Done.")
         ctx.exit(0)
     else:
         click.echo("No migration to run")
@@ -156,23 +161,25 @@ def cassandra_upgrade(ctx):
 
 
 @cassandra.command(name="mark-upgraded")
-@click.option("--migration", multiple=True)
+@click.option("--migration", "migration_ids", multiple=True)
 @click.pass_context
-def cassandra_mark_upgraded(ctx, migration_ids):
+def cassandra_mark_upgraded(ctx, migration_ids: tuple[str, ...]) -> None:
     """Marks a migration as run"""
-    import dataclasses
-
     from swh.storage.cassandra.migrations import MIGRATIONS, MigrationStatus
+    from swh.storage.cassandra.model import MigrationRow
 
     logger = logging.getLogger(__name__)
 
     cql_runner = ctx.obj["cql_runner"]
 
-    migrations = {
-        migration.id: migration
-        for migration in MIGRATIONS
-        if migration.id in migration_ids
-    }
+    if migration_ids:
+        migrations = {
+            migration.id: migration
+            for migration in MIGRATIONS
+            if migration.id in migration_ids
+        }
+    else:
+        migrations = {migration.id: migration for migration in MIGRATIONS}
 
     unknown_migrations = set(migrations) - {migration.id for migration in MIGRATIONS}
     if unknown_migrations:
@@ -181,17 +188,29 @@ def cassandra_mark_upgraded(ctx, migration_ids):
         )
 
     rows = cql_runner.migration_get(list(migrations))
-    new_rows = []
     for row in rows:
         if row.status == MigrationStatus.COMPLETED:
             logger.warning("Migration %s was already completed", row.id)
-        else:
-            new_rows.append(dataclasses.replace(row, status=MigrationStatus.COMPLETED))
 
-    cql_runner.migration_add_concurrent(new_rows)
-    logger.info(
-        "Migrations %s marked as complete", [", ".join(row.id) for row in new_rows]
-    )
+    new_rows = []
+    for migration in migrations.values():
+        new_rows.append(
+            MigrationRow(
+                id=migration.id,
+                dependencies=migration.dependencies,
+                min_read_version=migration.min_read_version,
+                status=MigrationStatus.COMPLETED.value,
+            )
+        )
+
+    if new_rows:
+        cql_runner.migration_add_concurrent(new_rows)
+        click.echo(
+            f"Migrations {', '.join(row.id for row in new_rows)} marked as complete."
+        )
+    else:
+        click.echo("Nothing to do.")
+        ctx.exit(3)
 
 
 @storage.command(name="rpc-serve")

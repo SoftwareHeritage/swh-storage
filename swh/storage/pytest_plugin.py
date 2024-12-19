@@ -227,8 +227,6 @@ def swh_storage_cassandra_keyspace(
 ):
     from swh.storage.cassandra import create_keyspace
     from swh.storage.cassandra.cql import CqlRunner
-    from swh.storage.cassandra.migrations import MIGRATIONS, MigrationStatus
-    from swh.storage.cassandra.model import MigrationRow
 
     (hosts, port) = swh_storage_cassandra_cluster
     keyspace = "test" + os.urandom(10).hex()
@@ -244,18 +242,6 @@ def swh_storage_cassandra_keyspace(
 
     create_keyspace(cql_runner)
 
-    cql_runner.migration_add_concurrent(
-        [
-            MigrationRow(
-                id=migration.id,
-                dependencies=migration.dependencies,
-                min_read_version=migration.min_read_version,
-                status=MigrationStatus.COMPLETED.value,
-            )
-            for migration in MIGRATIONS
-        ]
-    )
-
     return keyspace
 
 
@@ -265,6 +251,9 @@ def swh_storage_cassandra_backend_config(
     swh_storage_cassandra_keyspace,
     cassandra_auth_provider_config,
 ):
+    from swh.storage.cassandra.cql import CqlRunner
+    from swh.storage.cassandra.migrations import MIGRATIONS, MigrationStatus
+    from swh.storage.cassandra.model import MigrationRow
     from swh.storage.cassandra.schema import TABLES
 
     (hosts, port) = swh_storage_cassandra_cluster
@@ -279,6 +268,26 @@ def swh_storage_cassandra_backend_config(
         journal_writer={"cls": "memory"},
         objstorage={"cls": "memory"},
         auth_provider=cassandra_auth_provider_config,
+    )
+
+    cql_runner = CqlRunner(
+        hosts,
+        keyspace,
+        port,
+        auth_provider=cassandra_auth_provider_config,
+        consistency_level="ONE",
+    )
+
+    cql_runner.migration_add_concurrent(
+        [
+            MigrationRow(
+                id=migration.id,
+                dependencies=migration.dependencies,
+                min_read_version=migration.min_read_version,
+                status=MigrationStatus.COMPLETED.value,
+            )
+            for migration in MIGRATIONS
+        ]
     )
 
     yield storage_config

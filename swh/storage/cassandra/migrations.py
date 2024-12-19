@@ -105,6 +105,10 @@ def apply_migrations(
     statuses = {
         migration.id: status for (migration, status) in list_migrations(cql_runner)
     }
+    for migration_id in ids_to_apply:
+        if migration_id not in statuses:
+            raise ValueError(f"Unknown migration: {migration_id}")
+
     migrations_to_apply = [
         migration for migration in MIGRATIONS if migration.id in ids_to_apply
     ]
