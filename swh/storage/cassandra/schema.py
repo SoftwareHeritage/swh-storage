@@ -79,7 +79,7 @@ CREATE TABLE IF NOT EXISTS migration (
     dependencies        frozen<set<ascii>>,
     min_read_version    ascii,
     status              ascii,
-    PRIMARY KEY (id)
+    PRIMARY KEY ((id))
 ) WITH
     comment = 'Set of known database migrations'
     {table_options};""",
@@ -351,6 +351,7 @@ CREATE TABLE IF NOT EXISTS {keyspace}.{name} (
     {table_options};"""  # noqa: B950
 
 TABLES = [
+    "migration",
     "skipped_content",
     "content",
     "revision",

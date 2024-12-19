@@ -141,7 +141,7 @@ def cassandra_upgrade(ctx):
         ctx.exit(1)
     elif remaining_migrations_missing_dependencies:
         click.echo(
-            "Some migrations could not be applied because a dependency is missing:: "
+            "Some migrations could not be applied because a dependency is missing: "
             + ", ".join(
                 migration.id for migration in remaining_migrations_missing_dependencies
             )

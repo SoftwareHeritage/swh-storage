@@ -64,6 +64,8 @@ def _python_type_to_cql_type_re(ty: type) -> str:
         return "boolean"
     elif ty is dict:
         return "frozen<list <list<blob>> >"
+    elif ty == set[str]:
+        return "frozen<set<(ascii|text)>>"
     elif ty is Date:
         return "date"
     elif getattr(ty, "__origin__", None) is Union:
