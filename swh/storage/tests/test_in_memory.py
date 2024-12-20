@@ -142,6 +142,7 @@ class TestInMemoryStorageGeneratedData(_TestStorageGeneratedData):
 class TestStorageDeletion(_TestStorageDeletion):
     def _affected_tables(self) -> List[str]:
         cassandra_tables = set(TABLES) - {
+            "migration",
             "metadata_authority",
             "metadata_fetcher",
             "extid",

@@ -645,6 +645,7 @@ class TestStorageDeletion(_TestStorageDeletion):
         return list(
             set(TABLES)
             - {
+                "migration",
                 "metadata_authority",
                 "metadata_fetcher",
                 "extid",
