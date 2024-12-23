@@ -547,7 +547,7 @@ class StorageData:
         committer=None,
         committer_date=None,
         parents=(),
-        type=RevisionType.MERCURIAL,
+        type=RevisionType.GIT,
         directory=directory.id,
         metadata={},
         extra_headers=(),
