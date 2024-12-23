@@ -371,7 +371,7 @@ def test_read_legacy_revision_rows(swh_storage, swh_storage_backend, sample_data
 
         # Write like an old storage version
         keyspace = swh_storage_backend._cql_runner.keyspace
-        swh_storage_backend._cql_runner._execute_with_retries(
+        swh_storage_backend._cql_runner.execute_with_retries(
             f"""
             INSERT INTO {keyspace}.revision ({', '.join(d)})
             VALUES({', '.join('%s' for _ in d)})
@@ -396,7 +396,7 @@ def test_write_new_revision_cols(swh_storage, swh_storage_backend, sample_data):
     swh_storage.revision_add([sample_data.revision, sample_data.minimal_revision])
 
     keyspace = swh_storage_backend._cql_runner.keyspace
-    res = swh_storage_backend._cql_runner._execute_with_retries(
+    res = swh_storage_backend._cql_runner.execute_with_retries(
         f"""
         SELECT
             id,
@@ -464,7 +464,7 @@ def test_read_legacy_release_rows(swh_storage, swh_storage_backend, sample_data)
 
     # Write like an old storage version
     keyspace = swh_storage_backend._cql_runner.keyspace
-    swh_storage_backend._cql_runner._execute_with_retries(
+    swh_storage_backend._cql_runner.execute_with_retries(
         f"INSERT INTO {keyspace}.release ({', '.join(d)}) VALUES({', '.join('%s' for _ in d)})",
         list(d.values()),
     )
@@ -480,7 +480,7 @@ def test_write_new_release_cols(swh_storage, swh_storage_backend, sample_data):
     swh_storage.release_add([rel])
 
     keyspace = swh_storage_backend._cql_runner.keyspace
-    res = swh_storage_backend._cql_runner._execute_with_retries(
+    res = swh_storage_backend._cql_runner.execute_with_retries(
         f"""
         SELECT
             author_fullname, author_email, author_name,
