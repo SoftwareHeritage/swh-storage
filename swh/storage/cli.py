@@ -75,12 +75,19 @@ def create_keyspace(ctx):
 
     config = ctx.obj["config"]["storage"]
 
+    # Tentatively extract the nested cls 'cassandra' configuration
+    if config["cls"] == "pipeline":
+        config = config["steps"][-1]
+
+    # Check immediately whether the configuration is a 'cassandra' one (this is the
+    # configuration which has the necessary configuration keys)
+    if config["cls"] != "cassandra":
+        ctx.fail(f"cls must be 'cassandra', not '{config['cls']}'")
+
+    # Check whether the mandatory keys are present and raise if not.
     for key in ("cls", "hosts", "keyspace", "auth_provider"):
         if key not in config:
             ctx.fail(f"Missing {key} key in config file.")
-
-    if config["cls"] != "cassandra":
-        ctx.fail(f"cls must be 'cassandra', not '{config['cls']}'")
 
     cql_runner = CqlRunner(
         hosts=config["hosts"],
