@@ -145,7 +145,7 @@ def get_execution_profiles(
 #   datacenter as the client (DCAwareRoundRobinPolicy)
 
 
-def create_keyspace(cql_runner: "CqlRunner", *, durable_writes=True):
+def create_keyspace(cql_runner: "CqlRunner", *, durable_writes=True) -> None:
     extra_params = ""
     if not durable_writes:
         extra_params = "AND durable_writes = false"
@@ -167,6 +167,22 @@ def create_keyspace(cql_runner: "CqlRunner", *, durable_writes=True):
         query = query.format(table_options=current_table_options)
         logger.debug("Running:\n%s", query)
         cql_runner.execute_with_retries(query, [])
+
+
+def mark_all_migrations_completed(cql_runner: "CqlRunner") -> None:
+    from .migrations import MIGRATIONS, MigrationStatus
+
+    cql_runner.migration_add_concurrent(
+        [
+            MigrationRow(
+                id=migration.id,
+                dependencies=migration.dependencies,
+                min_read_version=migration.min_read_version,
+                status=MigrationStatus.COMPLETED.value,
+            )
+            for migration in MIGRATIONS
+        ]
+    )
 
 
 TRet = TypeVar("TRet")

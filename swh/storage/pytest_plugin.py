@@ -251,9 +251,7 @@ def swh_storage_cassandra_backend_config(
     swh_storage_cassandra_keyspace,
     cassandra_auth_provider_config,
 ):
-    from swh.storage.cassandra.cql import CqlRunner
-    from swh.storage.cassandra.migrations import MIGRATIONS, MigrationStatus
-    from swh.storage.cassandra.model import MigrationRow
+    from swh.storage.cassandra.cql import CqlRunner, mark_all_migrations_completed
     from swh.storage.cassandra.schema import TABLES
 
     (hosts, port) = swh_storage_cassandra_cluster
@@ -278,17 +276,7 @@ def swh_storage_cassandra_backend_config(
         consistency_level="ONE",
     )
 
-    cql_runner.migration_add_concurrent(
-        [
-            MigrationRow(
-                id=migration.id,
-                dependencies=migration.dependencies,
-                min_read_version=migration.min_read_version,
-                status=MigrationStatus.COMPLETED.value,
-            )
-            for migration in MIGRATIONS
-        ]
-    )
+    mark_all_migrations_completed(cql_runner)
 
     yield storage_config
 

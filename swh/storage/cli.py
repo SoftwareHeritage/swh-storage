@@ -95,9 +95,10 @@ def cassandra(ctx) -> None:
 def cassandra_init(ctx) -> None:
     """Creates a Cassandra keyspace with table definitions suitable for use
     by swh-storage's Cassandra backend"""
-    from swh.storage.cassandra.cql import create_keyspace
+    from swh.storage.cassandra.cql import create_keyspace, mark_all_migrations_completed
 
     create_keyspace(ctx.obj["cql_runner"])
+    mark_all_migrations_completed(ctx.obj["cql_runner"])
 
     click.echo("Done.")
 
