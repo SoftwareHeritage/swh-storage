@@ -1226,7 +1226,7 @@ def main(storage_dbconn, storage_url, deposit_dbconn, first_id, limit, dry_run):
                     int.from_bytes(row["id"][0:4], byteorder="big") * 100 / (1 << 32)
                 )
                 print(
-                    f"Processed {total_rows/1000000.:.2f}M rows "
+                    f"Processed {total_rows / 1000000.:.2f}M rows "
                     f"(~{percents:.1f}%, last revision: {row['id'].hex()})"
                 )
 

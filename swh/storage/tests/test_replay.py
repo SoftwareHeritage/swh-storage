@@ -515,7 +515,7 @@ def test_storage_replayer_with_validation_nok(
             invalid += 1
     assert invalid == 4, "Invalid objects should be detected"
     assert set(redisdb.keys()) == {
-        f"swh:1:{typ}:{'0'*40}".encode() for typ in ("rel", "rev", "snp", "dir")
+        f"swh:1:{typ}:{'0' * 40}".encode() for typ in ("rel", "rev", "snp", "dir")
     } | {b"directory:" + b"01" * 20}
 
     for key in redisdb.keys():
