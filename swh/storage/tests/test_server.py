@@ -76,7 +76,7 @@ def test_load_and_check_config_local_config_fine(tmpdir):
 
 @pytest.fixture
 def swh_storage_server_config(
-    swh_storage_backend_config: Dict[str, Any]
+    swh_storage_backend_config: Dict[str, Any],
 ) -> Dict[str, Any]:
     return {"storage": swh_storage_backend_config}
 
