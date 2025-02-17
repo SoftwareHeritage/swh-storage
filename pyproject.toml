@@ -109,7 +109,6 @@ norecursedirs = "build docs .*"
 asyncio_mode = "strict"
 consider_namespace_packages = true
 markers = [
-    "db: execute tests using a postgresql database",
     "cassandra: execute tests using a cassandra database (which are slow)",
     "property_based: execute tests generating data with hypothesis (potentially long run time)",
     "network: execute tests using a socket between two threads",
