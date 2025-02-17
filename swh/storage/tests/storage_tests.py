@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2024  The Software Heritage developers
+# Copyright (C) 2015-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -1506,6 +1506,35 @@ class TestStorage:
     def test_revision_add_with_raw_manifest(self, swh_storage, sample_data):
         revision = sample_data.revision
         revision = attr.evolve(revision, raw_manifest=b"foo")
+        revision = attr.evolve(revision, id=revision.compute_hash())
+        init_missing = swh_storage.revision_missing([revision.id])
+        assert list(init_missing) == [revision.id]
+
+        actual_result = swh_storage.revision_add([revision])
+        assert actual_result == {"revision:add": 1}
+
+        end_missing = swh_storage.revision_missing([revision.id])
+        assert list(end_missing) == []
+
+        assert list(swh_storage.journal_writer.journal.objects) == [
+            ("revision", revision)
+        ]
+
+        assert swh_storage.revision_get([revision.id]) == [revision]
+
+    def test_revision_add_no_seconds_rounding(self, swh_storage, sample_data):
+        revision = sample_data.revision
+
+        # this edge case makes Python produce a timestamp which is offset
+        # by one when converted to a datetime object
+        tstz = TimestampWithTimezone(
+            timestamp=Timestamp(seconds=34359738368, microseconds=999997),
+            offset_bytes=b"+0000",
+        )
+
+        assert int(tstz.to_datetime().timestamp()) != tstz.timestamp.seconds
+
+        revision = attr.evolve(revision, committer_date=tstz)
         revision = attr.evolve(revision, id=revision.compute_hash())
         init_missing = swh_storage.revision_missing([revision.id])
         assert list(init_missing) == [revision.id]
