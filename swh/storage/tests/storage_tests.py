@@ -4991,7 +4991,7 @@ class TestStorage:
                 target_type=SnapshotTargetType.RELEASE,
             )
         for i in range(n):
-            branches[f"refs/tags/tag{n+i:02d}".encode()] = SnapshotBranch(
+            branches[f"refs/tags/tag{n + i:02d}".encode()] = SnapshotBranch(
                 target=sample_data.release.id,
                 target_type=SnapshotTargetType.RELEASE,
             )

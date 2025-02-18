@@ -1000,7 +1000,7 @@ class Db(BaseDb):
             f"INSERT INTO origin_visit_status "
             f"(origin, {', '.join(cols)}, metadata) "
             f"VALUES ((select id from origin_id), "
-            f"{', '.join(['%s']*len(cols))}, %s) "
+            f"{', '.join(['%s'] * len(cols))}, %s) "
             f"ON CONFLICT (origin, visit, date) do nothing",
             [visit_status.origin]
             + [getattr(visit_status, key) for key in cols]
@@ -1145,7 +1145,7 @@ class Db(BaseDb):
         builder = QueryBuilder()
         builder.add_query_part(
             sql.SQL(
-                f"""SELECT { ', '.join(origin_visit_cols) } FROM origin_visit ov
+                f"""SELECT {', '.join(origin_visit_cols)} FROM origin_visit ov
                 INNER JOIN origin o ON o.id = ov.origin
                 WHERE ov.origin = (select id from origin where url = %s)"""
             ),
