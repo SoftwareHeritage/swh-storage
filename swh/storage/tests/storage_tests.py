@@ -28,7 +28,6 @@ from swh.model.model import (
     Directory,
     DirectoryEntry,
     ExtID,
-    ModelObjectType,
     Origin,
     OriginVisit,
     OriginVisitStatus,
@@ -6752,7 +6751,7 @@ class TestStorageGeneratedData:
         random.shuffle(objects)
 
         for obj_type, obj in objects:
-            if obj_type == ModelObjectType.ORIGIN_VISIT:
+            if obj_type == OriginVisit.object_type:
                 swh_storage.origin_add([Origin(url=obj.origin)])
                 visit = OriginVisit(
                     origin=obj.origin,
@@ -6760,7 +6759,7 @@ class TestStorageGeneratedData:
                     type=obj.type,
                 )
                 swh_storage.origin_visit_add([visit])
-            elif obj_type == ModelObjectType.RAW_EXTRINSIC_METADATA:
+            elif obj_type == RawExtrinsicMetadata.object_type:
                 swh_storage.metadata_authority_add([obj.authority])
                 swh_storage.metadata_fetcher_add([obj.fetcher])
                 swh_storage.raw_extrinsic_metadata_add([obj])

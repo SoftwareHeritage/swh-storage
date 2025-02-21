@@ -1,4 +1,4 @@
-# Copyright (C) 2018-2024 The Software Heritage developers
+# Copyright (C) 2018-2025 The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -12,7 +12,22 @@ from hypothesis.strategies import lists
 
 from swh.journal.pytest_plugin import assert_all_objects_consumed, consume_messages
 from swh.model.hypothesis_strategies import objects
-from swh.model.model import ModelObjectType, Person
+from swh.model.model import (
+    Content,
+    Directory,
+    ExtID,
+    MetadataAuthority,
+    MetadataFetcher,
+    Origin,
+    OriginVisit,
+    OriginVisitStatus,
+    Person,
+    RawExtrinsicMetadata,
+    Release,
+    Revision,
+    SkippedContent,
+    Snapshot,
+)
 from swh.model.tests.swh_model_data import TEST_OBJECTS
 from swh.storage import get_storage
 
@@ -34,19 +49,19 @@ def test_storage_direct_writer(kafka_prefix: str, kafka_server, consumer: Consum
     }
 
     object_types = (
-        ModelObjectType.CONTENT,
-        ModelObjectType.SKIPPED_CONTENT,
-        ModelObjectType.DIRECTORY,
-        ModelObjectType.EXTID,
-        ModelObjectType.METADATA_AUTHORITY,
-        ModelObjectType.METADATA_FETCHER,
-        ModelObjectType.REVISION,
-        ModelObjectType.RELEASE,
-        ModelObjectType.SNAPSHOT,
-        ModelObjectType.ORIGIN,
-        ModelObjectType.ORIGIN_VISIT,
-        ModelObjectType.ORIGIN_VISIT_STATUS,
-        ModelObjectType.RAW_EXTRINSIC_METADATA,
+        Content.object_type,
+        SkippedContent.object_type,
+        Directory.object_type,
+        ExtID.object_type,
+        MetadataAuthority.object_type,
+        MetadataFetcher.object_type,
+        Revision.object_type,
+        Release.object_type,
+        Snapshot.object_type,
+        Origin.object_type,
+        OriginVisit.object_type,
+        OriginVisitStatus.object_type,
+        RawExtrinsicMetadata.object_type,
     )
 
     storage = get_storage(**storage_config)
@@ -98,7 +113,7 @@ def test_storage_direct_writer_anonymized(
     expected_messages = 0
 
     for obj_type, objs in TEST_OBJECTS.items():
-        if obj_type == ModelObjectType.ORIGIN_VISIT:
+        if obj_type == OriginVisit.object_type:
             # these have non-consistent API and are unrelated with what we
             # want to test here
             continue
