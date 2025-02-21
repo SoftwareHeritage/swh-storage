@@ -13,7 +13,7 @@ from typing import Any, Container, Dict, Optional, Tuple, cast
 import attr
 import pytest
 
-from swh.journal.client import JournalClient
+from swh.journal.client import EofBehavior, JournalClient
 from swh.journal.serializers import kafka_to_value, key_to_kafka, value_to_kafka
 from swh.journal.writer import JournalWriterInterface
 from swh.model.hashutil import MultiHash, hash_to_bytes, hash_to_hex
@@ -92,7 +92,7 @@ def replayer_storage_and_client(
         brokers=kafka_server,
         group_id=kafka_consumer_group,
         prefix=kafka_prefix,
-        stop_on_eof=True,
+        on_eof=EofBehavior.STOP,
         value_deserializer=deserializer.convert,
     )
 
@@ -609,7 +609,7 @@ def test_storage_replayer_with_validation_nok_with_exceptions(
         nb_sent += 1
         all_objs[object_type].append(invalid_obj)
         known_invalid.append(
-            (object_type, b"\x00" * 20, TEST_OBJECTS[object_type][0].id)
+            (object_type.value, b"\x00" * 20, TEST_OBJECTS[object_type][0].id)
         )
 
     replayer.value_deserializer = ModelObjectDeserializer(
@@ -637,20 +637,24 @@ def test_storage_replayer_with_validation_nok_with_exceptions(
 
     # check that all objects did reach the dst storage
     # revisions
-    expected = [attr.evolve(rev, metadata=None) for rev in all_objs["revision"]]
-    result = dst.revision_get([obj.id for obj in all_objs["revision"]])
+    expected = [
+        attr.evolve(rev, metadata=None) for rev in all_objs[Revision.object_type]
+    ]
+    result = dst.revision_get([obj.id for obj in all_objs[Revision.object_type]])
     assert result == expected
     # releases
-    expected = all_objs["release"]
-    result = dst.release_get([obj.id for obj in all_objs["release"]])
+    expected = all_objs[Release.object_type]
+    result = dst.release_get([obj.id for obj in all_objs[Release.object_type]])
     assert result == expected
     # snapshot
     # result from snapshot_get is paginated, so adapt the expected to be comparable
-    expected = [{"next_branch": None, **obj.to_dict()} for obj in all_objs["snapshot"]]
-    result = [dst.snapshot_get(obj.id) for obj in all_objs["snapshot"]]
+    expected = [
+        {"next_branch": None, **obj.to_dict()} for obj in all_objs[Snapshot.object_type]
+    ]
+    result = [dst.snapshot_get(obj.id) for obj in all_objs[Snapshot.object_type]]
     assert result == expected
     # directories
-    for directory in all_objs["directory"]:
+    for directory in all_objs[Directory.object_type]:
         assert set(dst.directory_get_entries(directory.id).results) == set(
             directory.entries
         )

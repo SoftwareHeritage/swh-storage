@@ -1,4 +1,4 @@
-# Copyright (C) 2017-2021  The Software Heritage developers
+# Copyright (C) 2017-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -21,12 +21,20 @@ from typing import Any, Callable, Dict, Iterable, Iterator, Optional, Tuple, Uni
 from swh.core.db import BaseDb
 from swh.model.model import (
     BaseModel,
+    Content,
     Directory,
     DirectoryEntry,
     ExtID,
+    MetadataAuthority,
+    MetadataFetcher,
+    ModelObjectType,
+    Origin,
+    OriginVisit,
+    OriginVisitStatus,
     RawExtrinsicMetadata,
     Release,
     Revision,
+    SkippedContent,
     Snapshot,
     SnapshotBranch,
     SnapshotTargetType,
@@ -44,23 +52,23 @@ from swh.storage.writer import JournalWriter
 logger = logging.getLogger(__name__)
 
 PARTITION_KEY = {
-    "content": "sha1",
-    "skipped_content": "sha1",
-    "directory": "id",
-    "extid": "target",
-    "metadata_authority": "type, url",
-    "metadata_fetcher": "name, version",
-    "raw_extrinsic_metadata": "target",
-    "revision": "revision.id",
-    "release": "release.id",
-    "snapshot": "id",
-    "origin": "id",
-    "origin_visit": "origin_visit.origin",
-    "origin_visit_status": "origin_visit_status.origin",
+    Content.object_type: "sha1",
+    SkippedContent.object_type: "sha1",
+    Directory.object_type: "id",
+    ExtID.object_type: "target",
+    MetadataAuthority.object_type: "type, url",
+    MetadataFetcher.object_type: "name, version",
+    RawExtrinsicMetadata.object_type: "target",
+    Revision.object_type: "revision.id",
+    Release.object_type: "release.id",
+    Snapshot.object_type: "id",
+    Origin.object_type: "id",
+    OriginVisit.object_type: "origin_visit.origin",
+    OriginVisitStatus.object_type: "origin_visit_status.origin",
 }
 
 COLUMNS = {
-    "content": [
+    Content.object_type: [
         "sha1",
         "sha1_git",
         "sha256",
@@ -69,7 +77,7 @@ COLUMNS = {
         "status",
         "ctime",
     ],
-    "skipped_content": [
+    SkippedContent.object_type: [
         "sha1",
         "sha1_git",
         "sha256",
@@ -79,18 +87,30 @@ COLUMNS = {
         "status",
         "reason",
     ],
-    "directory": ["id", "dir_entries", "file_entries", "rev_entries", "raw_manifest"],
-    "extid": ["extid_type", "extid", "extid_version", "target_type", "target"],
-    "metadata_authority": ["type", "url"],
-    "metadata_fetcher": ["name", "version"],
-    "origin": ["url"],
-    "origin_visit": [
+    Directory.object_type: [
+        "id",
+        "dir_entries",
+        "file_entries",
+        "rev_entries",
+        "raw_manifest",
+    ],
+    ExtID.object_type: [
+        "extid_type",
+        "extid",
+        "extid_version",
+        "target_type",
+        "target",
+    ],
+    MetadataAuthority.object_type: ["type", "url"],
+    MetadataFetcher.object_type: ["name", "version"],
+    Origin.object_type: ["url"],
+    OriginVisit.object_type: [
         "visit",
         "type",
         ("origin.url", "origin"),
         "date",
     ],
-    "origin_visit_status": [
+    OriginVisitStatus.object_type: [
         ("origin_visit_status.visit", "visit"),
         ("origin.url", "origin"),
         ("origin_visit_status.date", "date"),
@@ -99,7 +119,7 @@ COLUMNS = {
         "status",
         "metadata",
     ],
-    "raw_extrinsic_metadata": [
+    RawExtrinsicMetadata.object_type: [
         "raw_extrinsic_metadata.type",
         "raw_extrinsic_metadata.target",
         "metadata_authority.type",
@@ -117,7 +137,7 @@ COLUMNS = {
         "path",
         "directory",
     ],
-    "revision": [
+    Revision.object_type: [
         ("revision.id", "id"),
         "date",
         "date_offset_bytes",
@@ -144,7 +164,7 @@ COLUMNS = {
         ("c.email", "committer_email"),
         ("c.fullname", "committer_fullname"),
     ],
-    "release": [
+    Release.object_type: [
         ("release.id", "id"),
         "date",
         "date_offset_bytes",
@@ -159,21 +179,21 @@ COLUMNS = {
         ("a.fullname", "author_fullname"),
         "raw_manifest",
     ],
-    "snapshot": ["id", "object_id"],
+    Snapshot.object_type: ["id", "object_id"],
 }
 
 
 JOINS = {
-    "release": ["person a on release.author=a.id"],
-    "revision": [
+    Release.object_type: ["person a on release.author=a.id"],
+    Revision.object_type: [
         "person a on revision.author=a.id",
         "person c on revision.committer=c.id",
     ],
-    "origin_visit": ["origin on origin_visit.origin=origin.id"],
-    "origin_visit_status": [
+    OriginVisit.object_type: ["origin on origin_visit.origin=origin.id"],
+    OriginVisitStatus.object_type: [
         "origin on origin_visit_status.origin=origin.id",
     ],
-    "raw_extrinsic_metadata": [
+    RawExtrinsicMetadata.object_type: [
         "metadata_authority on "
         "raw_extrinsic_metadata.authority_id=metadata_authority.id",
         "metadata_fetcher on raw_extrinsic_metadata.fetcher_id=metadata_fetcher.id",
@@ -182,7 +202,7 @@ JOINS = {
 
 EXTRA_WHERE = {
     # hack to force the right index usage on table extid
-    "extid": "target_type in ('revision', 'release', 'content', 'directory')"
+    ExtID.object_type: "target_type in ('revision', 'release', 'content', 'directory')"
 }
 
 
@@ -300,13 +320,13 @@ def snapshot_converter(db: BaseDb, snapshot_d: Dict[str, Any]) -> Snapshot:
     )
 
 
-CONVERTERS: Dict[str, Callable[[BaseDb, Dict[str, Any]], BaseModel]] = {
-    "directory": directory_converter,
-    "extid": extid_converter,
-    "raw_extrinsic_metadata": raw_extrinsic_metadata_converter,
-    "revision": revision_converter,
-    "release": release_converter,
-    "snapshot": snapshot_converter,
+CONVERTERS: Dict[ModelObjectType, Callable[[BaseDb, Dict[str, Any]], BaseModel]] = {
+    Directory.object_type: directory_converter,
+    ExtID.object_type: extid_converter,
+    RawExtrinsicMetadata.object_type: raw_extrinsic_metadata_converter,
+    Revision.object_type: revision_converter,
+    Release.object_type: release_converter,
+    Snapshot.object_type: snapshot_converter,
 }
 
 
@@ -467,32 +487,33 @@ def integer_ranges(
 
 
 RANGE_GENERATORS: Dict[
-    str,
+    ModelObjectType,
     Union[
         Callable[[str, str], Iterable[Tuple[Optional[str], Optional[str]]]],
         Callable[[str, str], Iterable[Tuple[Optional[bytes], Optional[bytes]]]],
         Callable[[str, str], Iterable[Tuple[Optional[int], Optional[int]]]],
     ],
 ] = {
-    "content": lambda start, end: byte_ranges(24, start, end),
-    "skipped_content": lambda start, end: [(None, None)],
-    "directory": lambda start, end: byte_ranges(24, start, end),
-    "extid": lambda start, end: byte_ranges(24, start, end),
-    "revision": lambda start, end: byte_ranges(24, start, end),
-    "release": lambda start, end: byte_ranges(16, start, end),
-    "raw_extrinsic_metadata": raw_extrinsic_metadata_target_ranges,
-    "snapshot": lambda start, end: byte_ranges(16, start, end),
-    "origin": integer_ranges,
-    "origin_visit": integer_ranges,
-    "origin_visit_status": integer_ranges,
+    Content.object_type: lambda start, end: byte_ranges(24, start, end),
+    SkippedContent.object_type: lambda start, end: [(None, None)],
+    Directory.object_type: lambda start, end: byte_ranges(24, start, end),
+    ExtID.object_type: lambda start, end: byte_ranges(24, start, end),
+    Revision.object_type: lambda start, end: byte_ranges(24, start, end),
+    Release.object_type: lambda start, end: byte_ranges(16, start, end),
+    RawExtrinsicMetadata.object_type: raw_extrinsic_metadata_target_ranges,
+    Snapshot.object_type: lambda start, end: byte_ranges(16, start, end),
+    Origin.object_type: integer_ranges,
+    OriginVisit.object_type: integer_ranges,
+    OriginVisitStatus.object_type: integer_ranges,
 }
 
 
 def compute_query(obj_type, start, end):
-    columns = COLUMNS.get(obj_type)
-    join_specs = JOINS.get(obj_type, [])
+    object_type = ModelObjectType(obj_type)
+    columns = COLUMNS.get(object_type)
+    join_specs = JOINS.get(object_type, [])
     join_clause = "\n".join("left join %s" % clause for clause in join_specs)
-    additional_where = EXTRA_WHERE.get(obj_type)
+    additional_where = EXTRA_WHERE.get(object_type)
 
     where = []
     where_args = []
@@ -509,7 +530,7 @@ def compute_query(obj_type, start, end):
     where_clause = ""
     if where:
         where_clause = ("where " + " and ".join(where)) % {
-            "keys": "(%s)" % PARTITION_KEY[obj_type]
+            "keys": "(%s)" % PARTITION_KEY[object_type]
         }
 
     column_specs = []
@@ -557,7 +578,8 @@ def fetch(db, obj_type, start, end):
 
     """
     query, where_args, column_aliases = compute_query(obj_type, start, end)
-    converter = CONVERTERS.get(obj_type)
+    object_type = ModelObjectType(obj_type)
+    converter = CONVERTERS.get(object_type)
     with db.cursor() as cursor:
         logger.debug("Fetching data for table %s", obj_type)
         logger.debug("query: %s %s", query, where_args)
@@ -567,7 +589,7 @@ def fetch(db, obj_type, start, end):
             if converter:
                 record = converter(db, record)
             else:
-                record = OBJECT_CONVERTERS[obj_type](record)
+                record = OBJECT_CONVERTERS[object_type](record)
 
             logger.debug("record: %s", record)
             yield record
@@ -636,14 +658,22 @@ class JournalBackfiller:
             Parsed start and end object ids
 
         """
-        if object_type not in COLUMNS:
+        try:
+            model_object_type = ModelObjectType(object_type)
+        except ValueError:
+            model_object_type = None
+        if model_object_type is None or model_object_type not in COLUMNS:
             raise ValueError(
                 "Object type %s is not supported. "
                 "The only possible values are %s"
-                % (object_type, ", ".join(sorted(COLUMNS.keys())))
+                % (object_type, ", ".join(sorted(key.value for key in COLUMNS)))
             )
 
-        if object_type in ["origin", "origin_visit", "origin_visit_status"]:
+        if model_object_type in [
+            Origin.object_type,
+            OriginVisit.object_type,
+            OriginVisitStatus.object_type,
+        ]:
             start_object = start_object or "0"
             end_object = end_object or str(100_000_000)  # hard-coded limit
 
@@ -658,7 +688,7 @@ class JournalBackfiller:
             object_type, start_object, end_object
         )
 
-        for range_start, range_end in RANGE_GENERATORS[object_type](
+        for range_start, range_end in RANGE_GENERATORS[ModelObjectType(object_type)](
             start_object, end_object
         ):
             logger.info(

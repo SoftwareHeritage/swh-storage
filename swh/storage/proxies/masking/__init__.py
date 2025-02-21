@@ -1,4 +1,4 @@
-# Copyright (C) 2024 The Software Heritage developers
+# Copyright (C) 2024-2025 The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -25,7 +25,15 @@ import psycopg2.pool
 
 from swh.core.utils import grouper
 from swh.model.hashutil import MultiHash
-from swh.model.model import Origin, Person, Release, Revision, Sha1Git
+from swh.model.model import (
+    ExtID,
+    Origin,
+    Person,
+    RawExtrinsicMetadata,
+    Release,
+    Revision,
+    Sha1Git,
+)
 from swh.model.swhids import ExtendedObjectType, ExtendedSWHID
 from swh.storage import get_storage
 from swh.storage.exc import MaskedObjectException
@@ -121,7 +129,7 @@ class MaskingProxyStorage:
             raise TypeError(f"Filtering of Nones missing in {method_name}")
 
         result_type = getattr(result, "object_type", None)
-        if result_type == "raw_extrinsic_metadata":
+        if result_type == RawExtrinsicMetadata.object_type:
             # Raw Extrinsic Metadata have a swhid, but we also mask them if the target is masked
             return [result.swhid(), result.target]
 
@@ -135,7 +143,7 @@ class MaskingProxyStorage:
             return [swhid]
 
         if result_type:
-            if result_type == "extid":
+            if result_type == ExtID.object_type:
                 return [result.target.to_extended()]
             if result_type.value.startswith("origin_visit"):
                 return [Origin(url=result.origin).swhid()]
