@@ -1109,12 +1109,9 @@ class TestStorage:
             ("directory", directory)
         ]
 
-    def test_directory_add_raw_manifest__different_entries(
+    def _directory_add_raw_manifest_different_entries_test(
         self, swh_storage, check_ls=True
     ):
-        """Add two directories with the same raw_manifest (and therefore, same id)
-        but different entries.
-        """
         dir1 = Directory(
             entries=(
                 DirectoryEntry(
@@ -1138,14 +1135,22 @@ class TestStorage:
 
         if check_ls:
             # This assertion is skipped when running from
-            # test_directory_add_raw_manifest__different_entries__allow_overwrite
+            # test_directory_add_raw_manifest_different_entries_allow_overwrite
             assert [entry["name"] for entry in swh_storage.directory_ls(dir1.id)] == (
                 [b"name1"]
             )
 
         # used in TestCassandraStorage by
-        # test_directory_add_raw_manifest__different_entries__allow_overwrite
+        # test_directory_add_raw_manifest_different_entries_allow_overwrite
         return dir1.id
+
+    def test_directory_add_raw_manifest_different_entries(
+        self, swh_storage, check_ls=True
+    ):
+        """Add two directories with the same raw_manifest (and therefore, same id)
+        but different entries.
+        """
+        self._directory_add_raw_manifest_different_entries_test(swh_storage, check_ls)
 
     def test_directory_get_id_partition(self, swh_storage, sample_data):
         directories = list(sample_data.directories) + [
