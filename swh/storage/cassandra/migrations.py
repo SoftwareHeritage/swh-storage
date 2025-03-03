@@ -10,7 +10,7 @@ import logging
 import textwrap
 from typing import Callable, Iterable, Optional, Sequence
 
-from .cql import CqlRunner
+from .cql import CqlRunner, create_table
 from .model import MigrationRow
 
 logger = logging.getLogger(__name__)
@@ -161,3 +161,37 @@ def apply_migrations(
         remaining_manual_migrations,
         remaining_migrations_missing_dependencies,
     )
+
+
+def create_migrations_table_if_needed(cql_runner: CqlRunner) -> None:
+    if not list(
+        cql_runner.execute_with_retries(
+            """
+            SELECT table_name
+            FROM system_schema.tables
+            WHERE keyspace_name=%s AND table_name='migration'
+            """,
+            [cql_runner.keyspace],
+        )
+    ):
+        logger.info("'migrations' table does not exist yet, creating it.")
+
+        # 'migration' table does not exist. Create it:
+        cql_runner.execute_with_retries(f'USE "{cql_runner.keyspace}"', [])
+        create_table(cql_runner, "migration")
+
+        # And mark the dummy initial migration as done, as it corresponds to the schema
+        # of the last swh-storage version before adding the 'migrations' table.
+        # Other migrations could not have run before this is done.
+        (migration,) = [
+            migration for migration in MIGRATIONS if migration.id == "2024-12-12_init"
+        ]
+
+        migration_row = MigrationRow(
+            id=migration.id,
+            dependencies=migration.dependencies,
+            min_read_version=migration.min_read_version,
+            status=MigrationStatus.COMPLETED.value,
+        )
+        cql_runner.migration_add_concurrent([migration_row])
+        logger.info("'migrations' table created.")

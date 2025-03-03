@@ -160,13 +160,18 @@ def create_keyspace(cql_runner: "CqlRunner", *, durable_writes=True) -> None:
         [],
     )
     cql_runner.execute_with_retries(f'USE "{cql_runner.keyspace}"', [])
-    for table_name, query in CREATE_TABLES_QUERIES.items():
-        current_table_options = cql_runner.table_options.get(table_name, "")
-        if current_table_options.strip():
-            current_table_options = "AND " + current_table_options
-        query = query.format(table_options=current_table_options)
-        logger.debug("Running:\n%s", query)
-        cql_runner.execute_with_retries(query, [])
+    for table_name in CREATE_TABLES_QUERIES:
+        create_table(cql_runner, table_name)
+
+
+def create_table(cql_runner: "CqlRunner", table_name: str) -> None:
+    query = CREATE_TABLES_QUERIES[table_name]
+    current_table_options = cql_runner.table_options.get(table_name, "")
+    if current_table_options.strip():
+        current_table_options = "AND " + current_table_options
+    query = query.format(table_options=current_table_options)
+    logger.debug("Running:\n%s", query)
+    cql_runner.execute_with_retries(query, [])
 
 
 def mark_all_migrations_completed(cql_runner: "CqlRunner") -> None:

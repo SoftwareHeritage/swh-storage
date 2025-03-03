@@ -145,6 +145,53 @@ class TestCassandraCli:
                 f"DROP TABLE {swh_storage_cassandra_keyspace}.test_table", []
             )
 
+    def test_upgrade_all_from_v2_9(
+        self, swh_storage, swh_storage_cassandra_keyspace, invoke, mocker
+    ):
+        """Tests upgrading from v2.9.x, which did not have a 'migrations' table."""
+        assert len(MIGRATIONS) == 1, (
+            "This test won't work correctly after we make more changes to the schema, "
+            "as it relies on the schema being v2.9's plus only the migrations table."
+        )
+        cql_runner = swh_storage._cql_runner
+
+        cql_runner.execute_with_retries(
+            f"DROP TABLE {cql_runner.keyspace}.migration", []
+        )
+
+        def migration_script(cql_runner):
+            cql_runner.execute_with_retries(f"USE {cql_runner.keyspace}", [])
+            cql_runner.execute_with_retries(
+                "CREATE TABLE IF NOT EXISTS test_table (abc blob PRIMARY KEY);", []
+            )
+
+        new_migration = Migration(
+            id="2024-12-19_test_migration",
+            dependencies=set(),
+            min_read_version="2.9.0",
+            script=migration_script,
+            help="Test migration",
+            required=False,
+        )
+        mocker.patch(
+            "swh.storage.cassandra.migrations.MIGRATIONS", [*MIGRATIONS, new_migration]
+        )
+
+        try:
+            # create the table
+            result = invoke("cassandra", "upgrade")
+            assert result.exit_code == 0, result.output
+            assert result.output == "Done.\n"
+
+            # check the table exists
+            swh_storage._cql_runner.execute_with_retries(
+                f"SELECT * FROM {swh_storage_cassandra_keyspace}.test_table", []
+            )
+        finally:
+            swh_storage._cql_runner.execute_with_retries(
+                f"DROP TABLE {swh_storage_cassandra_keyspace}.test_table", []
+            )
+
     def test_upgrade_crashing(
         self, swh_storage, swh_storage_cassandra_keyspace, invoke, mocker
     ):

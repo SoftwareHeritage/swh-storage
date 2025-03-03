@@ -133,9 +133,15 @@ def cassandra_list_migrations(ctx) -> None:
 @click.pass_context
 def cassandra_upgrade(ctx, migration_ids: tuple[str, ...]) -> None:
     """Applies all pending migrations that can run automatically"""
-    from swh.storage.cassandra.migrations import MIGRATIONS, apply_migrations
+    from swh.storage.cassandra.migrations import (
+        MIGRATIONS,
+        apply_migrations,
+        create_migrations_table_if_needed,
+    )
 
     cql_runner = ctx.obj["cql_runner"]
+
+    create_migrations_table_if_needed(cql_runner)
 
     (
         applied_any,
