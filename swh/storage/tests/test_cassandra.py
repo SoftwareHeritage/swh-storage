@@ -518,7 +518,7 @@ class TestCassandraStorage(_TestStorage):
         assert list(swh_storage.directory_ls(directory.id)) == []
         assert swh_storage.directory_get_entries(directory.id) is None
 
-    def test_directory_add_raw_manifest__different_entries__allow_overwrite(
+    def test_directory_add_raw_manifest_different_entries_allow_overwrite(
         self, swh_storage
     ):
         """This test demonstrates a shortcoming of the Cassandra storage backend's
@@ -547,7 +547,7 @@ class TestCassandraStorage(_TestStorage):
         swh_storage._allow_overwrite = True
 
         # Run the other test, but skip its last assertion
-        dir_id = self.test_directory_add_raw_manifest__different_entries(
+        dir_id = self._directory_add_raw_manifest_different_entries_test(
             swh_storage, check_ls=False
         )
         assert [entry["name"] for entry in swh_storage.directory_ls(dir_id)] == [

@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2021  The Software Heritage developers
+# Copyright (C) 2015-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -118,7 +118,9 @@ def db_to_date(
     return TimestampWithTimezone(
         timestamp=Timestamp(
             # we use floor() instead of int() to round down, because of negative dates
-            seconds=math.floor(date.timestamp()),
+            # we also remove microseconds to avoid Python producing a timestamp offset
+            # by one for very particular edge case datetimes
+            seconds=math.floor(date.replace(microsecond=0).timestamp()),
             microseconds=date.microsecond,
         ),
         offset_bytes=offset_bytes,

@@ -1,4 +1,4 @@
-# Copyright (C) 2020  The Software Heritage developers
+# Copyright (C) 2020-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -213,7 +213,7 @@ def test_replay_type_list():
     assert len(types_in_help) == 1
     types = types_in_help[0].split("|")
 
-    assert sorted(types) == sorted(list(OBJECT_CONVERTERS.keys())), (
+    assert sorted(types) == sorted(o.value for o in OBJECT_CONVERTERS), (
         "Make sure the list of accepted types in cli.py "
         "matches implementation in replay.py"
     )

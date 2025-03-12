@@ -1,4 +1,4 @@
-# Copyright (C) 2020 The Software Heritage developers
+# Copyright (C) 2020-2025 The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -11,6 +11,7 @@ from swh.model.model import (
     ExtID,
     MetadataAuthority,
     MetadataFetcher,
+    ModelObjectType,
     Origin,
     OriginVisit,
     OriginVisitStatus,
@@ -33,7 +34,7 @@ def model_object_dict_sanitizer(
     object_type: str, object_dict: Dict[str, Any]
 ) -> Dict[str, str]:
     object_dict = object_dict.copy()
-    if object_type == "content":
+    if ModelObjectType(object_type) == Content.object_type:
         object_dict.pop("data", None)
     return object_dict
 

@@ -1,11 +1,10 @@
-# Copyright (C) 2022  The Software Heritage developers
+# Copyright (C) 2022-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 from functools import partial
 
-import pytest
 from pytest_postgresql import factories
 
 from swh.core.db.db_utils import initialize_database_for_module
@@ -26,7 +25,6 @@ swh_storage_postgresql_proc = factories.postgresql_proc(
 )
 
 
-@pytest.mark.db
 def test_pgstorage_flavor(swh_storage):
     # get_flavor retrieve directly from the db
     assert swh_storage.get_flavor() == "mirror"
