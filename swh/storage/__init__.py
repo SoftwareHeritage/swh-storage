@@ -3,16 +3,18 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+from importlib.metadata import PackageNotFoundError, distribution
 from typing import TYPE_CHECKING, Any, Dict, List
 import warnings
-
-import pkg_resources
 
 if TYPE_CHECKING:
     from .interface import StorageInterface
 
 
-__version__ = pkg_resources.get_distribution("swh.storage").version
+try:
+    __version__ = distribution("swh-storage").version
+except PackageNotFoundError:
+    __version__ = "devel"
 
 
 StorageSpec = Dict[str, Any]
