@@ -28,6 +28,7 @@ from typing import (
 )
 
 import attr
+from packaging.version import Version
 
 from swh.core.api.classes import stream_results
 from swh.core.api.serializers import msgpack_dumps, msgpack_loads
@@ -54,6 +55,7 @@ from swh.model.model import (
 )
 from swh.model.swhids import CoreSWHID, ExtendedObjectType, ExtendedSWHID
 from swh.model.swhids import ObjectType as SwhidObjectType
+from swh.storage import __version__
 from swh.storage.interface import (
     VISIT_STATUSES,
     HashDict,
@@ -81,6 +83,7 @@ from ..exc import (
 from ..utils import remove_keys
 from .common import TOKEN_BEGIN, TOKEN_END, hash_url
 from .cql import CqlRunner
+from .migrations import MigrationStatus, list_migrations
 from .model import (
     BaseRow,
     ContentRow,
@@ -256,6 +259,40 @@ class CassandraStorage:
 
     def check_config(self, *, check_write: bool) -> bool:
         self._cql_runner.check_read()
+
+        current_version = Version(__version__)
+
+        incompatible_migrations = []
+
+        rows = list(self._cql_runner.migration_list())
+        for row in rows:
+            if row.status != MigrationStatus.PENDING:
+                min_read_version = Version(row.min_read_version)
+                if min_read_version > current_version:
+                    incompatible_migrations.append((min_read_version, row.id))
+
+        if incompatible_migrations:
+            incompatible_migrations.sort()  # sort by min_read_version
+            logger.warning(
+                "Database contains unsupported migrations: %s",
+                ", ".join(
+                    f"{id_} ({min_read_version})"
+                    for (min_read_version, id_) in incompatible_migrations
+                ),
+            )
+            return False
+
+        missing_migrations: list[str] = []
+        for migration, status in list_migrations(self._cql_runner, rows=rows):
+            if migration.required and status != MigrationStatus.COMPLETED:
+                missing_migrations.append(migration.id)
+
+        if missing_migrations:
+            logger.warning(
+                "Database missing required migrations: %s",
+                ", ".join(missing_migrations),
+            )
+            return False
 
         return True
 

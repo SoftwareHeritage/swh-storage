@@ -71,6 +71,7 @@ from .model import (
     ExtIDRow,
     MetadataAuthorityRow,
     MetadataFetcherRow,
+    MigrationRow,
     ObjectCountRow,
     ObjectReferenceRow,
     ObjectReferencesTableRow,
@@ -144,7 +145,7 @@ def get_execution_profiles(
 #   datacenter as the client (DCAwareRoundRobinPolicy)
 
 
-def create_keyspace(cql_runner: "CqlRunner", *, durable_writes=True):
+def create_keyspace(cql_runner: "CqlRunner", *, durable_writes=True) -> None:
     extra_params = ""
     if not durable_writes:
         extra_params = "AND durable_writes = false"
@@ -159,13 +160,34 @@ def create_keyspace(cql_runner: "CqlRunner", *, durable_writes=True):
         [],
     )
     cql_runner.execute_with_retries(f'USE "{cql_runner.keyspace}"', [])
-    for table_name, query in CREATE_TABLES_QUERIES.items():
-        current_table_options = cql_runner.table_options.get(table_name, "")
-        if current_table_options.strip():
-            current_table_options = "AND " + current_table_options
-        query = query.format(table_options=current_table_options)
-        logger.debug("Running:\n%s", query)
-        cql_runner.execute_with_retries(query, [])
+    for table_name in CREATE_TABLES_QUERIES:
+        create_table(cql_runner, table_name)
+
+
+def create_table(cql_runner: "CqlRunner", table_name: str) -> None:
+    query = CREATE_TABLES_QUERIES[table_name]
+    current_table_options = cql_runner.table_options.get(table_name, "")
+    if current_table_options.strip():
+        current_table_options = "AND " + current_table_options
+    query = query.format(table_options=current_table_options)
+    logger.debug("Running:\n%s", query)
+    cql_runner.execute_with_retries(query, [])
+
+
+def mark_all_migrations_completed(cql_runner: "CqlRunner") -> None:
+    from .migrations import MIGRATIONS, MigrationStatus
+
+    cql_runner.migration_add_concurrent(
+        [
+            MigrationRow(
+                id=migration.id,
+                dependencies=migration.dependencies,
+                min_read_version=migration.min_read_version,
+                status=MigrationStatus.COMPLETED.value,
+            )
+            for migration in MIGRATIONS
+        ]
+    )
 
 
 TRet = TypeVar("TRet")
@@ -476,6 +498,37 @@ class CqlRunner:
             found_ids.add(row["id"])
 
         return [id_ for id_ in ids if id_ not in found_ids]
+
+    ##########################
+    # 'migration' table
+    ##########################
+
+    @_prepared_insert_statement(MigrationRow)
+    def migration_add_one(self, migration: MigrationRow, *, statement) -> None:
+        self._add_one(statement, migration)
+
+    @_prepared_insert_statement(MigrationRow)
+    def migration_add_concurrent(
+        self, migrations: List[MigrationRow], *, statement
+    ) -> None:
+        if len(migrations) == 0:
+            # nothing to do
+            return
+        self._add_many(statement, migrations)
+
+    @_prepared_select_statement(MigrationRow, "WHERE id IN ?")
+    def migration_get(self, migration_ids, *, statement) -> Iterable[MigrationRow]:
+        return map(
+            MigrationRow.from_dict,
+            self.execute_with_retries(statement, [migration_ids]),
+        )
+
+    @_prepared_select_statement(MigrationRow)
+    def migration_list(self, *, statement) -> Iterable[MigrationRow]:
+        return map(
+            MigrationRow.from_dict,
+            self.execute_with_retries(statement, []),
+        )
 
     ##########################
     # 'content' table

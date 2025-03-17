@@ -252,6 +252,7 @@ def swh_storage_cassandra_backend_config(
     swh_storage_cassandra_keyspace,
     cassandra_auth_provider_config,
 ):
+    from swh.storage.cassandra.cql import CqlRunner, mark_all_migrations_completed
     from swh.storage.cassandra.schema import TABLES
 
     (hosts, port) = swh_storage_cassandra_cluster
@@ -267,6 +268,16 @@ def swh_storage_cassandra_backend_config(
         objstorage={"cls": "memory"},
         auth_provider=cassandra_auth_provider_config,
     )
+
+    cql_runner = CqlRunner(
+        hosts,
+        keyspace,
+        port,
+        auth_provider=cassandra_auth_provider_config,
+        consistency_level="ONE",
+    )
+
+    mark_all_migrations_completed(cql_runner)
 
     yield storage_config
 

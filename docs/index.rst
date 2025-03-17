@@ -83,6 +83,7 @@ Reference Documentation
    :maxdepth: 2
 
    db-schema
+   cassandra-migrations
    cli
 
 .. only:: standalone_package_doc
