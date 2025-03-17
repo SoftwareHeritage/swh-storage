@@ -1,4 +1,4 @@
-# Copyright (C) 2020  The Software Heritage developers
+# Copyright (C) 2020-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -12,6 +12,7 @@ import pytest
 
 from swh.model.model import Origin
 from swh.storage import get_storage
+import swh.storage.cassandra.migrations
 from swh.storage.cassandra.migrations import MIGRATIONS, Migration
 
 logger = logging.getLogger(__name__)
@@ -149,12 +150,50 @@ class TestCassandraCli:
         self, swh_storage, swh_storage_cassandra_keyspace, invoke, mocker
     ):
         """Tests upgrading from v2.9.x, which did not have a 'migrations' table."""
-        assert len(MIGRATIONS) == 1, (
+        # drops this migration so the test still works for now
+        assert len(swh.storage.cassandra.migrations.MIGRATIONS) == 2, (
             "This test won't work correctly after we make more changes to the schema, "
             "as it relies on the schema being v2.9's plus only the migrations table."
         )
         cql_runner = swh_storage._cql_runner
 
+        # Undo 2025-03-17_flatten_person_udt_add_columns
+        cql_runner.execute_with_retries(
+            f"""
+            ALTER TABLE {cql_runner.keyspace}.revision
+            DROP (
+                author_fullname,
+                author_name,
+                author_email,
+                committer_fullname,
+                committer_name,
+                committer_email,
+                date_seconds,
+                date_microseconds,
+                date_offset_bytes,
+                committer_date_seconds,
+                committer_date_microseconds,
+                committer_date_offset_bytes
+            );
+            """,
+            [],
+        )
+        cql_runner.execute_with_retries(
+            f"""
+            ALTER TABLE {cql_runner.keyspace}.release
+            DROP (
+                author_fullname,
+                author_name,
+                author_email,
+                date_seconds,
+                date_microseconds,
+                date_offset_bytes
+            );
+            """,
+            [],
+        )
+
+        # Undo 2024-12-12_init
         cql_runner.execute_with_retries(
             f"DROP TABLE {cql_runner.keyspace}.migration", []
         )
@@ -346,6 +385,10 @@ class TestCassandraCli:
             "\n"
             "2024-12-19_create_test_table1: pending\n"
             "    Test migration\n"
+            "\n"
+            "2025-03-17_flatten_person_udt_add_columns: completed\n"
+            "    Creates *_fullname, *_name, and *_email columns for author and committer\n"
+            "    columns of revision and release tables.\n"
             "\n"
             "2024-12-19_create_test_table2: pending\n"
             "    Test migration\n"

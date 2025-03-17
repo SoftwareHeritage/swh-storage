@@ -62,6 +62,51 @@ MIGRATIONS: tuple[Migration, ...] = (
         help="Dummy migration that represents the database schema as of v2.9.0" "",
         required=True,
     ),
+    Migration(
+        id="2025-03-17_flatten_person_udt_add_columns",
+        dependencies={"2024-12-12_init"},
+        min_read_version="2.9.0",
+        script=lambda cql_runner: (
+            cql_runner.execute_with_retries(
+                """
+                ALTER TABLE revision
+                ADD (
+                    author_fullname                 blob,
+                    author_name                     blob,
+                    author_email                    blob,
+                    committer_fullname              blob,
+                    committer_name                  blob,
+                    committer_email                 blob,
+                    date_seconds                    bigint,
+                    date_microseconds               int,
+                    date_offset_bytes               blob,
+                    committer_date_seconds          bigint,
+                    committer_date_microseconds     int,
+                    committer_date_offset_bytes     blob
+                );
+                """,
+                [],
+            )
+            and cql_runner.execute_with_retries(
+                """
+                ALTER TABLE release
+                ADD (
+                    author_fullname                 blob,
+                    author_name                     blob,
+                    author_email                    blob,
+                    date_seconds                    bigint,
+                    date_microseconds               int,
+                    date_offset_bytes               blob
+                );
+                """,
+                [],
+            )
+            and None
+        ),
+        help="""Creates *_fullname, *_name, and *_email columns for author and committer
+columns of revision and release tables.""",
+        required=False,
+    ),
 )
 
 
@@ -74,7 +119,9 @@ def list_migrations(
 
     This includes migrations that are not required to instantiate
     :class:`swh.storage.cassandra.CassandraStorage`."""
-    dependency_graph = {m.id: m.dependencies for m in MIGRATIONS}
+    dependency_graph = {
+        m.id: m.dependencies for m in sorted(MIGRATIONS, key=lambda m: m.id)
+    }
     if rows is None:
         rows = list(cql_runner.migration_list())
     statuses = {row.id: row.status for row in rows}
