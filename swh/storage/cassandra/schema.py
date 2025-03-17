@@ -21,6 +21,16 @@ CREATE TYPE IF NOT EXISTS person (
     name        blob,
     email       blob
 );""",
+    "migration": """
+CREATE TABLE IF NOT EXISTS migration (
+    id                  ascii,
+    dependencies        frozen<set<ascii>>,
+    min_read_version    ascii,
+    status              ascii,
+    PRIMARY KEY ((id))
+) WITH
+    comment = 'Set of known database migrations'
+    {table_options};""",
     "content": """
 CREATE TABLE IF NOT EXISTS content (
     sha1          blob,
@@ -289,6 +299,7 @@ CREATE TABLE IF NOT EXISTS {keyspace}.{name} (
     {table_options};"""  # noqa: B950
 
 TABLES = [
+    "migration",
     "skipped_content",
     "content",
     "revision",
