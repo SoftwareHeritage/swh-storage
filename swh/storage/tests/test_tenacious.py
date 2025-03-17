@@ -1,4 +1,4 @@
-# Copyright (C) 2020-2024 The Software Heritage developers
+# Copyright (C) 2020-2025 The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -12,7 +12,15 @@ import attr
 import pytest
 
 import swh.core.config
-from swh.model.model import Content, ModelObjectType, SkippedContent
+from swh.model.model import (
+    Content,
+    Directory,
+    Origin,
+    Release,
+    Revision,
+    SkippedContent,
+    Snapshot,
+)
 from swh.model.tests.swh_model_data import TEST_OBJECTS
 from swh.storage import get_storage
 from swh.storage.in_memory import InMemoryStorage
@@ -146,7 +154,7 @@ testdata = [
     pytest.param(
         "content",
         "content_add",
-        list(TEST_OBJECTS[ModelObjectType.CONTENT]),
+        list(TEST_OBJECTS[Content.object_type]),
         attr.evolve(Content.from_data(data=b"too big"), length=1000),
         attr.evolve(Content.from_data(data=b"to fail"), length=1000),
         id="content",
@@ -156,7 +164,7 @@ testdata = [
         "content_add_metadata",
         [
             attr.evolve(cnt, ctime=now())
-            for cnt in TEST_OBJECTS[ModelObjectType.CONTENT]
+            for cnt in TEST_OBJECTS[Content.object_type]
             if isinstance(cnt, Content)  # to keep mypy happy
         ],
         attr.evolve(Content.from_data(data=b"too big"), length=1000, ctime=now()),
@@ -166,7 +174,7 @@ testdata = [
     pytest.param(
         "skipped_content",
         "skipped_content_add",
-        list(TEST_OBJECTS[ModelObjectType.SKIPPED_CONTENT]),
+        list(TEST_OBJECTS[SkippedContent.object_type]),
         attr.evolve(
             SkippedContent.from_data(data=b"too big", reason="too big"),
             length=1000,
@@ -180,7 +188,7 @@ testdata = [
     pytest.param(
         "directory",
         "directory_add",
-        list(TEST_OBJECTS[ModelObjectType.DIRECTORY]),
+        list(TEST_OBJECTS[Directory.object_type]),
         data.directory,
         data.directory2,
         id="directory",
@@ -188,7 +196,7 @@ testdata = [
     pytest.param(
         "revision",
         "revision_add",
-        list(TEST_OBJECTS[ModelObjectType.REVISION]),
+        list(TEST_OBJECTS[Revision.object_type]),
         data.revision,
         data.revision2,
         id="revision",
@@ -196,7 +204,7 @@ testdata = [
     pytest.param(
         "release",
         "release_add",
-        list(TEST_OBJECTS[ModelObjectType.RELEASE]),
+        list(TEST_OBJECTS[Release.object_type]),
         data.release,
         data.release2,
         id="release",
@@ -204,7 +212,7 @@ testdata = [
     pytest.param(
         "snapshot",
         "snapshot_add",
-        list(TEST_OBJECTS[ModelObjectType.SNAPSHOT]),
+        list(TEST_OBJECTS[Snapshot.object_type]),
         data.snapshot,
         data.complete_snapshot,
         id="snapshot",
@@ -212,7 +220,7 @@ testdata = [
     pytest.param(
         "origin",
         "origin_add",
-        list(TEST_OBJECTS[ModelObjectType.ORIGIN]),
+        list(TEST_OBJECTS[Origin.object_type]),
         data.origin,
         data.origin2,
         id="origin",

@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2022  The Software Heritage developers
+# Copyright (C) 2015-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -101,9 +101,6 @@ def non_retryable_error_handler(exception):
     return error_handler(
         exception, partial(encode_data, extra_type_encoders=ENCODERS), status_code=400
     )
-
-
-app.setup_psycopg2_errorhandlers()
 
 
 @app.errorhandler(Exception)

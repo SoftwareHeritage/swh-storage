@@ -1,4 +1,4 @@
-# Copyright (C) 2020-2024 The Software Heritage developers
+# Copyright (C) 2020-2025 The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -10,6 +10,7 @@ import psycopg2
 import pytest
 
 from swh.core.api import TransientRemoteException
+from swh.objstorage.interface import objid_from_dict
 from swh.storage.exc import HashCollision, StorageArgumentException
 from swh.storage.utils import now
 
@@ -40,7 +41,7 @@ def swh_storage_backend_config():
 def test_retrying_proxy_storage_content_add(swh_storage, sample_data):
     """Standard content_add works as before"""
     sample_content = sample_data.content
-    content = swh_storage.content_get_data(sample_content.sha1)
+    content = swh_storage.content_get_data(objid_from_dict(sample_content.to_dict()))
     assert content is None
 
     s = swh_storage.content_add([sample_content])
@@ -49,7 +50,7 @@ def test_retrying_proxy_storage_content_add(swh_storage, sample_data):
         "content:add:bytes": sample_content.length,
     }
 
-    content = swh_storage.content_get_data(sample_content.sha1)
+    content = swh_storage.content_get_data(objid_from_dict(sample_content.to_dict()))
     assert content == sample_content.data
 
 
@@ -74,7 +75,7 @@ def test_retrying_proxy_storage_content_add_with_retry(
     sample_content = sample_data.content
 
     sleep = storage_retry_sleep_mock
-    content = swh_storage.content_get_data(sample_content.sha1)
+    content = swh_storage.content_get_data(objid_from_dict(sample_content.to_dict()))
     assert content is None
 
     s = swh_storage.content_add([sample_content])
@@ -113,7 +114,7 @@ def test_retrying_proxy_storage_content_add_with_retry_of_transient(
 
     sample_content = sample_data.content
 
-    content = swh_storage.content_get_data(sample_content.sha1)
+    content = swh_storage.content_get_data(objid_from_dict(sample_content.to_dict()))
     assert content is None
 
     sleep = storage_retry_sleep_mock
@@ -144,7 +145,7 @@ def test_retrying_proxy_swh_storage_content_add_failure(
 
     sample_content = sample_data.content
 
-    content = swh_storage.content_get_data(sample_content.sha1)
+    content = swh_storage.content_get_data(objid_from_dict(sample_content.to_dict()))
     assert content is None
 
     with pytest.raises(StorageArgumentException, match="Refuse to add"):
@@ -230,7 +231,7 @@ def test_retrying_proxy_swh_storage_keyboardinterrupt(swh_storage, sample_data, 
 
     sample_content = sample_data.content
 
-    content = swh_storage.content_get_data(sample_content.sha1)
+    content = swh_storage.content_get_data(objid_from_dict(sample_content.to_dict()))
     assert content is None
 
     with pytest.raises(KeyboardInterrupt):

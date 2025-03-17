@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2020 The Software Heritage developers
+# Copyright (C) 2019-2025 The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -8,6 +8,7 @@ from unittest.mock import Mock
 import attr
 import pytest
 
+from swh.objstorage.interface import objid_from_dict
 from swh.storage import get_storage
 
 
@@ -27,7 +28,7 @@ def swh_storage():
 def test_filtering_proxy_storage_content(swh_storage, sample_data):
     sample_content = sample_data.content
 
-    content = swh_storage.content_get_data(sample_content.sha1)
+    content = swh_storage.content_get_data(objid_from_dict(sample_content.to_dict()))
     assert content is None
 
     s = swh_storage.content_add([sample_content])
@@ -36,7 +37,7 @@ def test_filtering_proxy_storage_content(swh_storage, sample_data):
         "content:add:bytes": sample_content.length,
     }
 
-    content = swh_storage.content_get_data(sample_content.sha1)
+    content = swh_storage.content_get_data(objid_from_dict(sample_content.to_dict()))
     assert content is not None
 
     s = swh_storage.content_add([sample_content])

@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2024  The Software Heritage developers
+# Copyright (C) 2019-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -549,7 +549,7 @@ class CqlRunner:
                         "content_missing_from_all_hashes must not be called with "
                         "partial hashes."
                     )
-                if tuple(content[algo] for algo in HASH_ALGORITHMS) not in present:
+                if tuple(content.get(algo) for algo in HASH_ALGORITHMS) not in present:
                     yield content
 
     @_prepared_select_statement(ContentRow, "WHERE sha256 IN ?", HASH_ALGORITHMS)
@@ -817,11 +817,11 @@ class CqlRunner:
         ), "directory_entry_add_many must be called with entries for a single dir"
 
         for entry_group in grouper(entries, BATCH_INSERT_MAX_SIZE):
-            entry_group = list(entry_group)
-            if len(entry_group) == BATCH_INSERT_MAX_SIZE:
-                entry_group = list(map(dataclasses.astuple, entry_group))
+            entry_group_list = list(entry_group)
+            if len(entry_group_list) == BATCH_INSERT_MAX_SIZE:
+                entry_group_tuples = list(map(dataclasses.astuple, entry_group_list))
                 self.execute_with_retries(
-                    statement, list(itertools.chain.from_iterable(entry_group))
+                    statement, list(itertools.chain.from_iterable(entry_group_tuples))
                 )
             else:
                 # Last group, with a smaller size than the BATCH we prepared.
@@ -830,7 +830,7 @@ class CqlRunner:
                 # statements is annoying (we can't use _insert_query() as they have
                 # a different format)
                 # Fall back to inserting concurrently.
-                self.directory_entry_add_concurrent(entry_group)
+                self.directory_entry_add_concurrent(entry_group_list)
 
     @_prepared_select_statement(DirectoryEntryRow, "WHERE directory_id IN ?")
     def directory_entry_get(
@@ -1001,7 +1001,7 @@ class CqlRunner:
 
     @_prepared_statement(
         f"""
-        SELECT ascii_bins_count(target_type) AS counts
+        SELECT target_type
         FROM {{keyspace}}.{SnapshotBranchRow.TABLE}
         WHERE snapshot_id = ? AND name >= ?
         """
@@ -1009,13 +1009,14 @@ class CqlRunner:
     def snapshot_count_branches_from_name(
         self, snapshot_id: Sha1Git, from_: bytes, *, statement
     ) -> Dict[Optional[str], int]:
-        row = self.execute_with_retries(statement, [snapshot_id, from_]).one()
-        (nb_none, counts) = row["counts"]
-        return {None: nb_none, **counts}
+        return Counter(
+            row["target_type"]
+            for row in self.execute_with_retries(statement, [snapshot_id, from_])
+        )
 
     @_prepared_statement(
         f"""
-        SELECT ascii_bins_count(target_type) AS counts
+        SELECT target_type
         FROM {{keyspace}}.{SnapshotBranchRow.TABLE}
         WHERE snapshot_id = ? AND name < ?
         """
@@ -1027,9 +1028,10 @@ class CqlRunner:
         *,
         statement,
     ) -> Dict[Optional[str], int]:
-        row = self.execute_with_retries(statement, [snapshot_id, before]).one()
-        (nb_none, counts) = row["counts"]
-        return {None: nb_none, **counts}
+        return Counter(
+            row["target_type"]
+            for row in self.execute_with_retries(statement, [snapshot_id, before])
+        )
 
     def snapshot_count_branches(
         self,

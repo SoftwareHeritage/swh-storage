@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2024  The Software Heritage developers
+# Copyright (C) 2015-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -28,7 +28,6 @@ from swh.model.model import (
     Directory,
     DirectoryEntry,
     ExtID,
-    ModelObjectType,
     Origin,
     OriginVisit,
     OriginVisitStatus,
@@ -1110,12 +1109,9 @@ class TestStorage:
             ("directory", directory)
         ]
 
-    def test_directory_add_raw_manifest__different_entries(
+    def _directory_add_raw_manifest_different_entries_test(
         self, swh_storage, check_ls=True
     ):
-        """Add two directories with the same raw_manifest (and therefore, same id)
-        but different entries.
-        """
         dir1 = Directory(
             entries=(
                 DirectoryEntry(
@@ -1139,14 +1135,22 @@ class TestStorage:
 
         if check_ls:
             # This assertion is skipped when running from
-            # test_directory_add_raw_manifest__different_entries__allow_overwrite
+            # test_directory_add_raw_manifest_different_entries_allow_overwrite
             assert [entry["name"] for entry in swh_storage.directory_ls(dir1.id)] == (
                 [b"name1"]
             )
 
         # used in TestCassandraStorage by
-        # test_directory_add_raw_manifest__different_entries__allow_overwrite
+        # test_directory_add_raw_manifest_different_entries_allow_overwrite
         return dir1.id
+
+    def test_directory_add_raw_manifest_different_entries(
+        self, swh_storage, check_ls=True
+    ):
+        """Add two directories with the same raw_manifest (and therefore, same id)
+        but different entries.
+        """
+        self._directory_add_raw_manifest_different_entries_test(swh_storage, check_ls)
 
     def test_directory_get_id_partition(self, swh_storage, sample_data):
         directories = list(sample_data.directories) + [
@@ -1506,6 +1510,35 @@ class TestStorage:
     def test_revision_add_with_raw_manifest(self, swh_storage, sample_data):
         revision = sample_data.revision
         revision = attr.evolve(revision, raw_manifest=b"foo")
+        revision = attr.evolve(revision, id=revision.compute_hash())
+        init_missing = swh_storage.revision_missing([revision.id])
+        assert list(init_missing) == [revision.id]
+
+        actual_result = swh_storage.revision_add([revision])
+        assert actual_result == {"revision:add": 1}
+
+        end_missing = swh_storage.revision_missing([revision.id])
+        assert list(end_missing) == []
+
+        assert list(swh_storage.journal_writer.journal.objects) == [
+            ("revision", revision)
+        ]
+
+        assert swh_storage.revision_get([revision.id]) == [revision]
+
+    def test_revision_add_no_seconds_rounding(self, swh_storage, sample_data):
+        revision = sample_data.revision
+
+        # this edge case makes Python produce a timestamp which is offset
+        # by one when converted to a datetime object
+        tstz = TimestampWithTimezone(
+            timestamp=Timestamp(seconds=34359738368, microseconds=999997),
+            offset_bytes=b"+0000",
+        )
+
+        assert int(tstz.to_datetime().timestamp()) != tstz.timestamp.seconds
+
+        revision = attr.evolve(revision, committer_date=tstz)
         revision = attr.evolve(revision, id=revision.compute_hash())
         init_missing = swh_storage.revision_missing([revision.id])
         assert list(init_missing) == [revision.id]
@@ -4991,7 +5024,7 @@ class TestStorage:
                 target_type=SnapshotTargetType.RELEASE,
             )
         for i in range(n):
-            branches[f"refs/tags/tag{n+i:02d}".encode()] = SnapshotBranch(
+            branches[f"refs/tags/tag{n + i:02d}".encode()] = SnapshotBranch(
                 target=sample_data.release.id,
                 target_type=SnapshotTargetType.RELEASE,
             )
@@ -6723,7 +6756,7 @@ class TestStorageGeneratedData:
         random.shuffle(objects)
 
         for obj_type, obj in objects:
-            if obj_type == ModelObjectType.ORIGIN_VISIT:
+            if obj_type == OriginVisit.object_type:
                 swh_storage.origin_add([Origin(url=obj.origin)])
                 visit = OriginVisit(
                     origin=obj.origin,
@@ -6731,7 +6764,7 @@ class TestStorageGeneratedData:
                     type=obj.type,
                 )
                 swh_storage.origin_visit_add([visit])
-            elif obj_type == ModelObjectType.RAW_EXTRINSIC_METADATA:
+            elif obj_type == RawExtrinsicMetadata.object_type:
                 swh_storage.metadata_authority_add([obj.authority])
                 swh_storage.metadata_fetcher_add([obj.fetcher])
                 swh_storage.raw_extrinsic_metadata_add([obj])

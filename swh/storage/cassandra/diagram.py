@@ -1,4 +1,4 @@
-# Copyright (C) 2024  The Software Heritage developers
+# Copyright (C) 2024-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -7,7 +7,6 @@
 :mod:`swh.storage.cassandra.model`.
 """
 import dataclasses
-import types
 from typing import Tuple, Union
 
 from . import model
@@ -164,7 +163,7 @@ def dot_diagram() -> str:
             # TODO: use CQL types instead of Python types
             ty = field.type
             if getattr(ty, "__origin__", None) is Union:
-                assert isinstance(ty, types.UnionType)  # for mypy
+                assert hasattr(ty, "__args__")  # for mypy
                 assert (
                     len(ty.__args__) == 2 and type(None) in ty.__args__
                 ), f"{cls.__name__}.{field.name} as unsupported type: {ty}"
