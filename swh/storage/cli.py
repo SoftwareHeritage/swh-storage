@@ -157,7 +157,7 @@ def cassandra_upgrade(ctx, migration_ids: tuple[str, ...]) -> None:
             "Some migrations need to be manually applied: "
             + ", ".join(migration.id for migration in remaining_manual_migrations)
         )
-        ctx.exit(1)
+        ctx.exit(4)
     elif remaining_migrations_missing_dependencies:
         click.echo(
             "Some migrations could not be applied because a dependency is missing: "

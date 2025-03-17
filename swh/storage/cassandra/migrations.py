@@ -107,6 +107,15 @@ MIGRATIONS: tuple[Migration, ...] = (
 columns of revision and release tables.""",
         required=False,
     ),
+    Migration(
+        id="2025-03-17_flatten_person_udt_replay",
+        dependencies={"2025-03-17_flatten_person_udt_add_columns"},
+        min_read_version="2.9.0",
+        script=None,
+        help="""Marks that the revision and release tables were fully replayed after
+2025-03-17_flatten_person_udt_add_columns was applied, and Python code was updated.""",
+        required=False,
+    ),
 )
 
 

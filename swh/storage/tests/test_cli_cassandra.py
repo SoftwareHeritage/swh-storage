@@ -151,11 +151,13 @@ class TestCassandraCli:
     ):
         """Tests upgrading from v2.9.x, which did not have a 'migrations' table."""
         # drops this migration so the test still works for now
-        assert len(swh.storage.cassandra.migrations.MIGRATIONS) == 2, (
+        assert len(swh.storage.cassandra.migrations.MIGRATIONS) == 3, (
             "This test won't work correctly after we make more changes to the schema, "
             "as it relies on the schema being v2.9's plus only the migrations table."
         )
         cql_runner = swh_storage._cql_runner
+
+        # 2025-03-17_flatten_person_udt_replay: nothing to undo
 
         # Undo 2025-03-17_flatten_person_udt_add_columns
         cql_runner.execute_with_retries(
@@ -219,8 +221,11 @@ class TestCassandraCli:
         try:
             # create the table
             result = invoke("cassandra", "upgrade")
-            assert result.exit_code == 0, result.output
-            assert result.output == "Done.\n"
+            assert result.exit_code == 4, result.output
+            assert (
+                result.output
+                == "Some migrations need to be manually applied: 2025-03-17_flatten_person_udt_replay\n"
+            )
 
             # check the table exists
             swh_storage._cql_runner.execute_with_retries(
@@ -392,6 +397,10 @@ class TestCassandraCli:
             "\n"
             "2024-12-19_create_test_table2: pending\n"
             "    Test migration\n"
+            "\n"
+            "2025-03-17_flatten_person_udt_replay: completed\n"
+            "    Marks that the revision and release tables were fully replayed after\n"
+            "    2025-03-17_flatten_person_udt_add_columns was applied, and Python code was updated.\n"
             "\n"
         )
 
