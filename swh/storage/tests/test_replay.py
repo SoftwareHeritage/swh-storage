@@ -253,14 +253,28 @@ def check_replayed(
     def fix_expected(attr, row):
         if expected_anonymized:
             if attr == "releases":
-                row = dataclasses.replace(
-                    row, author=row.author and row.author.anonymize()
-                )
-            elif attr == "revisions":
+                anonymized_author = row.author and row.author.anonymize()
                 row = dataclasses.replace(
                     row,
-                    author=row.author.anonymize(),
-                    committer=row.committer.anonymize(),
+                    author=anonymized_author,
+                    author_fullname=anonymized_author and anonymized_author.fullname,
+                    author_name=anonymized_author and anonymized_author.name,
+                    author_email=anonymized_author and anonymized_author.email,
+                )
+            elif attr == "revisions":
+                anonymized_author = row.author and row.author.anonymize()
+                anonymized_committer = row.committer and row.committer.anonymize()
+                row = dataclasses.replace(
+                    row,
+                    author=anonymized_author,
+                    author_fullname=anonymized_author and anonymized_author.fullname,
+                    author_name=anonymized_author and anonymized_author.name,
+                    author_email=anonymized_author and anonymized_author.email,
+                    committer=anonymized_author and anonymized_committer,
+                    committer_fullname=anonymized_author
+                    and anonymized_committer.fullname,
+                    committer_name=anonymized_author and anonymized_committer.name,
+                    committer_email=anonymized_author and anonymized_committer.email,
                 )
         if attr == "revisions":
             # the replayer should now drop the metadata attribute; see
