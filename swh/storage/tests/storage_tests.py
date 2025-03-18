@@ -6515,7 +6515,7 @@ class TestStorageDeletion:
             "skipped_content:delete": 2,
             "directory:delete": 7,
             "release:delete": 3,
-            "revision:delete": 8,
+            "revision:delete": 9,
             "snapshot:delete": 3,
             "origin:delete": 7,
             "origin_visit:delete": 3,
