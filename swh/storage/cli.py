@@ -132,7 +132,21 @@ def cassandra_list_migrations(ctx) -> None:
 @click.option("--migration", "migration_ids", multiple=True)
 @click.pass_context
 def cassandra_upgrade(ctx, migration_ids: tuple[str, ...]) -> None:
-    """Applies all pending migrations that can run automatically"""
+    """Applies all pending migrations that can run automatically
+
+    Exit codes:
+
+    * 0: migrations applied
+    * 1: unexpected crash
+    * 2: (unassigned)
+    * 3: no migrations to run
+    * 4: some optional migrations need to be manually applied
+    * 5: some required migrations need to be manually applied
+    * 6: some optional migrations could not be applied because a dependency is missing
+      (only if --migration was passed)
+    * 7: some required (and optional) migrations could not be applied because a dependency
+      is missing (only if --migration was passed)
+    """
     from swh.storage.cassandra.migrations import (
         MIGRATIONS,
         apply_migrations,
@@ -153,11 +167,23 @@ def cassandra_upgrade(ctx, migration_ids: tuple[str, ...]) -> None:
     )
 
     if remaining_manual_migrations:
+        remaining_required_manual_migrations = [
+            m for m in remaining_manual_migrations if m.required
+        ]
         click.echo(
             "Some migrations need to be manually applied: "
             + ", ".join(migration.id for migration in remaining_manual_migrations)
         )
-        ctx.exit(1)
+        if remaining_required_manual_migrations:
+            click.echo(
+                "Including these required migrations: "
+                + ", ".join(
+                    migration.id for migration in remaining_required_manual_migrations
+                )
+            )
+            ctx.exit(4)
+        else:
+            ctx.exit(5)
     elif remaining_migrations_missing_dependencies:
         click.echo(
             "Some migrations could not be applied because a dependency is missing: "
@@ -165,7 +191,20 @@ def cassandra_upgrade(ctx, migration_ids: tuple[str, ...]) -> None:
                 migration.id for migration in remaining_migrations_missing_dependencies
             )
         )
-        ctx.exit(2)
+        remaining_required_migrations_missing_dependencies = [
+            m for m in remaining_migrations_missing_dependencies if m.required
+        ]
+        if remaining_required_migrations_missing_dependencies:
+            click.echo(
+                "Including these required migrations: "
+                + ", ".join(
+                    migration.id
+                    for migration in remaining_required_migrations_missing_dependencies
+                )
+            )
+            ctx.exit(6)
+        else:
+            ctx.exit(7)
     elif applied_any:
         click.echo("Done.")
         ctx.exit(0)
@@ -178,7 +217,14 @@ def cassandra_upgrade(ctx, migration_ids: tuple[str, ...]) -> None:
 @click.option("--migration", "migration_ids", multiple=True)
 @click.pass_context
 def cassandra_mark_upgraded(ctx, migration_ids: tuple[str, ...]) -> None:
-    """Marks a migration as run"""
+    """Marks a migration as run
+
+    Exit codes:
+
+    * 0: ok
+    * 1: unexpected crash
+    * 2: (unassigned)
+    * 3: nothing to do"""
     from swh.storage.cassandra.migrations import MIGRATIONS, MigrationStatus
     from swh.storage.cassandra.model import MigrationRow
 
