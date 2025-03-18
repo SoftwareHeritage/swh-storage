@@ -140,12 +140,12 @@ def cassandra_upgrade(ctx, migration_ids: tuple[str, ...]) -> None:
     * 1: unexpected crash
     * 2: (unassigned)
     * 3: no migrations to run
-    * 4: some optional migrations need to be manually applied
-    * 5: some required migrations need to be manually applied
-    * 6: some optional migrations could not be applied because a dependency is missing
-      (only if --migration was passed)
-    * 7: some required (and optional) migrations could not be applied because a dependency
+    * 4: some required migrations need to be manually applied
+    * 5: some optional migrations need to be manually applied
+    * 6: some required (and optional) migrations could not be applied because a dependency
       is missing (only if --migration was passed)
+    * 7: some optional migrations could not be applied because a dependency is missing
+      (only if --migration was passed)
     """
     from swh.storage.cassandra.migrations import (
         MIGRATIONS,
