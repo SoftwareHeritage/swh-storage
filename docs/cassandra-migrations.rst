@@ -78,6 +78,12 @@ Operations
     Applies one or more migrations. If some migrations cannot run automatically, documentation for
     how to run the migration is displayed to the user, and further migrations are not applied.
 
+    This can be run automatically before deploying a new version of the swh-storage RPC server.
+    If the return code is 0, 3, or 5, then the RPC server can safely be started.
+    Otherwise, this requires operator attention.
+    See the `swh storage cassandra upgrade <https://docs.softwareheritage.org/devel/swh-storage/cli.html#swh-storage-cassandra-upgrade>`_
+    documentation for details.
+
 ``swh storage cassandra mark-upgraded``
     Tells the database a migration was applied. This is typically used after manually applying
     a migration, as ``swh storage cassandra upgrade`` does it on its own for automated migrations.
