@@ -91,6 +91,7 @@ module = [
     "cassandra.*",
     "pytest_cov.*",
     "systemd.*",
+    "pytest_shared_session_scope.*",
 ]
 ignore_missing_imports = true
 

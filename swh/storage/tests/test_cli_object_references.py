@@ -1,4 +1,4 @@
-# Copyright (C) 2020-2024  The Software Heritage developers
+# Copyright (C) 2020-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -16,12 +16,14 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.fixture(params=["postgresql", "inmemory", "cassandra"])
-def swh_storage_backend_config(request):
+def swh_storage_backend_config(
+    request, swh_storage_postgresql_backend_config, swh_storage_cassandra_backend_config
+):
     """An swh-storage object that gets injected into the CLI functions."""
     if request.param == "postgresql":
-        yield request.getfixturevalue("swh_storage_postgresql_backend_config")
+        return swh_storage_postgresql_backend_config
     else:
-        yield request.getfixturevalue("swh_storage_cassandra_backend_config")
+        return swh_storage_cassandra_backend_config
 
 
 @pytest.mark.parametrize(
