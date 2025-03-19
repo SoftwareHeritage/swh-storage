@@ -224,23 +224,23 @@ TArg = TypeVar("TArg")
 TSelf = TypeVar("TSelf")
 
 
-def _insert_query(row_class: Type[BaseRow]) -> str:
+def _insert_query(row_class: Type[BaseRow], if_not_exists: bool = False) -> str:
     columns = row_class.cols()
     return (
         f"INSERT INTO {{keyspace}}.{row_class.TABLE} ({', '.join(columns)}) "
         f"VALUES ({', '.join('?' for _ in columns)})"
-    )
+    ) + (" IF NOT EXISTS" if if_not_exists else "")
 
 
 def _prepared_insert_statement(
-    row_class: Type[BaseRow],
+    row_class: Type[BaseRow], if_not_exists: bool = False
 ) -> Callable[
     [Callable[[TSelf, TArg, NamedArg(Any, "statement")], TRet]],  # noqa
     Callable[[TSelf, TArg], TRet],
 ]:
     """Shorthand for using `_prepared_statement` for `INSERT INTO`
     statements."""
-    return _prepared_statement(_insert_query(row_class))
+    return _prepared_statement(_insert_query(row_class, if_not_exists=if_not_exists))
 
 
 def _prepared_exists_statement(
@@ -435,8 +435,8 @@ class CqlRunner:
         except (ReadTimeout, WriteTimeout) as e:
             raise QueryTimeout(*e.args) from None
 
-    def _add_one(self, statement, obj: "DataclassInstance") -> None:
-        self.execute_with_retries(statement, dataclasses.astuple(obj))
+    def _add_one(self, statement, obj: "DataclassInstance") -> ResultSet:
+        return self.execute_with_retries(statement, dataclasses.astuple(obj))
 
     def _add_many(self, statement, objs: Sequence[BaseRow]) -> None:
         tables = {obj.TABLE for obj in objs}
@@ -503,18 +503,55 @@ class CqlRunner:
     # 'migration' table
     ##########################
 
-    @_prepared_insert_statement(MigrationRow)
-    def migration_add_one(self, migration: MigrationRow, *, statement) -> None:
-        self._add_one(statement, migration)
+    @_prepared_insert_statement(MigrationRow, if_not_exists=True)
+    def migration_add_one_if_not_exists(
+        self, migration: MigrationRow, *, statement
+    ) -> None:
+        """Adds a :class:`MigrationRow`.
 
-    @_prepared_insert_statement(MigrationRow)
+        Raises:
+            swh.storage.migrations.MigrationAlreadyExists: if there is already a known
+                migration with that id.
+        """
+        from .migrations import MigrationAlreadyExists
+
+        (result,) = self._add_one(statement, migration)
+        if not result["[applied]"]:
+            raise MigrationAlreadyExists([migration.id])
+
+    @_prepared_insert_statement(MigrationRow, if_not_exists=True)
     def migration_add_concurrent(
         self, migrations: List[MigrationRow], *, statement
     ) -> None:
+        """Inserts or updates the given migration rows"""
         if len(migrations) == 0:
             # nothing to do
             return
         self._add_many(statement, migrations)
+
+    @_prepared_statement(
+        f"UPDATE {{keyspace}}.{MigrationRow.TABLE} "
+        f"SET dependencies=?, min_read_version=?, status=? "
+        f"WHERE id=? "
+        f"IF status = ?"
+    )
+    def migration_update_one(
+        self, migration: MigrationRow, expected_status: str, *, statement
+    ) -> None:
+        """Updates the dependencies/min_read_version/status of an existing migration.
+        Errors if the migration is not already in the database, or does not have the
+        ``expected_status``.
+        """
+        (row,) = self.execute_with_retries(
+            statement,
+            (
+                migration.dependencies,
+                migration.min_read_version,
+                migration.status,
+                migration.id,
+                expected_status,
+            ),
+        )
 
     @_prepared_select_statement(MigrationRow, "WHERE id IN ?")
     def migration_get(self, migration_ids, *, statement) -> Iterable[MigrationRow]:

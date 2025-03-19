@@ -16,6 +16,28 @@ from .model import MigrationRow
 logger = logging.getLogger(__name__)
 
 
+class BaseMigrationException(Exception):
+    """Base class for exceptions related to migrations."""
+
+
+class MigrationAlreadyExists(BaseMigrationException):
+    """Raised when trying to insert a rows in the ``migration`` table, but the id
+    already exists.
+
+    Typically happens when ``swh storage cassandra upgrade`` runs twice at the same time.
+    """
+
+
+class UnexpectedMigrationStatusExists(BaseMigrationException):
+    """Raised when trying to change a migration status from state A to state B,
+    but it was not in state A.
+
+    Typically happens when ``swh storage cassandra upgrade`` runs twice at the same time,
+    or when ``swh storage cassandra mark-upgraded`` was used while
+    ``swh storage cassandra upgrade`` is running.
+    """
+
+
 class MigrationStatus(enum.Enum):
     PENDING = "pending"
     """The migration was not applied yet"""
@@ -128,14 +150,20 @@ def apply_migrations(
                 )
                 remaining_migrations_missing_dependencies.append(migration)
                 continue
-            cql_runner.migration_add_one(
-                MigrationRow(
-                    id=migration.id,
-                    dependencies=migration.dependencies,
-                    min_read_version=migration.min_read_version,
-                    status=MigrationStatus.RUNNING.value,
-                )
+
+            row = MigrationRow(
+                id=migration.id,
+                dependencies=migration.dependencies,
+                min_read_version=migration.min_read_version,
+                status=MigrationStatus.RUNNING.value,
             )
+            try:
+                cql_runner.migration_add_one_if_not_exists(row)
+            except MigrationAlreadyExists:
+                cql_runner.migration_update_one(
+                    row, expected_status=MigrationStatus.PENDING.value
+                )
+
             if migration.script is None:
                 logger.info("Skipping %s", migration.id)
                 if migration.help:
@@ -144,13 +172,14 @@ def apply_migrations(
             else:
                 logger.info("Running %s...", migration.id)
                 migration.script(cql_runner)
-                cql_runner.migration_add_one(
+                cql_runner.migration_update_one(
                     MigrationRow(
                         id=migration.id,
                         dependencies=migration.dependencies,
                         min_read_version=migration.min_read_version,
                         status=MigrationStatus.COMPLETED.value,
-                    )
+                    ),
+                    expected_status=MigrationStatus.RUNNING.value,
                 )
                 logger.info("Done.")
                 statuses[migration.id] = MigrationStatus.COMPLETED
@@ -193,5 +222,11 @@ def create_migrations_table_if_needed(cql_runner: CqlRunner) -> None:
             min_read_version=migration.min_read_version,
             status=MigrationStatus.COMPLETED.value,
         )
-        cql_runner.migration_add_concurrent([migration_row])
-        logger.info("'migrations' table created.")
+        try:
+            cql_runner.migration_add_one_if_not_exists(migration_row)
+        except MigrationAlreadyExists:
+            logger.warning(
+                "'migration' table was created by an other process at the same time"
+            )
+        else:
+            logger.info("'migrations' table created.")

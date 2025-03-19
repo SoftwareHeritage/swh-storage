@@ -141,9 +141,12 @@ class TestCassandraCli:
                 f"SELECT * FROM {swh_storage_cassandra_keyspace}.test_table", []
             )
         finally:
-            swh_storage._cql_runner.execute_with_retries(
-                f"DROP TABLE {swh_storage_cassandra_keyspace}.test_table", []
-            )
+            try:
+                swh_storage._cql_runner.execute_with_retries(
+                    f"DROP TABLE {swh_storage_cassandra_keyspace}.test_table", []
+                )
+            except Exception:
+                pass
 
     def test_upgrade_all_from_v2_9(
         self, swh_storage, swh_storage_cassandra_keyspace, invoke, mocker
