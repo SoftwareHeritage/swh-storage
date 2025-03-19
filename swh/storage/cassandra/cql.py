@@ -510,8 +510,8 @@ class CqlRunner:
         """Adds a :class:`MigrationRow`.
 
         Raises:
-            swh.storage.migrations.MigrationAlreadyExists: if there is already a known
-                migration with that id.
+            swh.storage.cassandra.migrations.MigrationAlreadyExists: if there is already
+                a migration with that id in the database.
         """
         from .migrations import MigrationAlreadyExists
 
@@ -539,10 +539,15 @@ class CqlRunner:
         self, migration: MigrationRow, expected_status: str, *, statement
     ) -> None:
         """Updates the dependencies/min_read_version/status of an existing migration.
-        Errors if the migration is not already in the database, or does not have the
-        ``expected_status``.
+
+        Raises:
+            ValueError: the migration is not already in the database
+            swh.storage.cassandra.migrations.UnexpectedMigrationStatus: the migration
+                in the database does not have the ``expected_status``.
         """
-        (row,) = self.execute_with_retries(
+        from .migrations import UnexpectedMigrationStatus
+
+        (result,) = self.execute_with_retries(
             statement,
             (
                 migration.dependencies,
@@ -552,6 +557,8 @@ class CqlRunner:
                 expected_status,
             ),
         )
+        if not result["[applied]"]:
+            raise UnexpectedMigrationStatus([migration.id])
 
     @_prepared_select_statement(MigrationRow, "WHERE id IN ?")
     def migration_get(self, migration_ids, *, statement) -> Iterable[MigrationRow]:

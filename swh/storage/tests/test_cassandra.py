@@ -26,8 +26,13 @@ from swh.model.model import (
 )
 from swh.storage import get_storage
 from swh.storage.cassandra.cql import BATCH_INSERT_MAX_SIZE
+from swh.storage.cassandra.migrations import (
+    MIGRATIONS,
+    MigrationAlreadyExists,
+    UnexpectedMigrationStatus,
+)
 import swh.storage.cassandra.model
-from swh.storage.cassandra.model import BaseRow, ContentRow, ExtIDRow
+from swh.storage.cassandra.model import BaseRow, ContentRow, ExtIDRow, MigrationRow
 from swh.storage.cassandra.schema import CREATE_TABLES_QUERIES, HASH_ALGORITHMS, TABLES
 from swh.storage.cassandra.storage import (
     DIRECTORY_ENTRIES_INSERT_ALGOS,
@@ -663,6 +668,32 @@ class TestStorageDeletion(_TestStorageDeletion):
             f"SELECT COUNT(*) AS count FROM {cql_runner.keyspace}.{table}", []
         ).one()
         return row["count"]
+
+
+@pytest.mark.cassandra
+class TestCqlRunner:
+    def test_insert_known_migration(self, swh_storage):
+        with pytest.raises(MigrationAlreadyExists):
+            swh_storage._cql_runner.migration_add_one_if_not_exists(
+                MigrationRow(
+                    id=MIGRATIONS[0].id,
+                    dependencies=set(),
+                    min_read_version="1.0.0",
+                    status="completed",
+                )
+            )
+
+    def test_update_migration_unexpected_status(self, swh_storage):
+        with pytest.raises(UnexpectedMigrationStatus):
+            swh_storage._cql_runner.migration_update_one(
+                MigrationRow(
+                    id=MIGRATIONS[0].id,
+                    dependencies=set(),
+                    min_read_version="1.0.0",
+                    status="completed",
+                ),
+                expected_status="running",
+            )
 
 
 @pytest.mark.cassandra

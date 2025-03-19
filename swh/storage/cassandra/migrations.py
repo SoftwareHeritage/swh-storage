@@ -28,7 +28,7 @@ class MigrationAlreadyExists(BaseMigrationException):
     """
 
 
-class UnexpectedMigrationStatusExists(BaseMigrationException):
+class UnexpectedMigrationStatus(BaseMigrationException):
     """Raised when trying to change a migration status from state A to state B,
     but it was not in state A.
 
