@@ -387,6 +387,10 @@ class CqlRunner:
         if register_user_types:
             self.register_user_types()
 
+    def __del__(self):
+        if hasattr(self, "_cluster"):
+            self._cluster.shutdown()
+
     def register_user_types(self):
         self._cluster.register_user_type(
             self.keyspace, "microtimestamp_with_timezone", TimestampWithTimezone
