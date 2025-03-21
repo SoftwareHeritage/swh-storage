@@ -34,9 +34,13 @@ def swh_storage(masking_db_postgresql, masking_admin, swh_storage_backend):
         swhids=list(MASKED_SWHIDS),
     )
 
-    return MaskingProxyStorage(
+    storage = MaskingProxyStorage(
         db=masking_db_postgresql.info.dsn, storage=swh_storage_backend
     )
+    try:
+        yield storage
+    finally:
+        storage._masking_pool.close()
 
 
 class TestStorage(_TestStorage):

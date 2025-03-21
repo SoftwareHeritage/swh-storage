@@ -400,6 +400,8 @@ def swh_storage_backend(swh_storage_backend_config):
 
     if hasattr(backend, "_cql_runner") and hasattr(backend._cql_runner, "_cluster"):
         backend._cql_runner._cluster.shutdown()
+    if hasattr(backend, "_pool"):
+        backend._pool.close()
 
 
 @pytest.fixture
