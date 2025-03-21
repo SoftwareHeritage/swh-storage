@@ -1,9 +1,10 @@
-# Copyright (C) 2024 The Software Heritage developers
+# Copyright (C) 2024-2025 The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 from functools import partial
+from typing import Iterator
 
 import pytest
 from pytest_postgresql import factories
@@ -29,13 +30,15 @@ masking_db_postgresql = factories.postgresql(
 
 
 @pytest.fixture
-def masking_admin(masking_db_postgresql) -> MaskingAdmin:
-    return MaskingAdmin.connect(masking_db_postgresql.info.dsn)
+def masking_admin(masking_db_postgresql) -> Iterator[MaskingAdmin]:
+    with MaskingAdmin.connect(masking_db_postgresql.info.dsn) as db:
+        yield db
 
 
 @pytest.fixture
-def masking_query(masking_db_postgresql) -> MaskingQuery:
-    return MaskingQuery.connect(masking_db_postgresql.info.dsn)
+def masking_query(masking_db_postgresql) -> Iterator[MaskingQuery]:
+    with MaskingQuery.connect(masking_db_postgresql.info.dsn) as db:
+        yield db
 
 
 @pytest.fixture
