@@ -58,7 +58,12 @@ def swh_storage_backend_config(
     ),
 )
 def test_create_object_reference_partitions(
-    swh_storage_backend_config, start, end, expected_weeks, unexpected_weeks
+    swh_storage_backend_config,
+    swh_storage,
+    start,
+    end,
+    expected_weeks,
+    unexpected_weeks,
 ):
     storage_config = {
         "storage": {
@@ -78,8 +83,6 @@ def test_create_object_reference_partitions(
     )
 
     assert result.exit_code == 0, result.output
-
-    swh_storage = get_storage(**swh_storage_backend_config)
 
     partitions = swh_storage.object_references_list_partitions()
 

@@ -288,7 +288,6 @@ def swh_storage_cassandra_backend_config(
     cassandra_auth_provider_config,
 ):
     from swh.storage.cassandra.cql import CqlRunner, mark_all_migrations_completed
-    from swh.storage.cassandra.schema import TABLES
 
     (hosts, port) = swh_storage_cassandra_cluster
 
@@ -314,25 +313,9 @@ def swh_storage_cassandra_backend_config(
 
     mark_all_migrations_completed(cql_runner)
 
-    cql_runner._cluster.shutdown()
-
     yield storage_config
 
-    storage = get_storage(**storage_config)
-
-    for partition in storage.object_references_list_partitions():
-        storage.object_references_drop_partition(partition)
-
-    for table in TABLES:
-        table_rows = storage._cql_runner.execute_with_retries(
-            f"SELECT * from {keyspace}.{table} LIMIT 1", args=[]
-        )
-        if table_rows.one() is not None:
-            storage._cql_runner.execute_with_retries(
-                f"TRUNCATE TABLE {keyspace}.{table}", args=[]
-            )
-
-    storage._cql_runner._cluster.shutdown()
+    cql_runner._cluster.shutdown()
 
 
 swh_storage_postgresql_proc = factories.postgresql_proc(
@@ -401,6 +384,20 @@ def swh_storage_backend(swh_storage_backend_config):
     yield storage
 
     if hasattr(backend, "_cql_runner") and hasattr(backend._cql_runner, "_cluster"):
+        from swh.storage.cassandra.schema import TABLES
+
+        for partition in backend.object_references_list_partitions():
+            backend.object_references_drop_partition(partition)
+
+        keyspace = backend._keyspace
+        for table in TABLES:
+            table_rows = backend._cql_runner.execute_with_retries(
+                f"SELECT * from {keyspace}.{table} LIMIT 1", args=[]
+            )
+            if table_rows.one() is not None:
+                backend._cql_runner.execute_with_retries(
+                    f"TRUNCATE TABLE {keyspace}.{table}", args=[]
+                )
         backend._cql_runner._cluster.shutdown()
     if hasattr(backend, "_pool"):
         backend._pool.close()
