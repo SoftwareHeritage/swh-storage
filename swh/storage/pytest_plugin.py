@@ -324,11 +324,13 @@ def swh_storage_cassandra_backend_config(
         storage.object_references_drop_partition(partition)
 
     for table in TABLES:
-        table_rows = storage._cql_runner._session.execute(
-            f"SELECT * from {keyspace}.{table} LIMIT 1"
+        table_rows = storage._cql_runner.execute_with_retries(
+            f"SELECT * from {keyspace}.{table} LIMIT 1", args=[]
         )
         if table_rows.one() is not None:
-            storage._cql_runner._session.execute(f"TRUNCATE TABLE {keyspace}.{table}")
+            storage._cql_runner.execute_with_retries(
+                f"TRUNCATE TABLE {keyspace}.{table}", args=[]
+            )
 
     storage._cql_runner._cluster.shutdown()
 
