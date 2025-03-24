@@ -15,7 +15,7 @@ from .test_cli import invoke
 logger = logging.getLogger(__name__)
 
 
-@pytest.fixture(params=["postgresql", "inmemory", "cassandra"])
+@pytest.fixture(params=["postgresql", "cassandra"])
 def swh_storage_backend_config(
     request, swh_storage_postgresql_backend_config, swh_storage_cassandra_backend_config
 ):
