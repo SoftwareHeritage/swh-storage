@@ -35,7 +35,6 @@ journal = {file = ["requirements-swh-journal.txt"]}
 "local" = "swh.storage.postgresql.storage:Storage"
 # proxy storages
 "buffer" = "swh.storage.proxies.buffer:BufferingProxyStorage"
-"counter" = "swh.storage.proxies.counter:CountingProxyStorage"
 "filter" = "swh.storage.proxies.filter:FilteringProxyStorage"
 "retry" = "swh.storage.proxies.retry:RetryingProxyStorage"
 "tenacious" = "swh.storage.proxies.tenacious:TenaciousProxyStorage"
