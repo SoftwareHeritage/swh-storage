@@ -23,7 +23,8 @@ include = ["swh.*"]
 dependencies = {file = ["requirements.txt", "requirements-swh.txt"]}
 
 [tool.setuptools.dynamic.optional-dependencies]
-testing = {file = ["requirements-test.txt"]}
+testing = {file = ["requirements-test.txt", "requirements-pytest.txt"]}
+pytest = {file = ["requirements-pytest.txt"]}
 journal = {file = ["requirements-swh-journal.txt"]}
 
 [project.entry-points."swh.storage.classes"]
