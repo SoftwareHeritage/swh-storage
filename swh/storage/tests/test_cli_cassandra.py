@@ -109,9 +109,7 @@ class TestCassandraCli:
             "\n"
         )
 
-    def test_upgrade_all(
-        self, swh_storage, swh_storage_cassandra_keyspace, invoke, mocker
-    ):
+    def test_upgrade_all(self, swh_storage, invoke, mocker):
         def migration_script(cql_runner):
             cql_runner.execute_with_retries(f"USE {cql_runner.keyspace}", [])
             cql_runner.execute_with_retries(
@@ -138,16 +136,14 @@ class TestCassandraCli:
 
             # check the table exists
             swh_storage._cql_runner.execute_with_retries(
-                f"SELECT * FROM {swh_storage_cassandra_keyspace}.test_table", []
+                f"SELECT * FROM {swh_storage.keyspace}.test_table", []
             )
         finally:
             swh_storage._cql_runner.execute_with_retries(
-                f"DROP TABLE {swh_storage_cassandra_keyspace}.test_table", []
+                f"DROP TABLE {swh_storage.keyspace}.test_table", []
             )
 
-    def test_upgrade_all_from_v2_9(
-        self, swh_storage, swh_storage_cassandra_keyspace, invoke, mocker
-    ):
+    def test_upgrade_all_from_v2_9(self, swh_storage, invoke, mocker):
         """Tests upgrading from v2.9.x, which did not have a 'migrations' table."""
         assert len(MIGRATIONS) == 1, (
             "This test won't work correctly after we make more changes to the schema, "
@@ -185,16 +181,14 @@ class TestCassandraCli:
 
             # check the table exists
             swh_storage._cql_runner.execute_with_retries(
-                f"SELECT * FROM {swh_storage_cassandra_keyspace}.test_table", []
+                f"SELECT * FROM {swh_storage.keyspace}.test_table", []
             )
         finally:
             swh_storage._cql_runner.execute_with_retries(
-                f"DROP TABLE {swh_storage_cassandra_keyspace}.test_table", []
+                f"DROP TABLE {swh_storage.keyspace}.test_table", []
             )
 
-    def test_upgrade_crashing(
-        self, swh_storage, swh_storage_cassandra_keyspace, invoke, mocker
-    ):
+    def test_upgrade_crashing(self, swh_storage, invoke, mocker):
         class TestException(Exception):
             pass
 
@@ -230,9 +224,7 @@ class TestCassandraCli:
             "\n"
         )
 
-    def test_upgrade_partial(
-        self, swh_storage, swh_storage_cassandra_keyspace, invoke, mocker
-    ):
+    def test_upgrade_partial(self, swh_storage, invoke, mocker):
         def create_test_table_script(cql_runner):
             cql_runner.execute_with_retries(f"USE {cql_runner.keyspace}", [])
             cql_runner.execute_with_retries(
@@ -273,7 +265,7 @@ class TestCassandraCli:
 
         # check the table exists
         swh_storage._cql_runner.execute_with_retries(
-            f"SELECT * FROM {swh_storage_cassandra_keyspace}.test_table", []
+            f"SELECT * FROM {swh_storage.keyspace}.test_table", []
         )
 
         # drop the table
@@ -286,13 +278,11 @@ class TestCassandraCli:
         # check the table does not exist anymore
         with pytest.raises(InvalidRequest):
             swh_storage._cql_runner.execute_with_retries(
-                f"SELECT * FROM {swh_storage_cassandra_keyspace}.test_table", []
+                f"SELECT * FROM {swh_storage.keyspace}.test_table", []
             )
 
     @pytest.mark.parametrize("required", [True, False])
-    def test_upgrade_manual(
-        self, swh_storage, swh_storage_cassandra_keyspace, invoke, mocker, required
-    ):
+    def test_upgrade_manual(self, swh_storage, invoke, mocker, required):
         """Tries to apply a migration that cannot run automatically"""
         new_migration1 = Migration(
             id="2025-03-18_manual1",
@@ -357,11 +347,11 @@ class TestCassandraCli:
         # check the tables still do not exist
         with pytest.raises(InvalidRequest):
             swh_storage._cql_runner.execute_with_retries(
-                f"SELECT * FROM {swh_storage_cassandra_keyspace}.test_table1", []
+                f"SELECT * FROM {swh_storage.keyspace}.test_table1", []
             )
         with pytest.raises(InvalidRequest):
             swh_storage._cql_runner.execute_with_retries(
-                f"SELECT * FROM {swh_storage_cassandra_keyspace}.test_table2", []
+                f"SELECT * FROM {swh_storage.keyspace}.test_table2", []
             )
 
     @pytest.mark.parametrize(
@@ -376,7 +366,6 @@ class TestCassandraCli:
     def test_upgrade_disordered(
         self,
         swh_storage,
-        swh_storage_cassandra_keyspace,
         invoke,
         mocker,
         migration1_manual,
@@ -455,16 +444,14 @@ class TestCassandraCli:
         # check the tables still do not exist
         with pytest.raises(InvalidRequest):
             swh_storage._cql_runner.execute_with_retries(
-                f"SELECT * FROM {swh_storage_cassandra_keyspace}.test_table1", []
+                f"SELECT * FROM {swh_storage.keyspace}.test_table1", []
             )
         with pytest.raises(InvalidRequest):
             swh_storage._cql_runner.execute_with_retries(
-                f"SELECT * FROM {swh_storage_cassandra_keyspace}.test_table2", []
+                f"SELECT * FROM {swh_storage.keyspace}.test_table2", []
             )
 
-    def test_mark_upgraded(
-        self, swh_storage, swh_storage_cassandra_keyspace, invoke, mocker
-    ):
+    def test_mark_upgraded(self, swh_storage, invoke, mocker):
         def create_test_table1_script(cql_runner):
             cql_runner.execute_with_retries(f"USE {cql_runner.keyspace}", [])
             cql_runner.execute_with_retries(
@@ -518,17 +505,17 @@ class TestCassandraCli:
             # check the first table still does not exist
             with pytest.raises(InvalidRequest):
                 swh_storage._cql_runner.execute_with_retries(
-                    f"SELECT * FROM {swh_storage_cassandra_keyspace}.test_table1", []
+                    f"SELECT * FROM {swh_storage.keyspace}.test_table1", []
                 )
 
             # check the second table now exists
             swh_storage._cql_runner.execute_with_retries(
-                f"SELECT * FROM {swh_storage_cassandra_keyspace}.test_table2", []
+                f"SELECT * FROM {swh_storage.keyspace}.test_table2", []
             )
         finally:
             try:
                 swh_storage._cql_runner.execute_with_retries(
-                    f"DROP TABLE {swh_storage_cassandra_keyspace}.test_table2", []
+                    f"DROP TABLE {swh_storage.keyspace}.test_table2", []
                 )
             except BaseException:
                 pass
