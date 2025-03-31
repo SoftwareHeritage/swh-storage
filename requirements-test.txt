@@ -7,10 +7,10 @@ pytest-mock
 # adding the [testing] extra.
 swh.core[testing] >= 3.0.0
 swh.model[testing] >= 6.14.0
+swh.journal[pytest] >= 2.0.0
 pytz
 pytest-postgresql
 pytest-redis
-pytest-xdist
 types-confluent-kafka
 types-python-dateutil
 types-pytz

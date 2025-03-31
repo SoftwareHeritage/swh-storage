@@ -215,7 +215,7 @@ def directory_converter(db: BaseDb, directory_d: Dict[str, Any]) -> Directory:
     query_template = """
     select %(columns)s
     from directory_entry_%(type)s
-    where id in %%s
+    where id = Any(%%s)
     """
 
     types = ["file", "dir", "rev"]
@@ -230,7 +230,7 @@ def directory_converter(db: BaseDb, directory_d: Dict[str, Any]) -> Directory:
                 "columns": ",".join(columns),
                 "type": type,
             }
-            cur.execute(query, (tuple(ids),))
+            cur.execute(query, (list(ids),))
             for row in cur:
                 entry_d = dict(zip(columns, row))
                 entry = DirectoryEntry(

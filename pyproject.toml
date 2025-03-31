@@ -23,7 +23,8 @@ include = ["swh.*"]
 dependencies = {file = ["requirements.txt", "requirements-swh.txt"]}
 
 [tool.setuptools.dynamic.optional-dependencies]
-testing = {file = ["requirements-test.txt", "requirements-swh-journal.txt"]}
+testing = {file = ["requirements-test.txt", "requirements-pytest.txt"]}
+pytest = {file = ["requirements-pytest.txt"]}
 journal = {file = ["requirements-swh-journal.txt"]}
 
 [project.entry-points."swh.storage.classes"]
@@ -35,7 +36,6 @@ journal = {file = ["requirements-swh-journal.txt"]}
 "local" = "swh.storage.postgresql.storage:Storage"
 # proxy storages
 "buffer" = "swh.storage.proxies.buffer:BufferingProxyStorage"
-"counter" = "swh.storage.proxies.counter:CountingProxyStorage"
 "filter" = "swh.storage.proxies.filter:FilteringProxyStorage"
 "retry" = "swh.storage.proxies.retry:RetryingProxyStorage"
 "tenacious" = "swh.storage.proxies.tenacious:TenaciousProxyStorage"
@@ -91,6 +91,7 @@ module = [
     "cassandra.*",
     "pytest_cov.*",
     "systemd.*",
+    "pytest_shared_session_scope.*",
 ]
 ignore_missing_imports = true
 

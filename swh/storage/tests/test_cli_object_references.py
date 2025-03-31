@@ -1,4 +1,4 @@
-# Copyright (C) 2020-2024  The Software Heritage developers
+# Copyright (C) 2020-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -15,13 +15,15 @@ from .test_cli import invoke
 logger = logging.getLogger(__name__)
 
 
-@pytest.fixture(params=["postgresql", "inmemory", "cassandra"])
-def swh_storage_backend_config(request):
+@pytest.fixture(params=["postgresql", "cassandra"])
+def swh_storage_backend_config(
+    request, swh_storage_postgresql_backend_config, swh_storage_cassandra_backend_config
+):
     """An swh-storage object that gets injected into the CLI functions."""
     if request.param == "postgresql":
-        yield request.getfixturevalue("swh_storage_postgresql_backend_config")
+        return swh_storage_postgresql_backend_config
     else:
-        yield request.getfixturevalue("swh_storage_cassandra_backend_config")
+        return swh_storage_cassandra_backend_config
 
 
 @pytest.mark.parametrize(
@@ -56,7 +58,12 @@ def swh_storage_backend_config(request):
     ),
 )
 def test_create_object_reference_partitions(
-    swh_storage_backend_config, start, end, expected_weeks, unexpected_weeks
+    swh_storage_backend_config,
+    swh_storage,
+    start,
+    end,
+    expected_weeks,
+    unexpected_weeks,
 ):
     storage_config = {
         "storage": {
@@ -76,8 +83,6 @@ def test_create_object_reference_partitions(
     )
 
     assert result.exit_code == 0, result.output
-
-    swh_storage = get_storage(**swh_storage_backend_config)
 
     partitions = swh_storage.object_references_list_partitions()
 

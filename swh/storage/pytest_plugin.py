@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2023  The Software Heritage developers
+# Copyright (C) 2019-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -11,11 +11,17 @@ import signal
 import socket
 import subprocess
 import time
+import uuid
 
 from cassandra.auth import PlainTextAuthProvider
 from cassandra.cluster import Cluster
 import pytest
 from pytest_postgresql import factories
+from pytest_shared_session_scope import (
+    CleanupToken,
+    SetupToken,
+    shared_session_scope_json,
+)
 
 from swh.core.db.db_utils import initialize_database_for_module
 from swh.storage import get_storage
@@ -98,128 +104,155 @@ def cassandra_auth_provider_config():
 
 
 @pytest.fixture(scope="session")
-def swh_storage_cassandra_cluster(tmpdir_factory):
+def session_uuid():
+    return os.environ.get("PYTEST_XDIST_TESTRUNUID", str(uuid.uuid4))
+
+
+@shared_session_scope_json()
+def swh_storage_cassandra_cluster(tmpdir_factory, tmp_path_factory, session_uuid):
     cassandra_conf = tmpdir_factory.mktemp("cassandra_conf")
     cassandra_data = tmpdir_factory.mktemp("cassandra_data")
     cassandra_log = tmpdir_factory.mktemp("cassandra_log")
-    native_transport_port = _free_port()
-    storage_port = _free_port()
-    jmx_port = _free_port()
-    api_port = _free_port()
+    root_tmp_dir = tmp_path_factory.getbasetemp().parent
+    proc = None
 
-    use_scylla = bool(os.environ.get("SWH_USE_SCYLLADB", ""))
+    data = yield
 
-    cassandra_bin = os.environ.get(
-        "SWH_CASSANDRA_BIN", "/usr/bin/scylla" if use_scylla else "/usr/sbin/cassandra"
-    )
+    if data == SetupToken.FIRST:
+        # first pytest-xdist worker to execute that session scope fixture
+        # spawns the cassandra process
 
-    if use_scylla:
-        os.makedirs(cassandra_conf.join("conf"))
-        config_path = cassandra_conf.join("conf/scylla.yaml")
-        config_template = _CASSANDRA_CONFIG_TEMPLATE + _SCYLLA_EXTRA_CONFIG_TEMPLATE
-    else:
-        config_path = cassandra_conf.join("cassandra.yaml")
-        config_template = _CASSANDRA_CONFIG_TEMPLATE
+        native_transport_port = _free_port()
+        storage_port = _free_port()
+        jmx_port = _free_port()
+        api_port = _free_port()
 
-    with open(str(config_path), "w") as fd:
-        fd.write(
-            config_template.format(
-                data_dir=str(cassandra_data),
-                storage_port=storage_port,
-                native_transport_port=native_transport_port,
-                api_port=api_port,
-            )
+        use_scylla = bool(os.environ.get("SWH_USE_SCYLLADB", ""))
+
+        cassandra_bin = os.environ.get(
+            "SWH_CASSANDRA_BIN",
+            "/usr/bin/scylla" if use_scylla else "/usr/sbin/cassandra",
         )
 
-    if os.environ.get("SWH_CASSANDRA_LOG"):
-        stdout = stderr = None
-    else:
-        stdout = stderr = subprocess.DEVNULL
-
-    env = {
-        "MAX_HEAP_SIZE": "300M",
-        "HEAP_NEWSIZE": "50M",
-        "JVM_OPTS": "-Xlog:gc=error:file=%s/gc.log" % cassandra_log,
-        "CASSANDRA_LOG_DIR": cassandra_log,
-    }
-    if "JAVA_HOME" in os.environ:
-        env["JAVA_HOME"] = os.environ["JAVA_HOME"]
-
-    if use_scylla:
-        env = {
-            **env,
-            "SCYLLA_HOME": cassandra_conf,
-        }
-        # prevent "NOFILE rlimit too low (recommended setting 200000,
-        # minimum setting 10000; refusing to start."
-        resource.setrlimit(resource.RLIMIT_NOFILE, (200000, 200000))
-
-        proc = subprocess.Popen(
-            [
-                cassandra_bin,
-                "--developer-mode=1",
-            ],
-            start_new_session=True,
-            env=env,
-            stdout=stdout,
-            stderr=stderr,
-        )
-    else:
-        proc = subprocess.Popen(
-            [
-                cassandra_bin,
-                "-Dcassandra.config=file://%s/cassandra.yaml" % cassandra_conf,
-                "-Dcassandra.logdir=%s" % cassandra_log,
-                "-Dcassandra.jmx.local.port=%d" % jmx_port,
-                "-Dcassandra-foreground=yes",
-            ],
-            start_new_session=True,
-            env=env,
-            stdout=stdout,
-            stderr=stderr,
-        )
-
-    listening = _wait_for_peer("127.0.0.1", native_transport_port)
-
-    if listening:
-        # Wait for initialization
-        auth_provider = PlainTextAuthProvider(
-            username="cassandra", password="cassandra"
-        )
-        cluster = Cluster(
-            ["127.0.0.1"],
-            port=native_transport_port,
-            auth_provider=auth_provider,
-            connect_timeout=30,
-            control_connection_timeout=30,
-        )
-
-        session = None
-        retry = 0
-        while (not session) and retry < 10:
-            try:
-                session = cluster.connect()
-            except Exception:
-                time.sleep(1)
-                retry += 1
-        cluster.shutdown()
-
-        yield (["127.0.0.1"], native_transport_port)
-
-    if not listening or os.environ.get("SWH_CASSANDRA_LOG"):
-        debug_log_path = str(cassandra_log.join("debug.log"))
-        if os.path.exists(debug_log_path):
-            with open(debug_log_path) as fd:
-                print(fd.read())
-
-    if not listening:
-        if proc.poll() is None:
-            raise Exception("cassandra process unexpectedly not listening.")
+        if use_scylla:
+            os.makedirs(cassandra_conf.join("conf"))
+            config_path = cassandra_conf.join("conf/scylla.yaml")
+            config_template = _CASSANDRA_CONFIG_TEMPLATE + _SCYLLA_EXTRA_CONFIG_TEMPLATE
         else:
-            raise Exception("cassandra process unexpectedly stopped.")
+            config_path = cassandra_conf.join("cassandra.yaml")
+            config_template = _CASSANDRA_CONFIG_TEMPLATE
 
-    pgrp = os.getpgid(proc.pid)
-    os.killpg(pgrp, signal.SIGKILL)
+        with open(str(config_path), "w") as fd:
+            fd.write(
+                config_template.format(
+                    data_dir=str(cassandra_data),
+                    storage_port=storage_port,
+                    native_transport_port=native_transport_port,
+                    api_port=api_port,
+                )
+            )
+
+        if os.environ.get("SWH_CASSANDRA_LOG"):
+            stdout = stderr = None
+        else:
+            stdout = stderr = subprocess.DEVNULL
+
+        env = {
+            "MAX_HEAP_SIZE": "300M",
+            "HEAP_NEWSIZE": "50M",
+            "JVM_OPTS": "-Xlog:gc=error:file=%s/gc.log" % cassandra_log,
+            "CASSANDRA_LOG_DIR": cassandra_log,
+        }
+        if "JAVA_HOME" in os.environ:
+            env["JAVA_HOME"] = os.environ["JAVA_HOME"]
+
+        if use_scylla:
+            env = {
+                **env,
+                "SCYLLA_HOME": cassandra_conf,
+            }
+            # prevent "NOFILE rlimit too low (recommended setting 200000,
+            # minimum setting 10000; refusing to start."
+            resource.setrlimit(resource.RLIMIT_NOFILE, (200000, 200000))
+
+            proc = subprocess.Popen(
+                [
+                    cassandra_bin,
+                    "--developer-mode=1",
+                ],
+                start_new_session=True,
+                env=env,
+                stdout=stdout,
+                stderr=stderr,
+            )
+        else:
+            proc = subprocess.Popen(
+                [
+                    cassandra_bin,
+                    "-Dcassandra.config=file://%s/cassandra.yaml" % cassandra_conf,
+                    "-Dcassandra.logdir=%s" % cassandra_log,
+                    "-Dcassandra.jmx.local.port=%d" % jmx_port,
+                    "-Dcassandra-foreground=yes",
+                ],
+                start_new_session=True,
+                env=env,
+                stdout=stdout,
+                stderr=stderr,
+            )
+
+        listening = _wait_for_peer("127.0.0.1", native_transport_port)
+
+        if listening:
+            # Wait for initialization
+            auth_provider = PlainTextAuthProvider(
+                username="cassandra", password="cassandra"
+            )
+            with Cluster(
+                ["127.0.0.1"],
+                port=native_transport_port,
+                auth_provider=auth_provider,
+                connect_timeout=30,
+                control_connection_timeout=30,
+            ) as cluster:
+
+                session = None
+                retry = 0
+                while (not session) and retry < 10:
+                    try:
+                        session = cluster.connect()
+                    except Exception:
+                        time.sleep(1)
+                        retry += 1
+
+        data = (["127.0.0.1"], native_transport_port)
+
+    token: CleanupToken = yield data
+
+    if token == CleanupToken.LAST:
+        # last pytest-xdist worker tearing down that session scope fixture
+        # informs the worker that spawned cassandra it can be shutdowned
+        (root_tmp_dir / session_uuid).touch()
+
+    if proc is not None:
+        if not listening or os.environ.get("SWH_CASSANDRA_LOG"):
+            debug_log_path = str(cassandra_log.join("debug.log"))
+            if os.path.exists(debug_log_path):
+                with open(debug_log_path) as fd:
+                    print(fd.read())
+
+        if not listening:
+            if proc.poll() is None:
+                raise Exception("cassandra process unexpectedly not listening.")
+            else:
+                raise Exception("cassandra process unexpectedly stopped.")
+
+        while not (root_tmp_dir / session_uuid).exists():
+            # wait until all pytest-xdist workers executed their test suites
+            time.sleep(1)
+
+        # kill cassandra process
+        pgrp = os.getpgid(proc.pid)
+        os.killpg(pgrp, signal.SIGKILL)
 
 
 @pytest.fixture(scope="session")
@@ -243,6 +276,8 @@ def swh_storage_cassandra_keyspace(
 
     create_keyspace(cql_runner)
 
+    cql_runner._cluster.shutdown()
+
     return keyspace
 
 
@@ -253,7 +288,6 @@ def swh_storage_cassandra_backend_config(
     cassandra_auth_provider_config,
 ):
     from swh.storage.cassandra.cql import CqlRunner, mark_all_migrations_completed
-    from swh.storage.cassandra.schema import TABLES
 
     (hosts, port) = swh_storage_cassandra_cluster
 
@@ -281,19 +315,7 @@ def swh_storage_cassandra_backend_config(
 
     yield storage_config
 
-    storage = get_storage(**storage_config)
-
-    for partition in storage.object_references_list_partitions():
-        storage.object_references_drop_partition(partition)
-
-    for table in TABLES:
-        table_rows = storage._cql_runner._session.execute(
-            f"SELECT * from {keyspace}.{table} LIMIT 1"
-        )
-        if table_rows.one() is not None:
-            storage._cql_runner._session.execute(f"TRUNCATE TABLE {keyspace}.{table}")
-
-    storage._cql_runner._cluster.shutdown()
+    cql_runner._cluster.shutdown()
 
 
 swh_storage_postgresql_proc = factories.postgresql_proc(
@@ -359,7 +381,26 @@ def swh_storage_backend(swh_storage_backend_config):
         *datetime.date.today().isocalendar()[0:2]
     )
 
-    return storage
+    yield storage
+
+    if hasattr(backend, "_cql_runner") and hasattr(backend._cql_runner, "_cluster"):
+        from swh.storage.cassandra.schema import TABLES
+
+        for partition in backend.object_references_list_partitions():
+            backend.object_references_drop_partition(partition)
+
+        keyspace = backend._keyspace
+        for table in TABLES:
+            table_rows = backend._cql_runner.execute_with_retries(
+                f"SELECT * from {keyspace}.{table} LIMIT 1", args=[]
+            )
+            if table_rows.one() is not None:
+                backend._cql_runner.execute_with_retries(
+                    f"TRUNCATE TABLE {keyspace}.{table}", args=[]
+                )
+        backend._cql_runner._cluster.shutdown()
+    if hasattr(backend, "_pool"):
+        backend._pool.close()
 
 
 @pytest.fixture

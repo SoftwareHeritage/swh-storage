@@ -11,13 +11,13 @@ from typing import Dict, Iterable, Iterator, List, Optional, Tuple
 from uuid import UUID
 
 import attr
-import psycopg2.errors
-from psycopg2.extras import execute_values
+import psycopg.errors
 
 from swh.core.db import BaseDb
 from swh.core.statsd import statsd
 from swh.model.swhids import ExtendedObjectType, ExtendedSWHID
 from swh.storage.exc import StorageArgumentException
+from swh.storage.postgresql.db import execute_values_generator
 
 METRIC_QUERY_TOTAL = "swh_storage_masking_queried_total"
 METRIC_LIST_REQUESTS_TOTAL = "swh_storage_masking_list_requests_total"
@@ -110,6 +110,7 @@ class MaskingDb(BaseDb):
 
 
 class MaskingAdmin(MaskingDb):
+
     def create_request(self, slug: str, reason: str) -> MaskingRequest:
         """Record a new masking request
 
@@ -130,7 +131,7 @@ class MaskingAdmin(MaskingDb):
                 """,
                 (slug, reason),
             )
-        except psycopg2.errors.UniqueViolation:
+        except psycopg.errors.UniqueViolation:
             raise DuplicateRequest(slug)
 
         res = cur.fetchone()
@@ -222,11 +223,10 @@ class MaskingAdmin(MaskingDb):
         if cur.fetchone() is None:
             raise RequestNotFound(request_id)
 
-        execute_values(
-            cur,
+        cur.executemany(
             """
             INSERT INTO masked_object (object_id, object_type, request, state)
-            VALUES %s
+            VALUES (%s, %s, %s, %s)
             ON CONFLICT (object_id, object_type, request)
             DO UPDATE SET state = EXCLUDED.state
             """,
@@ -274,35 +274,41 @@ class MaskingAdmin(MaskingDb):
         """Lookup the masking state and associated requests for the given SWHIDs."""
 
         cur = self.cursor()
-        result = []
-        for (
-            object_id,
-            object_type,
-            request_slug,
-            state,
-        ) in psycopg2.extras.execute_values(
-            cur,
+        result: List[MaskedObject] = []
+        if len(swhids) == 0:
+            return result
+
+        arguments = (
+            (swhid.object_id, swhid.object_type.name.lower()) for swhid in swhids
+        )
+        cur.executemany(
             """SELECT object_id, object_type, slug, state
                  FROM masked_object
-                INNER JOIN (VALUES %s) v(object_id, object_type)
+                INNER JOIN (VALUES (%s, %s::extended_object_type)) v(object_id, object_type)
                 USING (object_id, object_type)
                  LEFT JOIN masking_request ON (masking_request.id = request)
                 ORDER BY object_type, object_id, masking_request.date DESC
             """,
-            ((swhid.object_id, swhid.object_type.name.lower()) for swhid in swhids),
-            template="(%s, %s::extended_object_type)",
-            fetch=True,
-        ):
-            swhid = ExtendedSWHID(
-                object_id=object_id, object_type=ExtendedObjectType[object_type.upper()]
-            )
-            result.append(
-                MaskedObject(
-                    request_slug=request_slug,
-                    swhid=swhid,
-                    state=MaskedState[state.upper()],
+            arguments,
+            returning=True,
+        )
+        has_value: Optional[bool] = True
+        while has_value:
+            for object_id, object_type, request_slug, state in cur.fetchall():
+                swhid = ExtendedSWHID(
+                    object_id=object_id,
+                    object_type=ExtendedObjectType[object_type.upper()],
                 )
-            )
+                result.append(
+                    MaskedObject(
+                        request_slug=request_slug,
+                        swhid=swhid,
+                        state=MaskedState[state.upper()],
+                    )
+                )
+            has_value = cur.nextset()
+        # We sort here, because the test checksorder of the result
+        result.sort(key=lambda x: x.swhid)
         return result
 
     def delete_masks(self, request_id: UUID) -> None:
@@ -332,7 +338,7 @@ class MaskingAdmin(MaskingDb):
                 """,
                 (request_id, message),
             )
-        except psycopg2.errors.ForeignKeyViolation:
+        except psycopg.errors.ForeignKeyViolation:
             raise RequestNotFound(request_id)
 
         res = cur.fetchone()
@@ -395,11 +401,10 @@ class MaskingAdmin(MaskingDb):
                     DELETE FROM display_name
                     """
                 )
-            execute_values(
-                cur,
+            cur.executemany(
                 """
                 INSERT INTO display_name (original_email, display_name)
-                VALUES %s
+                VALUES (%s, %s)
                 ON CONFLICT (original_email)
                 DO UPDATE SET display_name=EXCLUDED.display_name
                 """,
@@ -414,6 +419,7 @@ class MaskingAdmin(MaskingDb):
 
 
 class MaskingQuery(MaskingDb):
+
     def swhids_are_masked(
         self, swhids: List[ExtendedSWHID]
     ) -> Dict[ExtendedSWHID, List[MaskedStatus]]:
@@ -424,41 +430,48 @@ class MaskingQuery(MaskingDb):
             where the State is not :const:`MaskedState.VISIBLE`.
         """
 
+        ret: Dict[ExtendedSWHID, List[MaskedStatus]] = {}
+
+        if len(swhids) == 0:
+            return ret
+
         cur = self.cursor()
 
         statsd.increment(METRIC_QUERY_TOTAL, len(swhids))
 
-        ret: Dict[ExtendedSWHID, List[MaskedStatus]] = {}
+        arguments = (
+            (
+                swhid.object_id,
+                swhid.object_type.name.lower(),
+            )
+            for swhid in swhids
+        )
 
-        for object_id, object_type, request_id, state in psycopg2.extras.execute_values(
-            cur,
+        cur.executemany(
             """
             SELECT object_id, object_type, request, state
             FROM masked_object
-            INNER JOIN (VALUES %s) v(object_id, object_type)
+            INNER JOIN (VALUES (%s, %s::extended_object_type)) v(object_id, object_type)
             USING (object_id, object_type)
             WHERE state != 'visible'
             """,
-            (
-                (
-                    swhid.object_id,
-                    swhid.object_type.name.lower(),
+            arguments,
+            returning=True,
+        )
+        has_value: Optional[bool] = True
+        while has_value:
+            for object_id, object_type, request_id, state in cur.fetchall():
+                swhid = ExtendedSWHID(
+                    object_id=object_id,
+                    object_type=ExtendedObjectType[object_type.upper()],
                 )
-                for swhid in swhids
-            ),
-            template="(%s, %s::extended_object_type)",
-            fetch=True,
-        ):
-            swhid = ExtendedSWHID(
-                object_id=object_id,
-                object_type=ExtendedObjectType[object_type.upper()],
-            )
-            if swhid not in ret:
-                ret[swhid] = []
+                if swhid not in ret:
+                    ret[swhid] = []
 
-            ret[swhid].append(
-                MaskedStatus(request=request_id, state=MaskedState[state.upper()])
-            )
+                ret[swhid].append(
+                    MaskedStatus(request=request_id, state=MaskedState[state.upper()])
+                )
+            has_value = cur.nextset()
 
         if ret:
             statsd.increment(METRIC_MASKED_TOTAL, len(ret))
@@ -472,16 +485,15 @@ class MaskingQuery(MaskingDb):
 
         ret: Dict[bytes, bytes] = {}
 
-        for original_email, display_name in psycopg2.extras.execute_values(
+        for original_email, display_name in execute_values_generator(
             cur,
             """
             SELECT original_email, display_name
             FROM display_name
-            INNER JOIN (VALUES %s) v(original_email)
+            INNER JOIN (VALUES (%s)) v(original_email)
             USING (original_email)
             """,
             [(email,) for email in original_emails],
-            fetch=True,
         ):
             ret[original_email] = display_name
 

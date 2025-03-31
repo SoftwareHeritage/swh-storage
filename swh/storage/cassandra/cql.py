@@ -387,6 +387,10 @@ class CqlRunner:
         if register_user_types:
             self.register_user_types()
 
+    def __del__(self):
+        if hasattr(self, "_cluster"):
+            self._cluster.shutdown()
+
     def register_user_types(self):
         self._cluster.register_user_type(
             self.keyspace, "microtimestamp_with_timezone", TimestampWithTimezone
@@ -1983,7 +1987,7 @@ class CqlRunner:
         monday = monday_of_week1 + datetime.timedelta(weeks=week - 1)
         next_monday = monday + datetime.timedelta(days=7)
 
-        name = "object_references_%04dw%02d" % (year, week)
+        name = f"object_references_{year:04d}w{week:02d}"
 
         # We need to create the table before adding a row to object_references_table, because
         # object writers may try writing to the new table as soon as we added that row, even
@@ -2017,7 +2021,7 @@ class CqlRunner:
     def object_references_drop_table(self, year: int, week: int) -> None:
         """Delete the table of the object_references table for the given ISO
         ``year`` and ``week``."""
-        name = "object_references_%04dw%02d" % (year, week)
+        name = f"object_references_{year:04d}w{week:02d}"
 
         # must delete the row first, so other writers don't try to write to it.
         # Note that if we delete the last table, there is still a small chance

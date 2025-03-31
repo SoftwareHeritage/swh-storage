@@ -12,8 +12,7 @@ from urllib.parse import urlparse
 from uuid import UUID
 
 import attr
-import psycopg2.errors
-from psycopg2.extras import execute_values
+import psycopg.errors
 
 from swh.core.db import BaseDb
 from swh.core.statsd import statsd
@@ -144,6 +143,7 @@ def get_urls_to_check(url: str) -> Tuple[List[str], List[str]]:
 
 
 class BlockingAdmin(BlockingDb):
+
     def create_request(self, slug: str, reason: str) -> BlockingRequest:
         """Record a new blocking request
 
@@ -164,7 +164,7 @@ class BlockingAdmin(BlockingDb):
                 """,
                 (slug, reason),
             )
-        except psycopg2.errors.UniqueViolation:
+        except psycopg.errors.UniqueViolation:
             raise DuplicateRequest(slug)
 
         res = cur.fetchone()
@@ -254,28 +254,28 @@ class BlockingAdmin(BlockingDb):
         Raises: :exc:`RequestNotFound` if the request is not found.
         """
         cur = self.cursor()
+        with cur:
+            cur.execute("SELECT 1 FROM blocking_request WHERE id = %s", (request_id,))
+            o = cur.fetchone()
+            if o is None:
+                raise RequestNotFound(request_id)
 
-        cur.execute("SELECT 1 FROM blocking_request WHERE id = %s", (request_id,))
-        if cur.fetchone() is None:
-            raise RequestNotFound(request_id)
-
-        execute_values(
-            cur,
-            """
-            INSERT INTO blocked_origin (url_match, request, state)
-            VALUES %s
-            ON CONFLICT (url_match, request)
-            DO UPDATE SET state = EXCLUDED.state
-            """,
-            (
+            cur.executemany(
+                """
+                INSERT INTO blocked_origin (url_match, request, state)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (url_match, request)
+                DO UPDATE SET state = EXCLUDED.state
+                """,
                 (
-                    url,
-                    request_id,
-                    new_state.name.lower(),
-                )
-                for url in urls
-            ),
-        )
+                    (
+                        url,
+                        request_id,
+                        new_state.name.lower(),
+                    )
+                    for url in urls
+                ),
+            )
 
     def get_states_for_request(self, request_id: UUID) -> Dict[str, BlockingState]:
         """Get the state of urls associated with the given request.
@@ -305,30 +305,32 @@ class BlockingAdmin(BlockingDb):
         (exact match)."""
 
         cur = self.cursor()
-        result = []
-        for (
-            url,
-            request_slug,
-            state,
-        ) in psycopg2.extras.execute_values(
-            cur,
+        result: List[BlockedOrigin] = []
+        if len(urls) == 0:
+            return result
+
+        cur.executemany(
             """SELECT url_match, slug, state
                  FROM blocked_origin
-                INNER JOIN (VALUES %s) v(url_match)
+                INNER JOIN (VALUES (%s)) v(url_match)
                 USING (url_match)
                  LEFT JOIN blocking_request ON (blocking_request.id = request)
                 ORDER BY url_match, blocking_request.date DESC
             """,
             ((url,) for url in urls),
-            fetch=True,
-        ):
-            result.append(
-                BlockedOrigin(
-                    request_slug=request_slug,
-                    url_pattern=url,
-                    state=BlockingState[state.upper()],
+            returning=True,
+        )
+        has_value: Optional[bool] = True
+        while has_value:
+            for url, request_slug, state in cur.fetchall():
+                result.append(
+                    BlockedOrigin(
+                        request_slug=request_slug,
+                        url_pattern=url,
+                        state=BlockingState[state.upper()],
+                    )
                 )
-            )
+            has_value = cur.nextset()
         return result
 
     def delete_blocking_states(self, request_id: UUID) -> None:
@@ -358,7 +360,7 @@ class BlockingAdmin(BlockingDb):
                 """,
                 (request_id, message),
             )
-        except psycopg2.errors.ForeignKeyViolation:
+        except psycopg.errors.ForeignKeyViolation:
             raise RequestNotFound(request_id)
 
         res = cur.fetchone()
@@ -429,6 +431,7 @@ class BlockingAdmin(BlockingDb):
 
 
 class BlockingQuery(BlockingDb):
+
     def origins_are_blocked(
         self, urls: List[str], all_statuses=False
     ) -> Dict[str, BlockingStatus]:
@@ -460,33 +463,36 @@ class BlockingQuery(BlockingDb):
         exact_matches, prefix_matches = get_urls_to_check(url)
 
         cur = self.cursor()
-        psycopg2.extras.execute_values(
-            cur,
+        cur.executemany(
             """
             SELECT url_match, request, state
             FROM blocked_origin
-            INNER JOIN (VALUES %s) v(url_match)
+            INNER JOIN (VALUES (%s)) v(url_match)
             USING (url_match)
             ORDER BY char_length(url_match) DESC LIMIT 1
             """,
             ((_url,) for _url in exact_matches + prefix_matches),
+            returning=True,
         )
-        row = cur.fetchone()
+        results = []
+        while cur.pgresult is not None:
+            results.extend(cur.fetchall())
+            if not cur.nextset():
+                break
+        results.sort(reverse=True, key=lambda x: (len(x[0]), x[1]))
 
-        if row:
-            url_match, request_id, state = row
-            status = BlockingStatus(
-                state=BlockingState[state.upper()], request=request_id
-            )
-            logger.debug("Matching status for %s: %s", url_match, status)
-            statsd.increment(METRIC_BLOCKED_TOTAL, 1)
-            # log the event; even a NON_BLOCKED decision is logged
-            cur.execute(
-                """
-                INSERT INTO blocked_origin_log (url, url_match, request, state)
-                VALUES (%s, %s, %s, %s)
-                """,
-                (url, url_match, status.request, status.state.name.lower()),
-            )
-            return status
-        return None
+        if not results:
+            return None
+        url_match, request_id, state = results[0]
+        status = BlockingStatus(state=BlockingState[state.upper()], request=request_id)
+        logger.debug("Matching status for %s: %s", url_match, status)
+        statsd.increment(METRIC_BLOCKED_TOTAL, 1)
+        # log the event; even a NON_BLOCKED decision is logged
+        cur.execute(
+            """
+            INSERT INTO blocked_origin_log (url, url_match, request, state)
+            VALUES (%s, %s, %s, %s)
+            """,
+            (url, url_match, status.request, status.state.name.lower()),
+        )
+        return status
