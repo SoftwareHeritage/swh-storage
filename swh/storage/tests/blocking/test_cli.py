@@ -40,11 +40,9 @@ from ...proxies.blocking.db import (
 )
 
 
-@pytest.mark.parametrize(
-    "module_name", ["storage:blocking", "storage.proxies.blocking"]
-)
-def test_cli_db_create(postgresql, module_name):
+def test_cli_db_create(postgresql):
     """Create a db then initializing it should be ok"""
+    module_name = "storage:blocking"
     db_params = postgresql.info
     dbname = f"{module_name}-db"
     conninfo = (

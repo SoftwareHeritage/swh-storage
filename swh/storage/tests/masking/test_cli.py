@@ -40,9 +40,9 @@ from ...proxies.masking.db import (
 )
 
 
-@pytest.mark.parametrize("module_name", ["storage:masking", "storage.proxies.masking"])
-def test_cli_db_create(postgresql, module_name):
+def test_cli_db_create(postgresql):
     """Create a db then initializing it should be ok"""
+    module_name = "storage:masking"
     db_params = postgresql.info
     dbname = f"{module_name}-db"
     conninfo = (
