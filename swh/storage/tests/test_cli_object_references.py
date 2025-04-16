@@ -1,4 +1,4 @@
-# Copyright (C) 2020-2025  The Software Heritage developers
+# Copyright (C) 2020-2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -13,17 +13,6 @@ from swh.storage import get_storage
 from .test_cli import invoke
 
 logger = logging.getLogger(__name__)
-
-
-@pytest.fixture(params=["postgresql", "cassandra"])
-def swh_storage_backend_config(
-    request, swh_storage_postgresql_backend_config, swh_storage_cassandra_backend_config
-):
-    """An swh-storage object that gets injected into the CLI functions."""
-    if request.param == "postgresql":
-        return swh_storage_postgresql_backend_config
-    else:
-        return swh_storage_cassandra_backend_config
 
 
 @pytest.mark.parametrize(
@@ -177,8 +166,6 @@ def test_remove_old_object_reference_partitions(
 def test_remove_old_object_reference_partitions_postgresql_refuses_to_remove_all(
     swh_storage_backend_config, swh_storage_with_partitions
 ):
-    if swh_storage_backend_config["cls"] == "cassandra":
-        raise pytest.skip("Cassandra supports removing all partitions")
     storage_config = {
         "storage": {
             "cls": "pipeline",
