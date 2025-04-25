@@ -57,6 +57,9 @@ class ContentWithXor(Content):
 
     byte_xor = attr.ib(type=bytes, default=None)
 
+    def to_dict(self):
+        return {**super().to_dict(), "byte_xor": self.byte_xor}
+
 
 ##############################
 # Test simple migrations
