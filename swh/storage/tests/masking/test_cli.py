@@ -71,14 +71,14 @@ def masking_admin_config(masking_db_postgresql):
 
 
 def test_masking_admin_not_defined():
-    runner = CliRunner(mix_stderr=False)
+    runner = CliRunner()
     result = runner.invoke(
         masking_cli_group,
         ["list-requests"],
         obj={"config": {}},
     )
     assert result.exit_code == 2
-    assert "masking_admin" in result.stderr
+    assert "masking_admin" in result.output
 
 
 def find_free_port():
@@ -91,7 +91,7 @@ def find_free_port():
 
 def test_masking_admin_unreachable():
     erroneous_postgresql_port = find_free_port()
-    runner = CliRunner(mix_stderr=False)
+    runner = CliRunner()
     result = runner.invoke(
         masking_cli_group,
         ["list-requests"],
@@ -107,7 +107,7 @@ def test_masking_admin_unreachable():
         },
     )
     assert result.exit_code == 1
-    assert "failed: Connection refused" in result.stderr
+    assert "failed: Connection refused" in result.output
 
 
 def test_edit_message_success(mocker):
