@@ -108,7 +108,11 @@ def session_uuid():
     return os.environ.get("PYTEST_XDIST_TESTRUNUID", str(uuid.uuid4))
 
 
-@shared_session_scope_json()
+@shared_session_scope_json(
+    params=[
+        pytest.param("", marks=pytest.mark.cassandra),
+    ]
+)
 def swh_storage_cassandra_cluster(tmpdir_factory, tmp_path_factory, session_uuid):
     cassandra_conf = tmpdir_factory.mktemp("cassandra_conf")
     cassandra_data = tmpdir_factory.mktemp("cassandra_data")
