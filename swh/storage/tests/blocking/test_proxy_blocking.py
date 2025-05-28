@@ -43,9 +43,13 @@ def swh_storage(blocking_db_postgresql, blocking_admin, swh_storage_backend):
         urls=list(BLOCKED_ORIGINS),
     )
 
-    return BlockingProxyStorage(
+    storage = BlockingProxyStorage(
         db=blocking_db_postgresql.info.dsn, storage=swh_storage_backend
     )
+    try:
+        yield storage
+    finally:
+        storage._blocking_pool.close()
 
 
 class TestStorage(_TestStorage):

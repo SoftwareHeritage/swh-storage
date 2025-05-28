@@ -5,7 +5,7 @@
 
 from uuid import uuid4
 
-import psycopg2.errors
+import psycopg.errors
 import pytest
 
 from swh.core.api import RemoteException, TransientRemoteException
@@ -114,7 +114,7 @@ class TestStorageApi(_TestStorage):
         mocker.patch.object(
             app_server.storage._cql_runner,
             "revision_get",
-            side_effect=psycopg2.errors.AdminShutdown("cluster is shutting down"),
+            side_effect=psycopg.errors.AdminShutdown("cluster is shutting down"),
         )
         with pytest.raises(RemoteException) as excinfo:
             swh_storage.revision_get(["\x01" * 20])
@@ -128,7 +128,7 @@ class TestStorageApi(_TestStorage):
         mocker.patch.object(
             app_server.storage._cql_runner,
             "revision_get",
-            side_effect=psycopg2.errors.QueryCanceled("too big!"),
+            side_effect=psycopg.errors.QueryCanceled("too big!"),
         )
         with pytest.raises(RemoteException) as excinfo:
             swh_storage.revision_get(["\x01" * 20])

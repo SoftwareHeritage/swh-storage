@@ -21,7 +21,7 @@ from typing import (
 import warnings
 
 import attr
-import psycopg2.pool
+import psycopg_pool
 
 from swh.core.utils import grouper
 from swh.model.hashutil import MultiHash
@@ -105,8 +105,10 @@ class MaskingProxyStorage:
             get_storage(**storage) if isinstance(storage, dict) else storage
         )
 
-        self._masking_pool = psycopg2.pool.ThreadedConnectionPool(
-            min_pool_conns, max_pool_conns, db
+        self._masking_pool = psycopg_pool.ConnectionPool(
+            db,
+            min_size=min_pool_conns,
+            max_size=max_pool_conns,
         )
 
         # Generate the method dictionaries once per instantiation, instead of

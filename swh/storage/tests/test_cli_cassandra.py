@@ -110,9 +110,7 @@ class TestCassandraCli:
             "\n"
         )
 
-    def test_upgrade_all(
-        self, swh_storage, swh_storage_cassandra_keyspace, invoke, mocker
-    ):
+    def test_upgrade_all(self, swh_storage, invoke, mocker):
         def migration_script(cql_runner):
             cql_runner.execute_with_retries(f"USE {cql_runner.keyspace}", [])
             cql_runner.execute_with_retries(
@@ -139,16 +137,14 @@ class TestCassandraCli:
 
             # check the table exists
             swh_storage._cql_runner.execute_with_retries(
-                f"SELECT * FROM {swh_storage_cassandra_keyspace}.test_table", []
+                f"SELECT * FROM {swh_storage.keyspace}.test_table", []
             )
         finally:
             swh_storage._cql_runner.execute_with_retries(
-                f"DROP TABLE {swh_storage_cassandra_keyspace}.test_table", []
+                f"DROP TABLE {swh_storage.keyspace}.test_table", []
             )
 
-    def test_upgrade_all_from_v2_9(
-        self, swh_storage, swh_storage_cassandra_keyspace, invoke, mocker
-    ):
+    def test_upgrade_all_from_v2_9(self, swh_storage, invoke, mocker):
         """Tests upgrading from v2.9.x, which did not have a 'migrations' table."""
         # drops this migration so the test still works for now
         assert len(swh.storage.cassandra.migrations.MIGRATIONS) == 3, (
@@ -221,7 +217,7 @@ class TestCassandraCli:
         try:
             # create the table
             result = invoke("cassandra", "upgrade")
-            assert result.exit_code == 4, result.output
+            assert result.exit_code == 5, result.output
             assert (
                 result.output
                 == "Some migrations need to be manually applied: 2025-03-17_flatten_person_udt_replay\n"
@@ -229,16 +225,14 @@ class TestCassandraCli:
 
             # check the table exists
             swh_storage._cql_runner.execute_with_retries(
-                f"SELECT * FROM {swh_storage_cassandra_keyspace}.test_table", []
+                f"SELECT * FROM {swh_storage.keyspace}.test_table", []
             )
         finally:
             swh_storage._cql_runner.execute_with_retries(
-                f"DROP TABLE {swh_storage_cassandra_keyspace}.test_table", []
+                f"DROP TABLE {swh_storage.keyspace}.test_table", []
             )
 
-    def test_upgrade_crashing(
-        self, swh_storage, swh_storage_cassandra_keyspace, invoke, mocker
-    ):
+    def test_upgrade_crashing(self, swh_storage, invoke, mocker):
         class TestException(Exception):
             pass
 
@@ -274,9 +268,7 @@ class TestCassandraCli:
             "\n"
         )
 
-    def test_upgrade_partial(
-        self, swh_storage, swh_storage_cassandra_keyspace, invoke, mocker
-    ):
+    def test_upgrade_partial(self, swh_storage, invoke, mocker):
         def create_test_table_script(cql_runner):
             cql_runner.execute_with_retries(f"USE {cql_runner.keyspace}", [])
             cql_runner.execute_with_retries(
@@ -317,7 +309,7 @@ class TestCassandraCli:
 
         # check the table exists
         swh_storage._cql_runner.execute_with_retries(
-            f"SELECT * FROM {swh_storage_cassandra_keyspace}.test_table", []
+            f"SELECT * FROM {swh_storage.keyspace}.test_table", []
         )
 
         # drop the table
@@ -330,11 +322,107 @@ class TestCassandraCli:
         # check the table does not exist anymore
         with pytest.raises(InvalidRequest):
             swh_storage._cql_runner.execute_with_retries(
-                f"SELECT * FROM {swh_storage_cassandra_keyspace}.test_table", []
+                f"SELECT * FROM {swh_storage.keyspace}.test_table", []
             )
 
+    @pytest.mark.parametrize("required", [True, False])
+    def test_upgrade_manual(self, swh_storage, invoke, mocker, required):
+        """Tries to apply a migration that cannot run automatically"""
+        new_migration1 = Migration(
+            id="2025-03-18_manual1",
+            dependencies=set(),
+            min_read_version="2.9.0",
+            script=None,
+            help="Test migration",
+            required=False,
+        )
+        new_migration2 = Migration(
+            id="2025-03-18_manual2",
+            dependencies=set(),
+            min_read_version="2.9.0",
+            script=None,
+            help="Test migration",
+            required=required,
+        )
+        mocker.patch(
+            "swh.storage.cassandra.migrations.MIGRATIONS",
+            [*MIGRATIONS, new_migration1, new_migration2],
+        )
+
+        # run migration before its dependency
+        result = invoke(
+            "cassandra",
+            "upgrade",
+            "--migration",
+            "2025-03-18_manual1",
+            "--migration",
+            "2025-03-18_manual2",
+        )
+        if required:
+            assert result.exit_code == 4, result.output
+            assert result.output == (
+                "Some migrations need to be manually applied: "
+                "2025-03-18_manual1, 2025-03-18_manual2\n"
+                "Including these required migrations: "
+                "2025-03-18_manual2\n"
+            )
+        else:
+            assert result.exit_code == 5, result.output
+            assert result.output == (
+                "Some migrations need to be manually applied: "
+                "2025-03-18_manual1, 2025-03-18_manual2\n"
+            )
+
+        # check the migration was not marked as applied
+        result = invoke("cassandra", "list-migrations")
+        assert result.exit_code == 0, result.output
+        assert result.output == (
+            "2024-12-12_init (required): completed\n"
+            "    Dummy migration that represents the database schema as of v2.9.0\n"
+            "\n"
+            "2025-03-18_manual1: running\n"
+            "    Test migration\n"
+            "\n"
+            f"2025-03-18_manual2{' (required)' if required else ''}: running\n"
+            "    Test migration\n"
+            "\n"
+            "2025-03-17_flatten_person_udt_add_columns: completed\n"
+            "    Creates *_fullname, *_name, and *_email columns for author and committer\n"
+            "    columns of revision and release tables.\n"
+            "\n"
+            "2025-03-17_flatten_person_udt_replay: completed\n"
+            "    Marks that the revision and release tables were fully replayed after\n"
+            "    2025-03-17_flatten_person_udt_add_columns was applied, and Python code "
+            "was updated.\n"
+            "\n"
+        )
+
+        # check the tables still do not exist
+        with pytest.raises(InvalidRequest):
+            swh_storage._cql_runner.execute_with_retries(
+                f"SELECT * FROM {swh_storage.keyspace}.test_table1", []
+            )
+        with pytest.raises(InvalidRequest):
+            swh_storage._cql_runner.execute_with_retries(
+                f"SELECT * FROM {swh_storage.keyspace}.test_table2", []
+            )
+
+    @pytest.mark.parametrize(
+        "migration1_manual,migration2_required",
+        [
+            pytest.param(True, True, id="migration1=manual,migration2=required"),
+            pytest.param(True, False, id="migration1=manual,migration2=optional"),
+            pytest.param(False, True, id="migration1=scripted,migration2=required"),
+            pytest.param(False, False, id="migration1=scripted,migration2=optional"),
+        ],
+    )
     def test_upgrade_disordered(
-        self, swh_storage, swh_storage_cassandra_keyspace, invoke, mocker
+        self,
+        swh_storage,
+        invoke,
+        mocker,
+        migration1_manual,
+        migration2_required,
     ):
         """Tries to apply a migration before its dependency"""
 
@@ -354,7 +442,7 @@ class TestCassandraCli:
             id="2024-12-19_create_test_table1",
             dependencies=set(),
             min_read_version="2.9.0",
-            script=create_test_table1_script,
+            script=None if migration1_manual else create_test_table1_script,
             help="Test migration",
             required=False,
         )
@@ -364,7 +452,7 @@ class TestCassandraCli:
             min_read_version="2.9.0",
             script=create_test_table2_script,
             help="Test migration",
-            required=False,
+            required=migration2_required,
         )
         mocker.patch(
             "swh.storage.cassandra.migrations.MIGRATIONS",
@@ -375,11 +463,20 @@ class TestCassandraCli:
         result = invoke(
             "cassandra", "upgrade", "--migration", "2024-12-19_create_test_table2"
         )
-        assert result.exit_code == 2, result.output
-        assert result.output == (
-            "Some migrations could not be applied because a dependency is missing: "
-            "2024-12-19_create_test_table2\n"
-        )
+        if migration2_required:
+            assert result.exit_code == 6, result.output
+            assert result.output == (
+                "Some migrations could not be applied because a dependency is missing: "
+                "2024-12-19_create_test_table2\n"
+                "Including these required migrations: "
+                "2024-12-19_create_test_table2\n"
+            )
+        else:
+            assert result.exit_code == 7, result.output
+            assert result.output == (
+                "Some migrations could not be applied because a dependency is missing: "
+                "2024-12-19_create_test_table2\n"
+            )
 
         # check the migration was not marked as applied
         result = invoke("cassandra", "list-migrations")
@@ -395,7 +492,8 @@ class TestCassandraCli:
             "    Creates *_fullname, *_name, and *_email columns for author and committer\n"
             "    columns of revision and release tables.\n"
             "\n"
-            "2024-12-19_create_test_table2: pending\n"
+            "2024-12-19_create_test_table2"
+            f"{' (required)' if migration2_required else ''}: pending\n"
             "    Test migration\n"
             "\n"
             "2025-03-17_flatten_person_udt_replay: completed\n"
@@ -407,16 +505,14 @@ class TestCassandraCli:
         # check the tables still do not exist
         with pytest.raises(InvalidRequest):
             swh_storage._cql_runner.execute_with_retries(
-                f"SELECT * FROM {swh_storage_cassandra_keyspace}.test_table1", []
+                f"SELECT * FROM {swh_storage.keyspace}.test_table1", []
             )
         with pytest.raises(InvalidRequest):
             swh_storage._cql_runner.execute_with_retries(
-                f"SELECT * FROM {swh_storage_cassandra_keyspace}.test_table2", []
+                f"SELECT * FROM {swh_storage.keyspace}.test_table2", []
             )
 
-    def test_mark_upgraded(
-        self, swh_storage, swh_storage_cassandra_keyspace, invoke, mocker
-    ):
+    def test_mark_upgraded(self, swh_storage, invoke, mocker):
         def create_test_table1_script(cql_runner):
             cql_runner.execute_with_retries(f"USE {cql_runner.keyspace}", [])
             cql_runner.execute_with_retries(
@@ -470,17 +566,17 @@ class TestCassandraCli:
             # check the first table still does not exist
             with pytest.raises(InvalidRequest):
                 swh_storage._cql_runner.execute_with_retries(
-                    f"SELECT * FROM {swh_storage_cassandra_keyspace}.test_table1", []
+                    f"SELECT * FROM {swh_storage.keyspace}.test_table1", []
                 )
 
             # check the second table now exists
             swh_storage._cql_runner.execute_with_retries(
-                f"SELECT * FROM {swh_storage_cassandra_keyspace}.test_table2", []
+                f"SELECT * FROM {swh_storage.keyspace}.test_table2", []
             )
         finally:
             try:
                 swh_storage._cql_runner.execute_with_retries(
-                    f"DROP TABLE {swh_storage_cassandra_keyspace}.test_table2", []
+                    f"DROP TABLE {swh_storage.keyspace}.test_table2", []
                 )
             except BaseException:
                 pass

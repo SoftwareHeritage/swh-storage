@@ -18,7 +18,13 @@ from swh.storage.algos.directory import (
 from ..storage_data import StorageData
 
 
-@pytest.mark.parametrize("directory_id", [d.id for d in StorageData.directories])
+@pytest.mark.parametrize(
+    "directory_id",
+    [
+        pytest.param(d.id, id=f"swh:dir:1:{d.id.hex()}")
+        for i, d in enumerate(StorageData.directories)
+    ],
+)
 def test_directory_small(swh_storage, directory_id):
     swh_storage.directory_add(StorageData.directories)
 

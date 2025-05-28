@@ -58,6 +58,9 @@ class ContentWithXor(Content):
 
     byte_xor = attr.ib(type=bytes, default=None)
 
+    def to_dict(self):
+        return {**super().to_dict(), "byte_xor": self.byte_xor}
+
 
 ##############################
 # Test simple migrations
@@ -308,7 +311,6 @@ def test_change_content_pk(
     """
     cql_runner = swh_storage._cql_runner
     content_xor_hash = byte_xor_hash(StorageData.content.data)
-    session = swh_storage._cql_runner._cluster.connect(swh_storage._cql_runner.keyspace)
 
     # First insert some existing data
     swh_storage.content_add([StorageData.content, StorageData.content2])
@@ -471,11 +473,17 @@ def test_change_content_pk(
 
     # THE END.
 
+    keyspace = swh_storage._cql_runner.keyspace
     # Test teardown expects a table with this name to exist:
-    session.execute("CREATE TABLE content (foo blob PRIMARY KEY);")
+    swh_storage._cql_runner.execute_with_retries(
+        f"CREATE TABLE {keyspace}.content (foo blob PRIMARY KEY);",
+        args=[],
+    )
 
     # Clean up this table, test teardown does not know about it:
-    session.execute("DROP TABLE content_v2;")
+    swh_storage._cql_runner.execute_with_retries(
+        f"DROP TABLE {keyspace}.content_v2;", args=[]
+    )
 
 
 def test_read_legacy_revision_rows(swh_storage, swh_storage_backend, sample_data):

@@ -25,9 +25,13 @@ def swh_storage_backend_config():
 
 @pytest.fixture
 def swh_storage(blocking_db_postgresql, swh_storage_backend):
-    return BlockingProxyStorage(
+    storage = BlockingProxyStorage(
         db=blocking_db_postgresql.info.dsn, storage=swh_storage_backend
     )
+    try:
+        yield storage
+    finally:
+        storage._blocking_pool.close()
 
 
 class TestStorage(_TestStorage):

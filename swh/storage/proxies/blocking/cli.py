@@ -48,7 +48,7 @@ def blocking_cli_group(ctx: click.Context) -> click.Context:
             DeprecationWarning,
         )
 
-    from psycopg2 import OperationalError
+    from psycopg import OperationalError
 
     from .db import BlockingAdmin
 

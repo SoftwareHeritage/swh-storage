@@ -21,7 +21,7 @@ from swh.storage.tests.storage_data import StorageData
 
 
 def test_db_version(masking_admin: MaskingAdmin):
-    dbmodule, dbversion, dbflavor = get_database_info(masking_admin.conn.dsn)
+    dbmodule, dbversion, dbflavor = get_database_info(masking_admin.conn)
     assert dbmodule == "storage.proxies.masking"
     assert dbversion == MaskingAdmin.current_version
     assert dbflavor is None

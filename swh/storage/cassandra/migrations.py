@@ -151,8 +151,8 @@ def apply_migrations(
 
     Returns:
         * whether any was run, and
-        * which migrations cannot run because they are missing dependencies
         * which migrations still need to be run manually.
+        * which migrations cannot run because they are missing dependencies
     """
     applied_any = False
     remaining_manual_migrations = []

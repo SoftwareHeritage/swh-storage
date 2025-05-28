@@ -44,7 +44,7 @@ from swh.storage.utils import now, remove_keys
 
 @pytest.fixture
 def swh_storage_backend_config(swh_storage_cassandra_backend_config):
-    return swh_storage_cassandra_backend_config
+    yield swh_storage_cassandra_backend_config
 
 
 def _python_type_to_cql_type_re(ty: type) -> str:

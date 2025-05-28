@@ -1,9 +1,10 @@
-# Copyright (C) 2024 The Software Heritage developers
+# Copyright (C) 2024-2025 The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 from functools import partial
+from typing import Iterator
 
 import pytest
 from pytest_postgresql import factories
@@ -28,10 +29,12 @@ blocking_db_postgresql = factories.postgresql(
 
 
 @pytest.fixture
-def blocking_admin(blocking_db_postgresql) -> BlockingAdmin:
-    return BlockingAdmin.connect(blocking_db_postgresql.info.dsn)
+def blocking_admin(blocking_db_postgresql) -> Iterator[BlockingAdmin]:
+    with BlockingAdmin.connect(blocking_db_postgresql.info.dsn) as db:
+        yield db
 
 
 @pytest.fixture
-def blocking_query(blocking_db_postgresql) -> BlockingQuery:
-    return BlockingQuery.connect(blocking_db_postgresql.info.dsn)
+def blocking_query(blocking_db_postgresql) -> Iterator[BlockingQuery]:
+    with BlockingQuery.connect(blocking_db_postgresql.info.dsn) as db:
+        yield db

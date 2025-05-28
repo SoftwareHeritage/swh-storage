@@ -46,7 +46,7 @@ class JournalWriter:
     """
 
     def __init__(self, journal_writer: Optional[Dict[str, Any]]):
-        self.journal: Optional[JournalWriterInterface] = None
+        self.journal: Optional["JournalWriterInterface"] = None
         if journal_writer:
             if get_journal_writer is None:
                 raise EnvironmentError(
@@ -57,12 +57,12 @@ class JournalWriter:
                 value_sanitizer=model_object_dict_sanitizer, **journal_writer
             )
 
-    def write_addition(self, object_type: str, object_: ValueProtocol) -> None:
+    def write_addition(self, object_type: str, object_: "ValueProtocol") -> None:
         if self.journal:
             self.journal.write_addition(object_type, object_)
 
     def write_additions(
-        self, object_type: str, objects: Iterable[ValueProtocol]
+        self, object_type: str, objects: Iterable["ValueProtocol"]
     ) -> None:
         if self.journal:
             self.journal.write_additions(object_type, objects)

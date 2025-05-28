@@ -6,7 +6,7 @@
 from unittest.mock import call
 
 import attr
-import psycopg2
+import psycopg
 import pytest
 
 from swh.core.api import TransientRemoteException
@@ -61,13 +61,13 @@ def test_retrying_proxy_storage_content_add_with_retry(
     mocker,
     fake_hash_collision,
 ):
-    """Multiple retries for hash collision and psycopg2 error but finally ok"""
+    """Multiple retries for hash collision and psycopg error but finally ok"""
     mock_memory = mocker.patch("swh.storage.in_memory.InMemoryStorage.content_add")
     mock_memory.side_effect = [
         # first try goes ko
         fake_hash_collision,
         # second try goes ko
-        psycopg2.IntegrityError("content already inserted"),
+        psycopg.IntegrityError("content already inserted"),
         # ok then!
         {"content:add": 1},
     ]
@@ -102,7 +102,7 @@ def test_retrying_proxy_storage_content_add_with_retry_of_transient(
     sample_data,
     mocker,
 ):
-    """Multiple retries for hash collision and psycopg2 error but finally ok
+    """Multiple retries for hash collision and psycopg error but finally ok
     after many attempts"""
     mock_memory = mocker.patch("swh.storage.in_memory.InMemoryStorage.content_add")
     mock_memory.side_effect = [
@@ -176,7 +176,7 @@ def test_retrying_proxy_storage_content_add_metadata(swh_storage, sample_data):
 def test_retrying_proxy_storage_content_add_metadata_with_retry(
     storage_retry_sleep_mock, swh_storage, sample_data, mocker, fake_hash_collision
 ):
-    """Multiple retries for hash collision and psycopg2 error but finally ok"""
+    """Multiple retries for hash collision and psycopg error but finally ok"""
     mock_memory = mocker.patch(
         "swh.storage.in_memory.InMemoryStorage.content_add_metadata"
     )
@@ -184,7 +184,7 @@ def test_retrying_proxy_storage_content_add_metadata_with_retry(
         # first try goes ko
         fake_hash_collision,
         # second try goes ko
-        psycopg2.IntegrityError("content_metadata already inserted"),
+        psycopg.IntegrityError("content_metadata already inserted"),
         # ok then!
         {"content:add": 1},
     ]

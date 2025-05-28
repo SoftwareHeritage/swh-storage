@@ -17,7 +17,7 @@ from unittest.mock import MagicMock, patch
 import attr
 import cassandra
 from hypothesis import HealthCheck, given, settings, strategies
-import psycopg2.errors
+import psycopg.errors
 import pytest
 
 from swh.core.api import RemoteException
@@ -2177,7 +2177,7 @@ class TestStorage:
         for release in releases:
             (rev,) = swh_storage.release_get([release.id])
             if rev.raw_manifest is None:
-                assert rev == release
+                assert rev == release, (rev, release, releases)
             else:
                 assert rev.raw_manifest == release.raw_manifest
                 # we can't compare the other fields, because they become non-intrinsic,
@@ -6431,11 +6431,11 @@ class TestStorage:
         message = "too slow!"
         mocker.patch(
             "swh.storage.postgresql.db.Db.origin_visit_get_latest",
-            side_effect=psycopg2.errors.QueryCanceled(message),
+            side_effect=psycopg.errors.QueryCanceled(message),
         )
         mocker.patch(
             "swh.storage.postgresql.db.Db.revision_missing_from_list",
-            side_effect=psycopg2.errors.QueryCanceled(message),
+            side_effect=psycopg.errors.QueryCanceled(message),
         )
         mocker.patch(
             "swh.storage.cassandra.cql.CqlRunner._execute_with_retries_inner",

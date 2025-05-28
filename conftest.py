@@ -3,4 +3,4 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-pytest_plugins = ["swh.storage.pytest_plugin"]
+pytest_plugins = ["swh.storage.pytest_plugin", "swh.journal.pytest_plugin"]
