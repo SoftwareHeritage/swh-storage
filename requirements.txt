@@ -1,6 +1,6 @@
 backports.entry_points_selectable
 cassandra-driver >= 3.19.0, != 3.21.0
-click
+click != 8.2.1
 deprecated
 flask
 iso8601
