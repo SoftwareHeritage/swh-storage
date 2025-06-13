@@ -209,15 +209,15 @@ class TestCassandraStorage(_TestStorage):
         are filtered-out when reading the main table.
         This test checks the content methods do filter out these collision.
         """
-        called = 0
+        cgtfsa_called = 0
 
         cont, cont2 = sample_data.contents[:2]
 
         # always return a token
         def mock_cgtfsa(algo, hashes):
-            nonlocal called
-            called += 1
-            assert algo in ("sha1", "sha1_git")
+            nonlocal cgtfsa_called
+            cgtfsa_called += 1
+            assert algo in HASH_ALGORITHMS
             return [123456]
 
         mocker.patch.object(
@@ -227,9 +227,11 @@ class TestCassandraStorage(_TestStorage):
         )
 
         # For all tokens, always return cont
+        cgft_called = 0
+
         def mock_cgft(tokens):
-            nonlocal called
-            called += 1
+            nonlocal cgft_called
+            cgft_called += 1
             return [
                 ContentRow(
                     length=10,
@@ -245,7 +247,8 @@ class TestCassandraStorage(_TestStorage):
 
         actual_result = swh_storage.content_add([cont2])
 
-        assert called == 4
+        assert (cgtfsa_called, cgft_called) == (2, 2)
+
         assert actual_result == {
             "content:add": 1,
             "content:add:bytes": cont2.length,
@@ -259,15 +262,15 @@ class TestCassandraStorage(_TestStorage):
         are filtered-out when reading the main table.
         This test checks the content methods do filter out these collisions.
         """
-        called = 0
+        cgtfsa_called = 0
 
         cont, cont2 = [attr.evolve(c, ctime=now()) for c in sample_data.contents[:2]]
 
         # always return a token
         def mock_cgtfsa(algo, hashes):
-            nonlocal called
-            called += 1
-            assert algo in ("sha1", "sha1_git")
+            nonlocal cgtfsa_called
+            cgtfsa_called += 1
+            assert algo in HASH_ALGORITHMS
             return [123456]
 
         mocker.patch.object(
@@ -279,9 +282,11 @@ class TestCassandraStorage(_TestStorage):
         # For all tokens, always return cont and cont2
         cols = list(set(cont.to_dict()) - {"data"})
 
+        cgft_called = 0
+
         def mock_cgft(tokens):
-            nonlocal called
-            called += 1
+            nonlocal cgft_called
+            cgft_called += 1
             return [
                 ContentRow(
                     **{col: getattr(cont, col) for col in cols},
@@ -294,10 +299,10 @@ class TestCassandraStorage(_TestStorage):
         )
 
         actual_result = swh_storage.content_get([cont.sha1])
-        assert called == 2
+        assert (cgtfsa_called, cgft_called) == (1, 1)
 
         # dropping extra column not returned
-        expected_cont = attr.evolve(cont, data=None)
+        expected_cont = cont.evolve(data=None)
 
         # but cont2 should be filtered out
         assert actual_result == [expected_cont]
@@ -308,14 +313,14 @@ class TestCassandraStorage(_TestStorage):
         are filtered-out when reading the main table.
         This test checks the content methods do filter out these collisions.
         """
-        called = 0
+        cgtfsa_called = 0
 
         cont, cont2 = [attr.evolve(c, ctime=now()) for c in sample_data.contents[:2]]
 
         # always return a token
         def mock_cgtfsa(algo, hashes):
-            nonlocal called
-            called += 1
+            nonlocal cgtfsa_called
+            cgtfsa_called += 1
             assert algo in ("sha1", "sha1_git")
             return [123456]
 
@@ -328,9 +333,11 @@ class TestCassandraStorage(_TestStorage):
         # For all tokens, always return cont and cont2
         cols = list(set(cont.to_dict()) - {"data"})
 
+        cgft_called = 0
+
         def mock_cgft(tokens):
-            nonlocal called
-            called += 1
+            nonlocal cgft_called
+            cgft_called += 1
             return [
                 ContentRow(**{col: getattr(cont, col) for col in cols})
                 for cont in [cont, cont2]
@@ -344,7 +351,7 @@ class TestCassandraStorage(_TestStorage):
 
         actual_result = swh_storage.content_find({"sha1": cont.sha1})
 
-        assert called == 2
+        assert cgtfsa_called, cgft_called == (1, 1)
 
         # but cont2 should be filtered out
         assert actual_result == [expected_content]
