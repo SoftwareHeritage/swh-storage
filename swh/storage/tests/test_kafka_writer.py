@@ -31,14 +31,18 @@ from swh.model.model import (
 from swh.model.tests.swh_model_data import TEST_OBJECTS
 from swh.storage import get_storage
 
+from ..in_memory import InMemoryStorage
 
-def test_storage_direct_writer(kafka_prefix: str, kafka_server, consumer: Consumer):
+
+def get_storage_with_writer(
+    kafka_prefix: str, kafka_server: str, anonymize: bool
+) -> InMemoryStorage:
     writer_config = {
         "cls": "kafka",
         "brokers": [kafka_server],
         "client_id": "kafka_writer",
         "prefix": kafka_prefix,
-        "anonymize": False,
+        "anonymize": anonymize,
         "auto_flush": False,
     }
     storage_config: Dict[str, Any] = {
@@ -47,6 +51,17 @@ def test_storage_direct_writer(kafka_prefix: str, kafka_server, consumer: Consum
             {"cls": "memory", "journal_writer": writer_config},
         ],
     }
+
+    ret = get_storage(**storage_config)
+    assert isinstance(ret, InMemoryStorage)
+    return ret
+
+
+def test_storage_direct_writer(kafka_prefix: str, kafka_server, consumer: Consumer):
+
+    storage = get_storage_with_writer(
+        kafka_prefix=kafka_prefix, kafka_server=kafka_server, anonymize=False
+    )
 
     object_types = (
         Content.object_type,
@@ -64,8 +79,6 @@ def test_storage_direct_writer(kafka_prefix: str, kafka_server, consumer: Consum
         RawExtrinsicMetadata.object_type,
     )
 
-    storage = get_storage(**storage_config)
-
     expected_messages = 0
 
     for obj_type, objs in TEST_OBJECTS.items():
@@ -75,7 +88,8 @@ def test_storage_direct_writer(kafka_prefix: str, kafka_server, consumer: Consum
             expected_messages += len(objs)
         else:
             assert False, obj_type
-    storage.journal_writer.journal.flush()  # type: ignore[attr-defined]
+    assert storage.journal_writer.journal is not None
+    storage.journal_writer.journal.flush()
 
     existing_topics = set(
         topic
@@ -93,22 +107,9 @@ def test_storage_direct_writer(kafka_prefix: str, kafka_server, consumer: Consum
 def test_storage_direct_writer_anonymized(
     kafka_prefix: str, kafka_server, consumer: Consumer
 ):
-    writer_config = {
-        "cls": "kafka",
-        "brokers": [kafka_server],
-        "client_id": "kafka_writer",
-        "prefix": kafka_prefix,
-        "anonymize": True,
-        "auto_flush": False,
-    }
-    storage_config: Dict[str, Any] = {
-        "cls": "pipeline",
-        "steps": [
-            {"cls": "memory", "journal_writer": writer_config},
-        ],
-    }
-
-    storage = get_storage(**storage_config)
+    storage = get_storage_with_writer(
+        kafka_prefix=kafka_prefix, kafka_server=kafka_server, anonymize=True
+    )
 
     expected_messages = 0
 
@@ -120,7 +121,8 @@ def test_storage_direct_writer_anonymized(
         method = getattr(storage, f"{obj_type}_add")
         method(objs)
         expected_messages += len(objs)
-    storage.journal_writer.journal.flush()  # type: ignore[attr-defined]
+    assert storage.journal_writer.journal is not None
+    storage.journal_writer.journal.flush()
 
     existing_topics = set(
         topic
