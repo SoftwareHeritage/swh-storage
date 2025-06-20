@@ -97,15 +97,15 @@ def edit_message(prompt: str, extra_lines: List[str] = []):
     """Edit a message through click.edit() adding some extra context, filtering
     comments, and raising an exception on empty messages"""
 
-    message = (
+    message_base = (
         "\n\n"
         f"# {prompt}\n"
         "# Lines starting with “#” will be ignored. "
         "An empty message will abort the operation.\n"
     )
     if extra_lines:
-        message += "#\n# " + "\n# ".join(extra_lines)
-    message = click.edit(message)
+        message_base += "#\n# " + "\n# ".join(extra_lines)
+    message = click.edit(message_base)
     if message is None:
         raise EditAborted()
     message = "\n".join(
