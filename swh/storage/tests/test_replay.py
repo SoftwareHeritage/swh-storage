@@ -28,12 +28,7 @@ from swh.model.model import (
     RevisionType,
     Snapshot,
 )
-from swh.model.tests.swh_model_data import (
-    COMMITTERS,
-    DATES,
-    DUPLICATE_CONTENTS,
-    REVISIONS,
-)
+from swh.model.tests.swh_model_data import COMMITTERS, DATES, REVISIONS
 from swh.model.tests.swh_model_data import TEST_OBJECTS as _TEST_OBJECTS
 from swh.storage import get_storage
 from swh.storage.cassandra.model import ContentRow, SkippedContentRow
@@ -41,6 +36,7 @@ from swh.storage.exc import StorageArgumentException
 from swh.storage.in_memory import InMemoryStorage
 from swh.storage.interface import StorageInterface
 from swh.storage.replay import ModelObjectDeserializer, process_replay_objects
+from swh.storage.tests.storage_data import StorageData
 
 UTC = datetime.timezone.utc
 
@@ -190,15 +186,16 @@ def test_storage_replay_with_collision(
     # These should not be written in the destination
     producer = journal.producer  # type: ignore
     prefix = journal._prefix  # type: ignore
+    DUPLICATE_CONTENTS = StorageData().colliding_contents["sha1"]
     for content in DUPLICATE_CONTENTS:
         topic = f"{prefix}.content"
-        key = content.sha1
-        now = datetime.datetime.now(tz=UTC)
-        content = attr.evolve(content, ctime=now)
+        key = content.hashes()
+        value = content.to_dict()
+        value.pop("data", None)
         producer.produce(
             topic=topic,
             key=key_to_kafka(key),
-            value=value_to_kafka(content.to_dict()),
+            value=value_to_kafka(value),
         )
         nb_sent += 1
 
