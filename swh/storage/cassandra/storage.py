@@ -55,6 +55,7 @@ from swh.model.model import (
 )
 from swh.model.swhids import CoreSWHID, ExtendedObjectType, ExtendedSWHID
 from swh.model.swhids import ObjectType as SwhidObjectType
+from swh.objstorage.interface import objid_from_dict
 from swh.storage import __version__
 from swh.storage.interface import (
     VISIT_STATUSES,
@@ -75,7 +76,6 @@ from swh.storage.writer import JournalWriter
 
 from . import converters
 from ..exc import (
-    HashCollision,
     StorageArgumentException,
     UnknownMetadataAuthority,
     UnknownMetadataFetcher,
@@ -347,15 +347,18 @@ class CassandraStorage:
         for content in contents:
             content_add += 1
 
-            # Check for sha1 or sha1_git collisions. This test is not atomic
-            # with the insertion, so it won't detect a collision if both
-            # contents are inserted at the same time, but it's good enough.
+            # Check for hash collisions. This test is not atomic with the
+            # insertion, so it won't detect a collision if both contents are
+            # inserted at the same time from different storage instances. The
+            # low number of wild collisions makes this unlikely (especially
+            # considering that most colliding contents will, as of now, ship
+            # together in the same origin).
             #
             # The proper way to do it would probably be a BATCH, but this
             # would be inefficient because of the number of partitions we
             # need to affect (len(HASH_ALGORITHMS)+1, which is currently 5)
             if not self._allow_overwrite:
-                for algo in {"sha1", "sha1_git"}:
+                for algo in HASH_ALGORITHMS:
                     collisions = []
                     # Get tokens of 'content' rows with the same value for
                     # sha1/sha1_git
@@ -367,16 +370,27 @@ class CassandraStorage:
                             # row
                             continue
 
-                        for other_algo in HASH_ALGORITHMS:
+                        for other_algo in set(HASH_ALGORITHMS) - {algo}:
                             if getattr(row, other_algo) != content.get_hash(other_algo):
                                 # This hash didn't match; discard the row.
                                 collisions.append(
                                     {k: getattr(row, k) for k in HASH_ALGORITHMS}
                                 )
 
-                    if collisions:
-                        collisions.append(dict(content.hashes()))
-                        raise HashCollision(algo, content.get_hash(algo), collisions)
+                    if collisions and with_data:
+                        objects_to_write = [content]
+                        for collision in collisions:
+                            known_data = self.content_get_data(
+                                objid_from_dict(collision)
+                            )
+                            known = Content.from_data(known_data)
+                            if known.hashes() != collision:
+                                raise ValueError(
+                                    "Content retrieved from objstorage "
+                                    "doesn't match the colliding content"
+                                )
+                            objects_to_write.append(known)
+                        self.journal_writer.hash_colliding_content_add(objects_to_write)
 
             (token, insertion_finalizer) = self._cql_runner.content_add_prepare(
                 ContentRow(**remove_keys(content.to_dict(), ("data",)))

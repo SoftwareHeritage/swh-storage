@@ -9,6 +9,7 @@ from attr import asdict, has
 from confluent_kafka import Consumer
 from hypothesis import given
 from hypothesis.strategies import lists
+import pytest
 
 from swh.journal.pytest_plugin import assert_all_objects_consumed, consume_messages
 from swh.model.hypothesis_strategies import objects
@@ -32,6 +33,7 @@ from swh.model.tests.swh_model_data import TEST_OBJECTS
 from swh.storage import get_storage
 
 from ..in_memory import InMemoryStorage
+from .storage_data import DEFAULT_ALGORITHMS, StorageData
 
 
 def get_storage_with_writer(
@@ -101,6 +103,31 @@ def test_storage_direct_writer(kafka_prefix: str, kafka_server, consumer: Consum
 
     consumed_messages = consume_messages(consumer, kafka_prefix, expected_messages)
     assert_all_objects_consumed(consumed_messages)
+
+
+@pytest.mark.parametrize(
+    "object_types",
+    (set(k.value for k in TEST_OBJECTS.keys()) | {"hash_colliding_content"},),
+)  # consume from the hash_colliding_content topic, which is not listened to by default
+@pytest.mark.parametrize("colliding_hash", DEFAULT_ALGORITHMS)
+def test_storage_direct_writer_hash_collision(
+    kafka_prefix: str,
+    kafka_server,
+    consumer: Consumer,
+    sample_data: StorageData,
+    colliding_hash: str,
+):
+    storage = get_storage_with_writer(
+        kafka_prefix=kafka_prefix, kafka_server=kafka_server, anonymize=False
+    )
+    storage.content_add(sample_data.colliding_contents[colliding_hash])
+    assert storage.journal_writer.journal is not None
+    storage.journal_writer.journal.flush()
+
+    expected_messages = 4
+
+    consumed_messages = consume_messages(consumer, kafka_prefix, expected_messages)
+    assert len(consumed_messages["hash_colliding_content"]) == 2
 
 
 def test_storage_direct_writer_anonymized(

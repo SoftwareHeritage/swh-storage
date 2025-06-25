@@ -33,6 +33,10 @@ except ImportError:
 def model_object_dict_sanitizer(
     object_type: str, object_dict: Dict[str, Any]
 ) -> Dict[str, str]:
+    if object_type == "hash_colliding_content":
+        # Keep the data, and avoid copying the dict
+        return object_dict
+
     object_dict = object_dict.copy()
     if ModelObjectType(object_type) == Content.object_type:
         object_dict.pop("data", None)
@@ -75,6 +79,12 @@ class JournalWriter:
     def content_update(self, contents: Iterable[Dict[str, Any]]) -> None:
         if self.journal:
             raise NotImplementedError("content_update is not supported by the journal.")
+
+    def hash_colliding_content_add(self, contents: Iterable[Content]) -> None:
+        for content in contents:
+            if content.data is None:
+                raise ValueError("Hash Colliding contents require data")
+        self.write_additions("hash_colliding_content", contents)
 
     def content_add_metadata(self, contents: Iterable[Content]) -> None:
         self.content_add(contents)

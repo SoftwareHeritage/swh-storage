@@ -17,7 +17,7 @@ import yaml
 from swh.journal.client import EofBehavior, JournalClient
 from swh.journal.serializers import kafka_to_value, key_to_kafka, value_to_kafka
 from swh.journal.writer import JournalWriterInterface
-from swh.model.hashutil import MultiHash, hash_to_bytes, hash_to_hex
+from swh.model.hashutil import MultiHash, hash_to_bytes
 from swh.model.model import (
     Content,
     Directory,
@@ -26,6 +26,7 @@ from swh.model.model import (
     Release,
     Revision,
     RevisionType,
+    SkippedContent,
     Snapshot,
 )
 from swh.model.tests.swh_model_data import COMMITTERS, DATES, REVISIONS
@@ -211,36 +212,22 @@ def test_storage_replay_with_collision(
 
     # check the logs for the collision being properly detected
     nb_collisions = 0
-    actual_collision: Dict
     for record in caplog.records:
         logtext = record.getMessage()
         if "Collision detected:" in logtext:
             nb_collisions += 1
-            actual_collision = record.args["collision"]
 
-    assert nb_collisions == 1, "1 collision should be detected"
+    assert nb_collisions == 0, "No collision should be detected"
 
-    algo = "sha1"
-    assert actual_collision["algo"] == algo
-    expected_colliding_hash = hash_to_hex(DUPLICATE_CONTENTS[0].get_hash(algo))
-    assert actual_collision["hash"] == expected_colliding_hash
-
-    actual_colliding_hashes = actual_collision["objects"]
-    assert len(actual_colliding_hashes) == len(DUPLICATE_CONTENTS)
-    for content in DUPLICATE_CONTENTS:
-        expected_content_hashes = {
-            k: hash_to_hex(v) for k, v in content.hashes().items()
-        }
-        assert expected_content_hashes in actual_colliding_hashes
-
-    # all objects from the src should exists in the dst storage
+    # all objects from the src should exists in the dst storage, plus two more
     assert isinstance(src, InMemoryStorage)  # needed to help mypy
     assert isinstance(dst, InMemoryStorage)  # needed to help mypy
+
     check_replayed(src, dst, exclude=["contents"])
-    # but the dst has one content more (one of the 2 colliding ones)
+
     assert (
-        len(list(src._cql_runner._contents.iter_all()))
-        == len(list(dst._cql_runner._contents.iter_all())) - 1
+        len(list(dst._cql_runner._contents.iter_all()))
+        == len(list(src._cql_runner._contents.iter_all())) + 2
     )
 
 
@@ -313,10 +300,11 @@ def _check_replay_skipped_content(storage, replayer, topic):
     prefix = storage.journal_writer.journal._prefix
 
     for i, obj in enumerate(skipped_contents):
+        content = SkippedContent.from_dict(obj)
         producer.produce(
             topic=f"{prefix}.{topic}",
-            key=key_to_kafka({"sha1": obj["sha1"]}),
-            value=value_to_kafka(obj),
+            key=key_to_kafka(content.unique_key()),
+            value=value_to_kafka(content.to_dict()),
         )
     producer.flush()
 

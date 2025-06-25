@@ -61,7 +61,6 @@ from swh.model.model import (
 )
 from swh.model.swhids import CoreSWHID, ExtendedObjectType, ExtendedSWHID, ObjectType
 from swh.storage.exc import (
-    HashCollision,
     NonRetryableException,
     QueryTimeout,
     StorageArgumentException,
@@ -81,12 +80,7 @@ from swh.storage.interface import (
     SnapshotBranchByNameResponse,
 )
 from swh.storage.objstorage import ObjStorage
-from swh.storage.utils import (
-    extract_collision_hash,
-    get_partition_bounds_bytes,
-    map_optional,
-    now,
-)
+from swh.storage.utils import get_partition_bounds_bytes, map_optional, now
 from swh.storage.writer import JournalWriter
 
 from . import converters
@@ -218,7 +212,7 @@ def _get_paginated_sha1_partition(
 class Storage:
     """SWH storage datastore proxy, encompassing DB and object storage"""
 
-    current_version: int = 193
+    current_version: int = 194
 
     def __init__(
         self,
@@ -359,7 +353,7 @@ class Storage:
             return hash
         return tuple([hash[k] for k in keys])
 
-    def _content_add_metadata(self, db, cur, content):
+    def _content_add_metadata(self, db, cur, content) -> int:
         """Add content to the postgresql database but not the object storage."""
         # create temporary table for metadata injection
         db.mktemp("content", cur)
@@ -369,31 +363,9 @@ class Storage:
         )
 
         # move metadata in place
-        try:
-            db.content_add_from_temp(cur)
-        except psycopg.IntegrityError as e:
-            if e.diag.sqlstate == "23505" and e.diag.table_name == "content":
-                message_detail = e.diag.message_detail
-                if message_detail:
-                    hash_name, hash_id = extract_collision_hash(message_detail)
-                    collision_contents_hashes = [
-                        c.hashes() for c in content if c.get_hash(hash_name) == hash_id
-                    ]
-                else:
-                    constraint_to_hash_name = {
-                        "content_pkey": "sha1",
-                        "content_sha1_git_idx": "sha1_git",
-                        "content_sha256_idx": "sha256",
-                    }
-                    hash_name = constraint_to_hash_name.get(e.diag.constraint_name)
-                    hash_id = None
-                    collision_contents_hashes = None
-
-                raise HashCollision(
-                    hash_name, hash_id, collision_contents_hashes
-                ) from None
-            else:
-                raise
+        contents_added = db.content_add_from_temp(cur)
+        # TODO: detect hash collisions and send them to the journal?
+        return contents_added
 
     def content_add(self, content: List[Content]) -> Dict[str, int]:
         ctime = now()
@@ -407,23 +379,12 @@ class Storage:
         #    read from the objstorage before we finished writing it
         objstorage_summary = self.objstorage.content_add(contents)
 
-        with self.db() as db:
-            with db.transaction() as cur:
-                missing = set(
-                    self.content_missing(
-                        [c.to_dict() for c in contents],
-                        key_hash="sha1_git",
-                        db=db,
-                        cur=cur,
-                    )
-                )
-                contents = [c for c in contents if c.sha1_git in missing]
-
-                self.journal_writer.content_add(contents)
-                self._content_add_metadata(db, cur, contents)
+        self.journal_writer.content_add(contents)
+        with self.db() as db, db.transaction() as cur:
+            added = self._content_add_metadata(db, cur, contents)
 
         return {
-            "content:add": len(contents),
+            "content:add": added,
             "content:add:bytes": objstorage_summary["content:add:bytes"],
         }
 
@@ -445,22 +406,10 @@ class Storage:
     def content_add_metadata(
         self, content: List[Content], *, db: Db, cur=None
     ) -> Dict[str, int]:
-        missing = set(
-            self.content_missing(
-                [c.to_dict() for c in content],
-                key_hash="sha1_git",
-                db=db,
-                cur=cur,
-            )
-        )
-        contents = [c for c in content if c.sha1_git in missing]
+        self.journal_writer.content_add_metadata(content)
+        added = self._content_add_metadata(db, cur, content)
 
-        self.journal_writer.content_add_metadata(contents)
-        self._content_add_metadata(db, cur, contents)
-
-        return {
-            "content:add": len(contents),
-        }
+        return {"content:add": added}
 
     def content_get_data(self, content: Union[HashDict, Sha1]) -> Optional[bytes]:
         # FIXME: Make this method support slicing the `data`

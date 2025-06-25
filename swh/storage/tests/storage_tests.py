@@ -66,12 +66,7 @@ from swh.storage.interface import (
     StorageInterface,
 )
 from swh.storage.postgresql.storage import Storage as PostgreSQLStorage
-from swh.storage.utils import (
-    content_hex_hashes,
-    now,
-    remove_keys,
-    round_to_milliseconds,
-)
+from swh.storage.utils import now, remove_keys, round_to_milliseconds
 
 # list of hypothesis disabled health checks in some of the tests in TestStorage
 disabled_health_checks = []
@@ -207,8 +202,7 @@ class TestStorage:
         }
 
         assert (
-            swh_storage.content_get_data({"sha1": first_content.sha1})
-            == first_content.data
+            swh_storage.content_get_data(first_content.hashes()) == first_content.data
         )
 
         expected_cont = attr.evolve(first_content, data=None)
@@ -241,7 +235,9 @@ class TestStorage:
 
         expected_contents = [attr.evolve(content, data=None) for content in contents]
         assert (
-            swh_storage.content_get([content.sha1 for content in contents])
+            swh_storage.content_get(
+                [content.sha256 for content in contents], algo="sha256"
+            )
             == expected_contents
         )
         journal_contents = [
@@ -249,10 +245,22 @@ class TestStorage:
             for (obj_type, obj) in swh_storage.journal_writer.journal.objects
             if obj_type == "content"
         ]
-        assert len(journal_contents) == len(contents)
+
+        # PostgreSQL storage lets duplicate entries through to the journal. In
+        # practice this is not a problem as entries are filtered before being
+        # sent to storage, and deduplicated by kafka afterwards.
+        journal_has_duplicate = len(journal_contents) - len(contents)
+        assert journal_has_duplicate in (0, 1)
+
+        if journal_has_duplicate:
+            assert journal_contents[0].evolve(ctime=None) == journal_contents[1].evolve(
+                ctime=None
+            )
+            # Drop first duplicate object
+            journal_contents[:1] = []
+
         for obj, cont in zip(journal_contents, expected_contents):
-            obj = attr.evolve(obj, ctime=None)
-            assert obj == cont
+            assert obj.evolve(ctime=None) == cont
 
     def test_content_add__legacy(self, swh_storage, sample_data):
         """content_add() with a single sha1 as param instead of a dict"""
@@ -422,27 +430,19 @@ class TestStorage:
         assert len(swh_storage.content_find(cont.to_dict())) == 1
         assert len(swh_storage.content_find(cont2.to_dict())) == 1
 
-    @pytest.mark.parametrize("colliding_hash", ["sha1", "sha1_git"])
+    @pytest.mark.parametrize("colliding_hash", DEFAULT_ALGORITHMS)
     def test_content_add_collision(self, swh_storage, sample_data, colliding_hash):
-        cont1, cont1b = sample_data.colliding_contents[colliding_hash]
-        with pytest.raises(HashCollision) as cm:
-            swh_storage.content_add([cont1, cont1b])
+        contents = sample_data.colliding_contents[colliding_hash]
 
-        exc = cm.value
-        actual_algo = exc.algo
-        assert actual_algo == colliding_hash
-        actual_id = exc.hash_id
-        assert actual_id == getattr(cont1, actual_algo).hex()
-        collisions = exc.args[2]
-        assert len(collisions) == 2
-        assert collisions == [
-            content_hex_hashes(cont1.hashes()),
-            content_hex_hashes(cont1b.hashes()),
-        ]
-        assert exc.colliding_content_hashes() == [
-            cont1.hashes(),
-            cont1b.hashes(),
-        ]
+        res = swh_storage.content_add(contents)
+        assert res["content:add"] == len(contents)
+        if colliding_hash == "sha1":
+            assert res["content:add:bytes"] == contents[0].length
+        else:
+            assert res["content:add:bytes"] == 2 * contents[0].length
+
+        for content in contents:
+            assert swh_storage.content_find(content.hashes())
 
     def test_content_add_duplicate(self, swh_storage, sample_data):
         cont = sample_data.content
@@ -497,10 +497,19 @@ class TestStorage:
             for (obj_type, obj) in swh_storage.journal_writer.journal.objects
             if obj_type == "content"
         ]
-        assert len(journal_contents) == len(contents)
+        # PostgreSQL storage lets duplicate entries through to the journal. In
+        # practice this is not a problem as entries are filtered before being
+        # sent to storage, and deduplicated by kafka afterwards.
+        journal_has_duplicate = len(journal_contents) - len(contents)
+        assert journal_has_duplicate in (0, 1)
+
+        if journal_has_duplicate:
+            assert journal_contents[0] == journal_contents[1]
+            # Drop first duplicate object
+            journal_contents[:1] = []
+
         for obj, cont in zip(journal_contents, contents):
-            obj = attr.evolve(obj, ctime=None)
-            assert obj == cont
+            assert obj.evolve(ctime=None) == cont
 
     def test_content_add_metadata_different_input(self, swh_storage, sample_data):
         contents = sample_data.contents[:2]
@@ -516,26 +525,13 @@ class TestStorage:
     def test_content_add_metadata_collision(
         self, swh_storage, sample_data, colliding_hash
     ):
-        cont1, cont1b = sample_data.colliding_contents[colliding_hash]
+        contents = sample_data.colliding_contents[colliding_hash]
 
-        with pytest.raises(HashCollision) as cm:
-            swh_storage.content_add_metadata([cont1, cont1b])
+        res = swh_storage.content_add_metadata(contents)
+        assert res == {"content:add": len(contents)}
 
-        exc = cm.value
-        actual_algo = exc.algo
-        assert actual_algo == colliding_hash
-        actual_id = exc.hash_id
-        assert actual_id == getattr(cont1, actual_algo).hex()
-        collisions = exc.args[2]
-        assert len(collisions) == 2
-        assert collisions == [
-            content_hex_hashes(cont1.hashes()),
-            content_hex_hashes(cont1b.hashes()),
-        ]
-        assert exc.colliding_content_hashes() == [
-            cont1.hashes(),
-            cont1b.hashes(),
-        ]
+        for content in contents:
+            assert swh_storage.content_find(content.hashes())
 
     def test_content_add_objstorage_first(
         self, swh_storage, swh_storage_backend, sample_data

@@ -133,22 +133,6 @@ end
 $$;
 
 
--- add tmp_content entries to content, skipping duplicates
---
--- operates in bulk: 0. swh_mktemp(content), 1. COPY to tmp_content,
--- 2. call this function
-create or replace function swh_content_add()
-    returns void
-    language plpgsql
-as $$
-begin
-    insert into content (sha1, sha1_git, sha256, blake2s256, length, status, ctime)
-        select distinct sha1, sha1_git, sha256, blake2s256, length, status, ctime from tmp_content;
-    return;
-end
-$$;
-
-
 -- add tmp_skipped_content entries to skipped_content, skipping duplicates
 --
 -- operates in bulk: 0. swh_mktemp(skipped_content), 1. COPY to tmp_skipped_content,

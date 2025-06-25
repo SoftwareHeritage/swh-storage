@@ -247,7 +247,7 @@ class TestCassandraStorage(_TestStorage):
 
         actual_result = swh_storage.content_add([cont2])
 
-        assert (cgtfsa_called, cgft_called) == (2, 2)
+        assert (cgtfsa_called, cgft_called) == (4, 4)
 
         assert actual_result == {
             "content:add": 1,

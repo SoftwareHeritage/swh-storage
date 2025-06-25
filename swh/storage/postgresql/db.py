@@ -148,10 +148,6 @@ class Db(BaseDb):
     def mktemp_snapshot_branch(self, cur=None):
         pass
 
-    @stored_procedure("swh_content_add")
-    def content_add_from_temp(self, cur=None):
-        pass
-
     @stored_procedure("swh_directory_add")
     def directory_add_from_temp(self, cur=None):
         pass
@@ -182,16 +178,25 @@ class Db(BaseDb):
             """select swh_content_update(ARRAY[%s] :: text[])""" % keys_to_update
         )
 
-    content_get_metadata_keys = [
-        "sha1",
-        "sha1_git",
-        "sha256",
-        "blake2s256",
+    content_hash_keys = ["sha1", "sha1_git", "sha256", "blake2s256"]
+
+    content_get_metadata_keys = content_hash_keys + [
         "length",
         "status",
     ]
 
     content_add_keys = content_get_metadata_keys + ["ctime"]
+
+    def content_add_from_temp(self, cur=None) -> int:
+        add_columns = ", ".join(self.content_add_keys)
+        conflict_columns = ", ".join(self.content_hash_keys)
+        cur = self._cursor(cur)
+        cur.execute(
+            f"""insert into content ({add_columns})
+            select distinct {add_columns} from tmp_content
+            on conflict ({conflict_columns}) do nothing"""
+        )
+        return cur.rowcount
 
     skipped_content_keys = [
         "sha1",
@@ -228,8 +233,6 @@ class Db(BaseDb):
         )
         cur.execute(query, (start, end, limit))
         yield from cur
-
-    content_hash_keys = ["sha1", "sha1_git", "sha256", "blake2s256"]
 
     def content_missing_from_list(self, contents, cur=None):
         cur = self._cursor(cur)
