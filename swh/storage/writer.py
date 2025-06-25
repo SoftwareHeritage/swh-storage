@@ -118,3 +118,8 @@ class JournalWriter:
 
     def extid_add(self, extids: Iterable[ExtID]) -> None:
         self.write_additions("extid", extids)
+
+    def flush(self) -> None:
+        """Ensure journal writes are flushed"""
+        if self.journal:
+            self.journal.flush()

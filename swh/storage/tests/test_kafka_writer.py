@@ -88,8 +88,7 @@ def test_storage_direct_writer(kafka_prefix: str, kafka_server, consumer: Consum
             expected_messages += len(objs)
         else:
             assert False, obj_type
-    assert storage.journal_writer.journal is not None
-    storage.journal_writer.journal.flush()
+    storage.journal_writer.flush()
 
     existing_topics = set(
         topic
@@ -121,8 +120,7 @@ def test_storage_direct_writer_anonymized(
         method = getattr(storage, f"{obj_type}_add")
         method(objs)
         expected_messages += len(objs)
-    assert storage.journal_writer.journal is not None
-    storage.journal_writer.journal.flush()
+    storage.journal_writer.flush()
 
     existing_topics = set(
         topic
