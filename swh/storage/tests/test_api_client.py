@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2022  The Software Heritage developers
+# Copyright (C) 2015-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -13,7 +13,7 @@ from swh.model.model import Origin
 from swh.model.swhids import ExtendedSWHID
 from swh.storage import get_storage
 import swh.storage.api.server as server
-from swh.storage.exc import BlockedOriginException, MaskedObjectException
+from swh.storage.exc import BlockedOriginException, MaskedObjectException, QueryTimeout
 from swh.storage.proxies.blocking.db import BlockingState, BlockingStatus
 from swh.storage.proxies.masking.db import MaskedState, MaskedStatus
 from swh.storage.tests.storage_tests import (
@@ -115,6 +115,20 @@ class TestStorageApi(_TestStorage):
             app_server.storage._cql_runner,
             "revision_get",
             side_effect=psycopg.errors.AdminShutdown("cluster is shutting down"),
+        )
+        with pytest.raises(RemoteException) as excinfo:
+            swh_storage.revision_get(["\x01" * 20])
+        assert isinstance(excinfo.value, TransientRemoteException)
+
+    def test_query_timeout_exception(self, app_server, swh_storage, mocker):
+        """Checks the client re-raises as a :exc:`TransientRemoteException`
+        rather than the base :exc:`RemoteException`; so the retrying proxy
+        retries for longer."""
+        assert swh_storage.revision_get(["\x01" * 20]) == [None]
+        mocker.patch.object(
+            app_server.storage._cql_runner,
+            "revision_get",
+            side_effect=QueryTimeout("operation timeout"),
         )
         with pytest.raises(RemoteException) as excinfo:
             swh_storage.revision_get(["\x01" * 20])

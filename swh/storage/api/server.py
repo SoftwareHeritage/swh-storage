@@ -14,7 +14,7 @@ from swh.core.api import encode_data_server as encode_data
 from swh.core.api import error_handler
 from swh.storage import get_storage as get_swhstorage
 
-from ..exc import NonRetryableException
+from ..exc import NonRetryableException, QueryTimeout
 from ..interface import StorageInterface
 from ..metrics import send_metric, timed
 from .serializers import DECODERS, ENCODERS
@@ -92,6 +92,13 @@ app = StorageServerApp(
     __name__, backend_class=StorageInterface, backend_factory=get_storage
 )
 storage = None
+
+
+@app.errorhandler(QueryTimeout)
+def query_timeout_handler(exception):
+    """Return 503 instead of 500, telling clients this is a transient
+    error and they should retry."""
+    return error_handler(exception, encode_data, status_code=503)
 
 
 @app.errorhandler(NonRetryableException)
