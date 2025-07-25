@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2021 The Software Heritage developers
+# Copyright (C) 2019-2025 The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -6,7 +6,8 @@
 import logging
 import traceback
 
-from tenacity import RetryCallState, retry, stop_after_attempt, wait_random_exponential
+from tenacity import RetryCallState, retry, wait_random_exponential
+from tenacity.stop import stop_base
 from tenacity.wait import wait_base
 
 from swh.core.api import TransientRemoteException
@@ -16,8 +17,10 @@ from swh.storage.interface import StorageInterface
 
 logger = logging.getLogger(__name__)
 
+RETRY_MAX_ATTEMPTS = 3
 
-def should_retry_adding(retry_state: RetryCallState) -> bool:
+
+def should_retry(retry_state: RetryCallState) -> bool:
     """Retry if the error/exception is (probably) not about a caller error"""
     attempt = retry_state.outcome
     assert attempt
@@ -67,10 +70,25 @@ class wait_transient_exceptions(wait_base):
             return 0.0
 
 
+class stop_after_attempt_transient_exceptions(stop_base):
+    """Retry twice the number of max attempts when servers return HTTP 503."""
+
+    def __init__(self, max_attempts: int) -> None:
+        self.max_attempts = max_attempts
+
+    def __call__(self, retry_state: RetryCallState) -> bool:
+        attempt = retry_state.outcome
+        assert attempt
+        if isinstance(attempt.exception(), TransientRemoteException):
+            return retry_state.attempt_number >= (self.max_attempts * 2)
+        else:
+            return retry_state.attempt_number >= self.max_attempts
+
+
 swh_retry = retry(
-    retry=should_retry_adding,
+    retry=should_retry,
     wait=wait_random_exponential(multiplier=1, max=10) + wait_transient_exceptions(10),
-    stop=stop_after_attempt(3),
+    stop=stop_after_attempt_transient_exceptions(RETRY_MAX_ATTEMPTS),
     reraise=True,
 )
 

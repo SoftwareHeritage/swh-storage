@@ -12,6 +12,7 @@ import pytest
 from swh.core.api import TransientRemoteException
 from swh.objstorage.interface import objid_from_dict
 from swh.storage.exc import HashCollision, StorageArgumentException
+from swh.storage.proxies.retry import RETRY_MAX_ATTEMPTS
 from swh.storage.utils import now
 
 
@@ -105,12 +106,12 @@ def test_retrying_proxy_storage_content_add_with_retry_of_transient(
     """Multiple retries for hash collision and psycopg error but finally ok
     after many attempts"""
     mock_memory = mocker.patch("swh.storage.in_memory.InMemoryStorage.content_add")
-    mock_memory.side_effect = [
-        TransientRemoteException("temporary failure"),
-        TransientRemoteException("temporary failure"),
-        # ok then!
-        {"content:add": 1},
-    ]
+    transient_exc = TransientRemoteException("temporary failure")
+    # transient are retried up to twice the number of max attempts
+    max_attempts = RETRY_MAX_ATTEMPTS * 2
+    content_add_side_effect = [transient_exc] * (max_attempts - 1)
+    content_add_side_effect.append({"content:add": 1})  # ok then!
+    mock_memory.side_effect = content_add_side_effect
 
     sample_content = sample_data.content
 
@@ -121,15 +122,9 @@ def test_retrying_proxy_storage_content_add_with_retry_of_transient(
     s = swh_storage.content_add([sample_content])
     assert s == {"content:add": 1}
 
-    mock_memory.assert_has_calls(
-        [
-            call([sample_content]),
-            call([sample_content]),
-            call([sample_content]),
-        ]
-    )
+    mock_memory.assert_has_calls([call([sample_content])] * max_attempts)
 
-    assert len(sleep.mock_calls) == 2
+    assert len(sleep.mock_calls) == (max_attempts - 1)
     (_, args1, _) = sleep.mock_calls[0]
     (_, args2, _) = sleep.mock_calls[1]
     assert 10 < args1[0] < 11
