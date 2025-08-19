@@ -10,7 +10,7 @@ from typing import Dict, Tuple
 
 import attr
 
-from swh.model.hashutil import DEFAULT_ALGORITHMS
+from swh.model.hashutil import DEFAULT_ALGORITHMS, LiteralHashAlgo
 from swh.model.model import (
     MetadataAuthority,
     MetadataAuthorityType,
@@ -89,9 +89,9 @@ def release_from_db(db_release: ReleaseRow) -> Release:
     )
 
 
-def row_to_content_hashes(row: ReleaseRow) -> Dict[str, bytes]:
+def row_to_content_hashes(row: ReleaseRow) -> Dict[LiteralHashAlgo, bytes]:
     """Convert cassandra row to a content hashes"""
-    hashes = {}
+    hashes: dict[LiteralHashAlgo, bytes] = {}
     for algo in DEFAULT_ALGORITHMS:
         hashes[algo] = getattr(row, algo)
     return hashes

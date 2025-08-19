@@ -32,7 +32,7 @@ from packaging.version import Version
 
 from swh.core.api.classes import stream_results
 from swh.core.api.serializers import msgpack_dumps, msgpack_loads
-from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_hex
+from swh.model.hashutil import DEFAULT_ALGORITHMS, LiteralHashAlgo, hash_to_hex
 from swh.model.model import (
     Content,
     Directory,
@@ -549,7 +549,11 @@ class CassandraStorage:
             # since we need to check using dict inclusion instead of hash+equality)
             for missing_content in contents_with_missing_hashes:
                 # Pick any of the algorithms provided in missing_content
-                algo = next(algo for (algo, hash_) in missing_content.items() if hash_)
+                algo = next(
+                    cast(LiteralHashAlgo, algo)
+                    for (algo, hash_) in missing_content.items()
+                    if hash_
+                )
 
                 # Get the list of found_contents that match this hash in the
                 # missing_content. (its length is at most 1, unless there is a
