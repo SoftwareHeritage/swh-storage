@@ -1,4 +1,4 @@
-# Copyright (C) 2018-2022  The Software Heritage developers
+# Copyright (C) 2018-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -161,15 +161,18 @@ class RevisionsWalker(metaclass=_RevisionsWalkerMetaClass):
     def _get_rev(self, rev_id: Sha1Git) -> Optional[Dict]:
         rev = self._revs.get(rev_id)
         if rev is None:
-            # cache some revisions in advance to avoid sending too much
-            # requests to storage and thus speedup the revisions walk
-            for rev in self.storage.revision_log(
-                [rev_id], limit=100, ignore_displayname=self.ignore_displayname
-            ):
-                # revision data is missing, returned history will be truncated
-                if rev is None:
-                    continue
-                self._revs[rev["id"]] = rev
+            rev_obj = self.storage.revision_get(
+                [rev_id], ignore_displayname=self.ignore_displayname
+            )[0]
+            if rev_obj is not None:
+                self._revs[rev_obj.id] = rev_obj.to_dict()
+                # prefetch parent revisions to speedup the revisions walk
+                for parent in self.storage.revision_get(
+                    list(set(rev_obj.parents) - self._revs.keys()),
+                    ignore_displayname=self.ignore_displayname,
+                ):
+                    if parent is not None:
+                        self._revs[parent.id] = parent.to_dict()
         return self._revs.get(rev_id)
 
     def missing_revisions(self) -> Set[Sha1Git]:
