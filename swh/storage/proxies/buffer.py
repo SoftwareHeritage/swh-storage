@@ -5,7 +5,7 @@
 
 from functools import partial
 import logging
-from typing import Dict, Iterable, Literal, Mapping, Sequence, Tuple, cast
+from typing import Dict, Iterable, List, Literal, Mapping, Sequence, Tuple, cast
 import warnings
 
 from swh.core.utils import grouper
@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 LObjectType = Literal[
     "raw_extrinsic_metadata",
     "content",
+    "content_metadata",
     "skipped_content",
     "directory",
     "revision",
@@ -38,6 +39,7 @@ LObjectType = Literal[
 OBJECT_TYPES: Tuple[LObjectType, ...] = (
     "raw_extrinsic_metadata",
     "content",
+    "content_metadata",
     "skipped_content",
     "directory",
     "revision",
@@ -48,6 +50,7 @@ OBJECT_TYPES: Tuple[LObjectType, ...] = (
 
 DEFAULT_BUFFER_THRESHOLDS: Dict[str, int] = {
     "content": 10000,
+    "content_metadata": 10000,
     "content_bytes": 100 * 1024 * 1024,
     "skipped_content": 10000,
     "directory": 25000,
@@ -220,6 +223,17 @@ class BufferingProxyStorage:
 
         return stats
 
+    def content_add_metadata(self, contents: Sequence[Content]) -> Dict[str, int]:
+        """Push content metadata (content without the payload) to write to the
+        storage in the buffer.
+        """
+        stats = self.object_add(
+            contents,
+            object_type="content_metadata",
+            keys=["sha1", "sha1_git", "sha256", "blake2s256"],
+        )
+        return stats
+
     def skipped_content_add(self, contents: Sequence[SkippedContent]) -> Dict[str, int]:
         return self.object_add(
             contents,
@@ -361,8 +375,12 @@ class BufferingProxyStorage:
 
             batches = grouper(buffer_.values(), n=self._buffer_thresholds[object_type])
             for batch in batches:
-                add_fn = getattr(self.storage, "%s_add" % object_type)
-                stats = add_fn(list(batch))
+                objs = list(batch)
+                if object_type == "content_metadata":
+                    stats = self.storage.content_add_metadata(cast(List[Content], objs))
+                else:
+                    add_fn = getattr(self.storage, "%s_add" % object_type)
+                    stats = add_fn(objs)
                 update_summary(stats)
 
         # Flush underlying storage

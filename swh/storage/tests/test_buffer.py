@@ -7,6 +7,7 @@ from collections import Counter
 from typing import Optional
 from unittest.mock import Mock
 
+import attr
 import pytest
 
 from swh.storage import get_storage
@@ -15,6 +16,7 @@ from swh.storage.proxies.buffer import (
     estimate_release_size,
     estimate_revision_size,
 )
+from swh.storage.utils import now
 
 
 def get_storage_with_buffer_config(**buffer_config) -> BufferingProxyStorage:
@@ -95,6 +97,33 @@ def test_buffering_proxy_storage_content_deduplicate(sample_data) -> None:
     assert s == {
         "content:add": 1 + 1,
         "content:add:bytes": contents[0].length + contents[1].length,
+    }
+
+    missing_contents = storage.content_missing([c.to_dict() for c in contents])
+    assert list(missing_contents) == []
+
+    s = storage.flush()
+    assert s == {}
+
+
+def test_buffering_proxy_storage_content_metadata_deduplicate(sample_data) -> None:
+    contents = [attr.evolve(cnt, ctime=now()) for cnt in sample_data.contents[:2]]
+
+    storage = get_storage_with_buffer_config(
+        min_batch_size={
+            "content_metadata": 2,
+        }
+    )
+
+    s = storage.content_add_metadata([contents[0], contents[0]])
+    assert s == {}
+
+    s = storage.content_add_metadata([contents[0]])
+    assert s == {}
+
+    s = storage.content_add_metadata([contents[1]])
+    assert s == {
+        "content:add": 1 + 1,
     }
 
     missing_contents = storage.content_missing([c.to_dict() for c in contents])
