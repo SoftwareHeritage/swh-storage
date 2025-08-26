@@ -6,6 +6,7 @@
 from collections import Counter
 from contextlib import contextmanager
 import functools
+import random
 from unittest.mock import patch
 
 import attr
@@ -462,3 +463,34 @@ def test_tenacious_proxy_storage_rate_limit(
         assert s.get(f"{object_type}:add:errors", 0) == 2
         in_memory.reset()
         tenacious.reset()
+
+
+def test_tenacious_proxy_storage_handle_hashcollisions(
+    swh_storage_postgresql_backend_config,
+):
+    # we cannot easily use the in-memory backend here (aka a Cassandra storage
+    # using an in-memory cql backend) because it won't give reliable stats
+    # results, due to its non-atomic nature.
+    storage_config = {
+        "cls": "pipeline",
+        "steps": [
+            {"cls": "tenacious"},
+            swh_storage_postgresql_backend_config,
+        ],
+    }
+
+    storage = get_storage(**storage_config)
+
+    contents = [
+        attr.evolve(cnt, ctime=now()) for cnt in TEST_OBJECTS[Content.object_type]
+    ]
+    bad_contents = [attr.evolve(cnt, sha256=b"\x00" * 32) for cnt in contents]
+    insert_contents = contents + bad_contents[:3]
+    random.shuffle(insert_contents)
+
+    s = storage.content_add_metadata(insert_contents)
+    assert s == {"content:add": 17, "content:add:errors": 6}
+    s = storage.content_add_metadata(contents)
+    assert s == {"content:add": 3}
+    s = storage.content_add_metadata(bad_contents)
+    assert s == {"content:add": 0, "content:add:errors": 20}
