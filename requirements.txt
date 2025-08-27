@@ -5,6 +5,8 @@ deprecated
 flask
 iso8601
 mypy_extensions
+# To remove once https://github.com/datastax/python-driver/pull/1242 is merged
+pyasyncore ; python_version > "3.12"
 psycopg
 psycopg_pool
 redis

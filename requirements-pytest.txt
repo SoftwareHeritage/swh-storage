@@ -1,5 +1,7 @@
 # Requirements for swh.storage.pytest_plugin
 cassandra-driver >= 3.19.0, != 3.21.0
+# To remove once https://github.com/datastax/python-driver/pull/1242 is merged
+pyasyncore ; python_version > "3.12"
 
 pytest >= 8.1
 pytest-postgresql
