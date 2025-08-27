@@ -164,7 +164,10 @@ def swh_storage_cassandra_cluster(tmpdir_factory, tmp_path_factory, session_uuid
         env = {
             "MAX_HEAP_SIZE": "300M",
             "HEAP_NEWSIZE": "50M",
-            "JVM_OPTS": "-Xlog:gc=error:file=%s/gc.log" % cassandra_log,
+            "JVM_OPTS": (
+                f"-Xlog:gc=error:file={cassandra_log}/gc.log "
+                "-Djava.security.manager=allow"
+            ),
             "CASSANDRA_LOG_DIR": cassandra_log,
         }
         if "JAVA_HOME" in os.environ:
