@@ -1526,6 +1526,28 @@ class TestStorage:
 
         assert swh_storage.revision_get([revision.id]) == [revision]
 
+    def test_revision_add_with_metadata(self, swh_storage, sample_data, caplog):
+        # This test will have to be removed when swh-model actually drops the
+        # metadata field. Using rev2 because the first is masked in
+        # test_proxy_masking, so the test would not pass.
+        revision = sample_data.revision2
+        revision_w_md = attr.evolve(revision, metadata={"foo": "bar"})
+
+        actual_result = swh_storage.revision_add([revision_w_md])
+        assert actual_result == {"revision:add": 1}
+
+        rev_from_storage = swh_storage.revision_get([revision_w_md.id])[0]
+        assert rev_from_storage.metadata is None
+        for record in caplog.records:
+            if (
+                record.getMessage()
+                == "Revision should not have a metadata field any more; it will be ignored"
+            ):
+                assert record.levelname == "WARNING"
+                break
+        else:
+            assert False, "Missing warning about metadata being ignored"
+
     def test_revision_add_no_seconds_rounding(self, swh_storage, sample_data):
         revision = sample_data.revision
 
@@ -1574,7 +1596,6 @@ class TestStorage:
             attr.evolve(
                 revision,
                 synthetic=False,
-                metadata=None,
                 author=(
                     None
                     if revision.author is None
@@ -1857,8 +1878,6 @@ class TestStorage:
             node = None
             if revision.extra_headers:
                 node = dict(revision.extra_headers).get(b"node")
-            if node is None and revision.metadata:
-                node = hash_to_bytes(revision.metadata.get("node"))
             return node
 
         swhids = [
@@ -2163,7 +2182,6 @@ class TestStorage:
             attr.evolve(
                 release,
                 synthetic=False,
-                metadata=None,
                 author=(
                     Person.from_fullname(release.author.fullname)
                     if release.author
@@ -2944,7 +2962,6 @@ class TestStorage:
             type=ov1.type,
             status="full",
             snapshot=sample_data.snapshot.id,
-            metadata={},
         )
 
         swh_storage.origin_visit_status_add([ovs2, ovs3])
@@ -3567,7 +3584,6 @@ class TestStorage:
             type=ov2.type,
             status="ongoing",
             snapshot=None,
-            metadata={"intrinsic": "something"},
         )
         stats = swh_storage.origin_visit_status_add([visit_status1, visit_status2])
         assert stats == {"origin_visit_status:add": 2}
@@ -3658,6 +3674,54 @@ class TestStorage:
 
         for obj in expected_objects:
             assert obj in actual_objects
+
+    def test_origin_visit_status_add_with_metadata(
+        self, swh_storage, sample_data, caplog
+    ):
+        # this test will have to be removed when swh-model actually drops the metadata field
+        origin = sample_data.origins[1]
+        swh_storage.origin_add([origin])
+
+        (ov,) = swh_storage.origin_visit_add(
+            [
+                OriginVisit(
+                    origin=origin.url,
+                    date=sample_data.date_visit1,
+                    type=sample_data.type_visit1,
+                ),
+            ]
+        )
+
+        ovs = OriginVisitStatus(
+            origin=ov.origin,
+            visit=ov.visit,
+            date=sample_data.date_visit1,
+            type=ov.type,
+            status="created",
+            snapshot=None,
+        )
+        ovs_w_md = attr.evolve(ovs, metadata={"foo": "bar"})
+
+        stats = swh_storage.origin_visit_status_add(
+            [
+                ovs_w_md,
+            ]
+        )
+        assert stats == {"origin_visit_status:add": 1}
+
+        ovs_from_storage = swh_storage.origin_visit_status_get(
+            origin=origin.url, visit=ov.visit
+        ).results[0]
+        assert ovs_from_storage.metadata is None
+        for record in caplog.records:
+            if record.getMessage() == (
+                "OriginVisitStatus should not have a metadata field any more; "
+                "it will be ignored"
+            ):
+                assert record.levelname == "WARNING"
+                break
+        else:
+            assert False, "Missing warning about metadata being ignored"
 
     def _setup_origin_visit_tests_data(self, swh_storage, sample_data):
         origin = sample_data.origin
@@ -3814,12 +3878,6 @@ class TestStorage:
         )
         swh_storage.origin_visit_add([visit2, visit3])
 
-        # when
-        visit1_metadata = {
-            "contents": 42,
-            "directories": 22,
-        }
-
         swh_storage.origin_visit_status_add(
             [
                 OriginVisitStatus(
@@ -3828,7 +3886,6 @@ class TestStorage:
                     date=now(),
                     status="full",
                     snapshot=snapshot.id,
-                    metadata=visit1_metadata,
                 )
             ]
         )
@@ -4306,7 +4363,6 @@ class TestStorage:
             type=ov2.type,
             status="full",
             snapshot=snapshot.id,
-            metadata={"something": "wicked"},
         )
 
         swh_storage.origin_visit_status_add([ovs1, ovs2, ovs3, ovs4])
@@ -4425,7 +4481,6 @@ class TestStorage:
                 "visit": ov1.visit,
                 "status": "created",
                 "snapshot": None,
-                "metadata": None,
             }
         )
         ovs2 = OriginVisitStatus.from_dict(
@@ -4435,7 +4490,6 @@ class TestStorage:
                 "type": ov1.type,
                 "visit": ov1.visit,
                 "status": "full",
-                "metadata": None,
                 "snapshot": empty_snapshot.id,
             }
         )

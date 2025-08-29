@@ -209,8 +209,6 @@ class RevisionRow(BaseRow):
     committer: Person
     synthetic: bool
     """true iff revision has been created by Software Heritage"""
-    metadata: str
-    """extra metadata as JSON(tarball checksums, etc...)"""
     extra_headers: dict
     """extra commit information as (tuple(key, value), ...)"""
     raw_manifest: Optional[bytes]
@@ -313,7 +311,6 @@ class OriginVisitStatusRow(BaseRow):
     date: datetime.datetime
     type: str
     status: str
-    metadata: str
     snapshot: bytes = dataclasses.field(metadata={"fk": ["snapshot.id"]})
 
     @classmethod

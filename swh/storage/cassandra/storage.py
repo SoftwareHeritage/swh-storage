@@ -874,6 +874,12 @@ class CassandraStorage:
             to_add = {r.id: r for r in revisions}.values()
             missing = self.revision_missing([rev.id for rev in to_add])
             revisions = [rev for rev in revisions if rev.id in missing]
+
+        if any([getattr(revision, "metadata") for revision in revisions]):
+            logger.warning(
+                "Revision should not have a metadata field any more; it will be ignored"
+            )
+
         self.journal_writer.revision_add(revisions)
 
         for revision in revisions:
@@ -1465,6 +1471,12 @@ class CassandraStorage:
                     f"of origin {visit_status.origin}"
                 )
             visit_status = attr.evolve(visit_status, type=visit_row.type)
+
+        if getattr(visit_status, "metadata"):
+            logger.warning(
+                "OriginVisitStatus should not have a metadata field any more; "
+                "it will be ignored"
+            )
 
         self.journal_writer.origin_visit_status_add([visit_status])
         self._cql_runner.origin_visit_status_add_one(

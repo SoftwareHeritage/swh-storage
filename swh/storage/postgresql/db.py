@@ -550,7 +550,6 @@ class Db(BaseDb):
         "committer_fullname",
         "committer_name",
         "committer_email",
-        "metadata",
         "synthetic",
         "extra_headers",
         "raw_manifest",
@@ -990,7 +989,6 @@ class Db(BaseDb):
         "type",
         "status",
         "snapshot",
-        "metadata",
     ]
 
     def origin_visit_status_add(
@@ -998,19 +996,19 @@ class Db(BaseDb):
     ) -> None:
         """Add new origin visit status"""
         assert self.origin_visit_status_cols[0] == "origin"
-        assert self.origin_visit_status_cols[-1] == "metadata"
-        cols = self.origin_visit_status_cols[1:-1]
+        cols = self.origin_visit_status_cols[1:]
         cur = self._cursor(cur)
-        cur.execute(
+        sql_stm = (
             f"WITH origin_id as (select id from origin where url=%s) "
             f"INSERT INTO origin_visit_status "
-            f"(origin, {', '.join(cols)}, metadata) "
+            f"(origin, {', '.join(cols)}) "
             f"VALUES ((select id from origin_id), "
-            f"{', '.join(['%s'] * len(cols))}, %s) "
-            f"ON CONFLICT (origin, visit, date) do nothing",
-            [visit_status.origin]
-            + [getattr(visit_status, key) for key in cols]
-            + [jsonize(visit_status.metadata)],
+            f"{', '.join(['%s'] * len(cols))}) "
+            f"ON CONFLICT (origin, visit, date) do nothing"
+        )
+        cur.execute(
+            sql_stm,
+            [visit_status.origin] + [getattr(visit_status, key) for key in cols],
         )
 
     origin_visit_cols = ["origin", "visit", "date", "type"]
@@ -1034,7 +1032,6 @@ class Db(BaseDb):
         "date",
         "type",
         "status",
-        "metadata",
         "snapshot",
     ]
     origin_visit_select_cols = [
@@ -1044,7 +1041,6 @@ class Db(BaseDb):
         "ov.type AS type",
         "ovs.status",
         "ovs.snapshot",
-        "ovs.metadata",
     ]
 
     origin_visit_status_select_cols = [
@@ -1054,7 +1050,6 @@ class Db(BaseDb):
         "ovs.type AS type",
         "ovs.status",
         "ovs.snapshot",
-        "ovs.metadata",
     ]
 
     def _make_origin_visit_status(

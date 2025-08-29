@@ -124,16 +124,25 @@ def test_schema_matches_model():
         expected_lines.append(rf" PRIMARY KEY \(\({partition_key}\){clustering_key}\)")
         expected_lines.append(r"\) WITH")
 
+        statement = statements[table_name]
+        actual_lines = statement.split("\n")
+
         if table_name == "origin_visit_status":
             # we need to special-case this one
             expected_lines.append(r" CLUSTERING ORDER BY \(visit DESC, date DESC\)")
             expected_lines.append(r" AND comment = '.*'")
+            # remove the metadata field, it's about to leave but the column
+            # still exists in the table for now
+            actual_lines = [line for line in actual_lines if line != " metadata text,"]
         else:
+            if table_name == "revision":
+                # remove the metadata field, it's about to leave but the column
+                # still exists in the table for now
+                actual_lines = [
+                    line for line in actual_lines if line != " metadata text,"
+                ]
             expected_lines.append(r" comment = '.*'")
         expected_lines.append(r" {table_options};")
-
-        statement = statements[table_name]
-        actual_lines = statement.split("\n")
 
         mismatches.extend(
             (table_name, expected_line, actual_line)

@@ -68,11 +68,12 @@ object_converter_fn = OBJECT_CONVERTERS
 
 
 OBJECT_FIXERS = {
-    # drop the metadata field from the revision (if any); this field is
+    # drop the metadata field from the revision or visit status (if any); this field is
     # about to be dropped from the data model (in favor of
     # raw_extrinsic_metadata) and there can be bogus values in the existing
     # journal (metadata with \0000 in it)
     Revision.object_type: partial(remove_keys, keys=("metadata",)),
+    OriginVisitStatus.object_type: partial(remove_keys, keys=("metadata",)),
 }
 
 

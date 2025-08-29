@@ -117,7 +117,6 @@ COLUMNS = {
         "type",
         "snapshot",
         "status",
-        "metadata",
     ],
     RawExtrinsicMetadata.object_type: [
         "raw_extrinsic_metadata.type",
@@ -147,7 +146,6 @@ COLUMNS = {
         "directory",
         "message",
         "synthetic",
-        "metadata",
         "extra_headers",
         (
             "array(select parent_id::bytea from revision_history rh "

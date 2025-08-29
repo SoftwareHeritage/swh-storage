@@ -187,7 +187,6 @@ def revision_to_db(revision: Revision) -> Dict[str, Any]:
         "type": revision.type.value,
         "directory": revision.directory,
         "message": revision.message,
-        "metadata": None if revision.metadata is None else dict(revision.metadata),
         "synthetic": revision.synthetic,
         "extra_headers": revision.extra_headers,
         "raw_manifest": revision.raw_manifest,
@@ -253,14 +252,7 @@ def db_to_revision(db_revision: Dict[str, Any]) -> Revision:
             if parent:
                 parents.append(parent)
 
-    metadata = db_revision["metadata"]
     extra_headers = db_revision["extra_headers"]
-    if not extra_headers:
-        if metadata and "extra_headers" in metadata:
-            extra_headers = db_to_git_headers(metadata.pop("extra_headers"))
-        else:
-            # For older versions of the database that were not migrated to schema v161
-            extra_headers = ()
 
     return Revision(
         id=db_revision["id"],
@@ -271,7 +263,6 @@ def db_to_revision(db_revision: Dict[str, Any]) -> Revision:
         type=RevisionType(db_revision["type"]),
         directory=db_revision["directory"],
         message=db_revision["message"],
-        metadata=metadata,
         synthetic=db_revision["synthetic"],
         extra_headers=extra_headers,
         parents=tuple(parents),

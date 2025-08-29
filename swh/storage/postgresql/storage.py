@@ -840,6 +840,10 @@ class Storage:
             revision for revision in revisions if revision.id in revisions_missing
         ]
 
+        if any([getattr(revision, "metadata") for revision in revisions_filtered]):
+            logger.warning(
+                "Revision should not have a metadata field any more; it will be ignored"
+            )
         self.journal_writer.revision_add(revisions_filtered)
 
         db_revisions_filtered = list(map(converters.revision_to_db, revisions_filtered))
@@ -1389,6 +1393,12 @@ class Storage:
         self, visit_status: OriginVisitStatus, db, cur
     ) -> None:
         """Add an origin visit status"""
+        if getattr(visit_status, "metadata"):
+            logger.warning(
+                "OriginVisitStatus should not have a metadata field any more; "
+                "it will be ignored"
+            )
+
         self.journal_writer.origin_visit_status_add([visit_status])
         db.origin_visit_status_add(visit_status, cur=cur)
 
