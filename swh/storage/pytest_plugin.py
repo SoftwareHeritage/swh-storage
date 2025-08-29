@@ -6,11 +6,14 @@
 import datetime
 from functools import partial
 import os
+import re
 import resource
+import shutil
 import signal
 import socket
 import subprocess
 import time
+from typing import List, Optional
 import uuid
 
 from cassandra.auth import PlainTextAuthProvider
@@ -78,6 +81,29 @@ def _free_port():
     port = sock.getsockname()[1]
     sock.close()
     return port
+
+
+def _java_major_version() -> Optional[int]:
+    java_bins: List[Optional[str]] = []
+    if "JAVA_HOME" in os.environ:
+        java_bins.append(f'{os.environ["JAVA_HOME"].rstrip("/")}/bin/java')
+    java_bins.append(shutil.which("java"))
+    for java_bin in java_bins:
+        if java_bin and os.access(java_bin, os.X_OK):
+            break
+    else:
+        raise EnvironmentError(
+            "Unable to find java executable. Check JAVA_HOME and PATH environment variables."
+        )
+    version = subprocess.check_output(
+        [java_bin, "-version"],
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    match = re.search(r'"(\d+\.\d+).*"', version)
+    if match:
+        return int(float(match.groups()[0]))
+    return None
 
 
 def _wait_for_peer(addr, port):
@@ -164,12 +190,14 @@ def swh_storage_cassandra_cluster(tmpdir_factory, tmp_path_factory, session_uuid
         env = {
             "MAX_HEAP_SIZE": "300M",
             "HEAP_NEWSIZE": "50M",
-            "JVM_OPTS": (
-                f"-Xlog:gc=error:file={cassandra_log}/gc.log "
-                "-Djava.security.manager=allow"
-            ),
+            "JVM_OPTS": f"-Xlog:gc=error:file={cassandra_log}/gc.log",
             "CASSANDRA_LOG_DIR": cassandra_log,
         }
+
+        java_major_version = _java_major_version()
+        if java_major_version and java_major_version >= 17:
+            env["JVM_OPTS"] += " -Djava.security.manager=allow"
+
         if "JAVA_HOME" in os.environ:
             env["JAVA_HOME"] = os.environ["JAVA_HOME"]
 
