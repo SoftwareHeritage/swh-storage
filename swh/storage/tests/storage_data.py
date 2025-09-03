@@ -9,7 +9,7 @@ from typing import Tuple
 import attr
 
 from swh.model import from_disk
-from swh.model.hashutil import hash_to_bytes
+from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes
 from swh.model.model import (
     Content,
     Directory,
@@ -845,3 +845,21 @@ class StorageData:
         extid3,
         extid4,
     )
+
+    @property
+    def colliding_contents(self):
+        if not hasattr(self, "_colliding_contents"):
+            now = datetime.datetime(2019, 12, 1, tzinfo=datetime.timezone.utc)
+            self._colliding_contents = {}
+            for colliding_hash in DEFAULT_ALGORITHMS:
+                content = Content.from_data(
+                    b"colliding 1 " + colliding_hash.encode()
+                ).evolve(ctime=now)
+                content2 = Content.from_data(
+                    b"colliding 2 " + colliding_hash.encode()
+                ).evolve(
+                    ctime=now, **{colliding_hash: getattr(content, colliding_hash)}
+                )
+                self._colliding_contents[colliding_hash] = [content, content2]
+
+        return self._colliding_contents
