@@ -422,20 +422,15 @@ class TestStorage:
         assert len(swh_storage.content_find(cont.to_dict())) == 1
         assert len(swh_storage.content_find(cont2.to_dict())) == 1
 
-    def test_content_add_collision(self, swh_storage, sample_data):
-        cont1 = sample_data.content
-
-        # create (corrupted) content with same sha1{,_git} but != sha256
-        sha256_array = bytearray(cont1.sha256)
-        sha256_array[0] += 1
-        cont1b = attr.evolve(cont1, sha256=bytes(sha256_array))
-
+    @pytest.mark.parametrize("colliding_hash", ["sha1", "sha1_git"])
+    def test_content_add_collision(self, swh_storage, sample_data, colliding_hash):
+        cont1, cont1b = sample_data.colliding_contents[colliding_hash]
         with pytest.raises(HashCollision) as cm:
             swh_storage.content_add([cont1, cont1b])
 
         exc = cm.value
         actual_algo = exc.algo
-        assert actual_algo in ["sha1", "sha1_git"]
+        assert actual_algo == colliding_hash
         actual_id = exc.hash_id
         assert actual_id == getattr(cont1, actual_algo).hex()
         collisions = exc.args[2]
@@ -517,20 +512,18 @@ class TestStorage:
             "content:add": 2,
         }
 
-    def test_content_add_metadata_collision(self, swh_storage, sample_data):
-        cont1 = attr.evolve(sample_data.content, data=None, ctime=now())
-
-        # create (corrupted) content with same sha1{,_git} but != sha256
-        sha1_git_array = bytearray(cont1.sha256)
-        sha1_git_array[0] += 1
-        cont1b = attr.evolve(cont1, sha256=bytes(sha1_git_array))
+    @pytest.mark.parametrize("colliding_hash", DEFAULT_ALGORITHMS)
+    def test_content_add_metadata_collision(
+        self, swh_storage, sample_data, colliding_hash
+    ):
+        cont1, cont1b = sample_data.colliding_contents[colliding_hash]
 
         with pytest.raises(HashCollision) as cm:
             swh_storage.content_add_metadata([cont1, cont1b])
 
         exc = cm.value
         actual_algo = exc.algo
-        assert actual_algo in ["sha1", "sha1_git", "blake2s256"]
+        assert actual_algo == colliding_hash
         actual_id = exc.hash_id
         assert actual_id == getattr(cont1, actual_algo).hex()
         collisions = exc.args[2]
