@@ -268,6 +268,7 @@ class Storage:
                     conninfo=db,
                     min_size=min_pool_conns,
                     max_size=max_pool_conns,
+                    open=True,
                 )
                 self._db = None
             else:

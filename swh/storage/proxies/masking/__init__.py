@@ -109,6 +109,7 @@ class MaskingProxyStorage:
             db,
             min_size=min_pool_conns,
             max_size=max_pool_conns,
+            open=True,
         )
 
         # Generate the method dictionaries once per instantiation, instead of

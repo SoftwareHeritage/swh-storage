@@ -82,6 +82,7 @@ class BlockingProxyStorage:
             db,
             min_size=min_pool_conns,
             max_size=max_pool_conns,
+            open=True,
         )
 
     def origin_visit_status_add(
