@@ -434,11 +434,12 @@ class TestStorage:
     def test_content_add_collision(
         self, swh_storage_backend, swh_storage, sample_data, colliding_hash
     ):
+        objstorage_primary_hash = swh_storage_backend.objstorage.primary_hash
         contents = sample_data.colliding_contents[colliding_hash]
 
         res = swh_storage.content_add(contents)
         assert res["content:add"] == len(contents)
-        if colliding_hash == "sha1":
+        if colliding_hash == objstorage_primary_hash:
             assert res["content:add:bytes"] == contents[0].length
         else:
             assert res["content:add:bytes"] == 2 * contents[0].length
@@ -451,6 +452,13 @@ class TestStorage:
 
         for content in contents:
             assert swh_storage.content_find(content.hashes())
+            if colliding_hash == objstorage_primary_hash:
+                # We can only retrieve the contents for the first object inserted
+                assert (
+                    swh_storage.content_get_data(content.hashes()) == contents[0].data
+                )
+            else:
+                assert swh_storage.content_get_data(content.hashes()) == content.data
 
     def test_content_add_duplicate(self, swh_storage, sample_data):
         cont = sample_data.content
