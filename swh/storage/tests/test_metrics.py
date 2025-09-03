@@ -45,6 +45,23 @@ def test_send_metric_no_unit(mock_statsd):
 
 
 @patch("swh.storage.metrics.statsd.increment")
+def test_send_metric_collision(mock_statsd):
+    r = send_metric("content:add:collision", count=10, method_name="content_add")
+
+    mock_statsd.assert_called_with(
+        OPERATIONS_UNIT_METRIC.format(unit="collision"),
+        10,
+        tags={
+            "endpoint": "content_add",
+            "object_type": "content",
+            "operation": "add",
+        },
+    )
+
+    assert r
+
+
+@patch("swh.storage.metrics.statsd.increment")
 def test_send_metric_unit(mock_statsd):
     unit_ = "bytes"
     r = send_metric("c:add:%s" % unit_, count=100, method_name="c_add")

@@ -386,8 +386,8 @@ class CassandraStorage:
                         # Content is known, skip it in next iterations
                         known_contents.add(content_id)
 
+        colliding_objects = []
         if with_data:
-            objects_to_write = []
             for collision in colliding_hashes:
                 # Fetch external collisions from object storage
                 known_data = self.content_get_data(objid_from_dict(collision))
@@ -397,7 +397,7 @@ class CassandraStorage:
                         "Content retrieved from objstorage "
                         "doesn't match the colliding content"
                     )
-                objects_to_write.append(known)
+                colliding_objects.append(known)
 
             # Also handle collisions within the current batch
             for algo in HASH_ALGORITHMS:
@@ -406,9 +406,9 @@ class CassandraStorage:
                         colliding_content_ids.update(ids)
 
             for i in colliding_content_ids:
-                objects_to_write.append(contents[i].evolve(ctime=None))
+                colliding_objects.append(contents[i].evolve(ctime=None))
 
-            self.journal_writer.hash_colliding_content_add(objects_to_write)
+            self.journal_writer.hash_colliding_content_add(colliding_objects)
 
         content_add = 0
         for content in contents:
@@ -431,6 +431,8 @@ class CassandraStorage:
 
         if with_data:
             summary["content:add:bytes"] = content_add_bytes
+            if colliding_objects:
+                summary["content:add:collision"] = len(colliding_objects)
 
         return summary
 

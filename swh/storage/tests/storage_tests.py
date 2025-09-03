@@ -431,7 +431,9 @@ class TestStorage:
         assert len(swh_storage.content_find(cont2.to_dict())) == 1
 
     @pytest.mark.parametrize("colliding_hash", DEFAULT_ALGORITHMS)
-    def test_content_add_collision(self, swh_storage, sample_data, colliding_hash):
+    def test_content_add_collision(
+        self, swh_storage_backend, swh_storage, sample_data, colliding_hash
+    ):
         contents = sample_data.colliding_contents[colliding_hash]
 
         res = swh_storage.content_add(contents)
@@ -440,6 +442,12 @@ class TestStorage:
             assert res["content:add:bytes"] == contents[0].length
         else:
             assert res["content:add:bytes"] == 2 * contents[0].length
+
+        if isinstance(swh_storage_backend, PostgreSQLStorage):
+            # PostgreSQL doesn't detect collisions anymore
+            assert "content:add:collision" not in res
+        else:
+            assert res["content:add:collision"] == 2
 
         for content in contents:
             assert swh_storage.content_find(content.hashes())
