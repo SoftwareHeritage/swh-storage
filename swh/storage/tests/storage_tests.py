@@ -451,7 +451,12 @@ class TestStorage:
             assert res["content:add:collision"] == 2
 
         for content in contents:
-            assert swh_storage.content_find(content.hashes())
+            # Insertion with data overrides ctime
+            expected = content.evolve(ctime=None, data=None)
+            assert (
+                swh_storage.content_find(content.hashes())[0].evolve(ctime=None)
+                == expected
+            )
             if colliding_hash == objstorage_primary_hash:
                 # We can only retrieve the contents for the first object inserted
                 assert (
@@ -547,7 +552,8 @@ class TestStorage:
         assert res == {"content:add": len(contents)}
 
         for content in contents:
-            assert swh_storage.content_find(content.hashes())
+            expected = content.evolve(data=None)
+            assert swh_storage.content_find(content.hashes())[0] == expected
 
     def test_content_add_objstorage_first(
         self, swh_storage, swh_storage_backend, sample_data
