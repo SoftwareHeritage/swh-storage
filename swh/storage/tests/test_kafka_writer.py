@@ -3,7 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from attr import asdict, has
 from confluent_kafka import Consumer
@@ -110,7 +110,7 @@ def test_storage_direct_writer(kafka_prefix: str, kafka_server, consumer: Consum
     (set(k.value for k in TEST_OBJECTS.keys()) | {"hash_colliding_content"},),
 )  # consume from the hash_colliding_content topic, which is not listened to by default
 @pytest.mark.parametrize("colliding_hash", DEFAULT_ALGORITHMS)
-def test_storage_direct_writer_hash_collision(
+def test_storage_direct_writer_content_hash_collision_sequential(
     kafka_prefix: str,
     kafka_server,
     consumer: Consumer,
@@ -120,14 +120,48 @@ def test_storage_direct_writer_hash_collision(
     storage = get_storage_with_writer(
         kafka_prefix=kafka_prefix, kafka_server=kafka_server, anonymize=False
     )
-    storage.content_add(sample_data.colliding_contents[colliding_hash])
+    for content in sample_data.colliding_contents[colliding_hash]:
+        storage.content_add([content])
     assert storage.journal_writer.journal is not None
     storage.journal_writer.journal.flush()
 
     expected_messages = 4
 
     consumed_messages = consume_messages(consumer, kafka_prefix, expected_messages)
-    assert len(consumed_messages["hash_colliding_content"]) == 2
+    colliding_no_ctime = [
+        content.evolve(ctime=None)
+        for content in sample_data.colliding_contents[colliding_hash]
+    ]
+
+    for msg in consumed_messages["hash_colliding_contents"]:
+        assert Content.from_dict(msg[1]) in colliding_no_ctime
+
+
+@pytest.mark.parametrize(
+    "object_types",
+    (set(k.value for k in TEST_OBJECTS.keys()) | {"hash_colliding_content"},),
+)  # consume from the hash_colliding_content topic, which is not listened to by default
+def test_storage_direct_writer_content_hash_collision_same_batch(
+    kafka_prefix: str,
+    kafka_server,
+    consumer: Consumer,
+    sample_data: StorageData,
+):
+    storage = get_storage_with_writer(
+        kafka_prefix=kafka_prefix, kafka_server=kafka_server, anonymize=False
+    )
+    all_colliding: List[Content] = sum(sample_data.colliding_contents.values(), [])
+    storage.content_add(all_colliding)
+    assert storage.journal_writer.journal is not None
+    storage.journal_writer.journal.flush()
+
+    expected_messages = 2 * len(all_colliding)
+
+    consumed_messages = consume_messages(consumer, kafka_prefix, expected_messages)
+    colliding_no_ctime = [content.evolve(ctime=None) for content in all_colliding]
+
+    for msg in consumed_messages["hash_colliding_contents"]:
+        assert Content.from_dict(msg[1]) in colliding_no_ctime
 
 
 def test_storage_direct_writer_anonymized(

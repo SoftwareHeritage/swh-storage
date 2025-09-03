@@ -343,54 +343,76 @@ class CassandraStorage:
 
         self.journal_writer.content_add(contents)
 
+        # Check for hash collisions. This test is not atomic with the insertion,
+        # so it won't detect a collision if both contents are inserted at the
+        # same time from different storage instances. The low number of wild
+        # collisions makes this unlikely (especially considering that most
+        # colliding contents will, as of now, ship together in the same origin,
+        # and therefore be inserted sequentially).
+        #
+        # The proper way to do it would probably be a BATCH, but this
+        # would be inefficient because of the number of partitions we
+        # need to affect (len(HASH_ALGORITHMS)+1, which is currently 5)
+        colliding_hashes: List[Dict[str, bytes]] = []
+        known_contents: Set[int] = set()
+        colliding_content_ids: Set[int] = set()
+        content_ids_by_hash: Dict[str, Dict[bytes, List[int]]] = {}
+        for algo in HASH_ALGORITHMS:
+            content_ids_by_hash[algo] = defaultdict(list)
+            for i, content in enumerate(contents):
+                content_ids_by_hash[algo][content.get_hash(algo)].append(i)
+
+            rows = self._content_get_from_hashes(algo, list(content_ids_by_hash[algo]))
+            for row in rows:
+                content_ids = content_ids_by_hash[algo].get(getattr(row, algo))
+                if content_ids is None:
+                    # collision of token(partition key), ignore this row
+                    continue
+
+                for content_id in content_ids:
+                    if content_id in known_contents:
+                        continue
+                    for other_algo in set(HASH_ALGORITHMS) - {algo}:
+                        content = contents[content_id]
+                        if getattr(row, other_algo) != content.get_hash(other_algo):
+                            # This hash didn't match; the content has one hash that
+                            # collides with another known content
+                            colliding_hashes.append(
+                                {k: getattr(row, k) for k in HASH_ALGORITHMS}
+                            )
+                            colliding_content_ids.add(content_id)
+                            break
+                    else:
+                        # Content is known, skip it in next iterations
+                        known_contents.add(content_id)
+
+        if with_data:
+            objects_to_write = []
+            for collision in colliding_hashes:
+                # Fetch external collisions from object storage
+                known_data = self.content_get_data(objid_from_dict(collision))
+                known = Content.from_data(known_data)
+                if known.hashes() != collision:
+                    raise ValueError(
+                        "Content retrieved from objstorage "
+                        "doesn't match the colliding content"
+                    )
+                objects_to_write.append(known)
+
+            # Also handle collisions within the current batch
+            for algo in HASH_ALGORITHMS:
+                for ids in content_ids_by_hash[algo].values():
+                    if len(ids) > 1:
+                        colliding_content_ids.update(ids)
+
+            for i in colliding_content_ids:
+                objects_to_write.append(contents[i].evolve(ctime=None))
+
+            self.journal_writer.hash_colliding_content_add(objects_to_write)
+
         content_add = 0
         for content in contents:
             content_add += 1
-
-            # Check for hash collisions. This test is not atomic with the
-            # insertion, so it won't detect a collision if both contents are
-            # inserted at the same time from different storage instances. The
-            # low number of wild collisions makes this unlikely (especially
-            # considering that most colliding contents will, as of now, ship
-            # together in the same origin).
-            #
-            # The proper way to do it would probably be a BATCH, but this
-            # would be inefficient because of the number of partitions we
-            # need to affect (len(HASH_ALGORITHMS)+1, which is currently 5)
-            if not self._allow_overwrite:
-                for algo in HASH_ALGORITHMS:
-                    collisions = []
-                    # Get tokens of 'content' rows with the same value for
-                    # sha1/sha1_git
-                    # TODO: batch these requests, instead of sending them one by one
-                    rows = self._content_get_from_hashes(algo, [content.get_hash(algo)])
-                    for row in rows:
-                        if getattr(row, algo) != content.get_hash(algo):
-                            # collision of token(partition key), ignore this
-                            # row
-                            continue
-
-                        for other_algo in set(HASH_ALGORITHMS) - {algo}:
-                            if getattr(row, other_algo) != content.get_hash(other_algo):
-                                # This hash didn't match; discard the row.
-                                collisions.append(
-                                    {k: getattr(row, k) for k in HASH_ALGORITHMS}
-                                )
-
-                    if collisions and with_data:
-                        objects_to_write = [content]
-                        for collision in collisions:
-                            known_data = self.content_get_data(
-                                objid_from_dict(collision)
-                            )
-                            known = Content.from_data(known_data)
-                            if known.hashes() != collision:
-                                raise ValueError(
-                                    "Content retrieved from objstorage "
-                                    "doesn't match the colliding content"
-                                )
-                            objects_to_write.append(known)
-                        self.journal_writer.hash_colliding_content_add(objects_to_write)
 
             (token, insertion_finalizer) = self._cql_runner.content_add_prepare(
                 ContentRow(**remove_keys(content.to_dict(), ("data",)))
