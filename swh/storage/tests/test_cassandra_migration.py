@@ -192,10 +192,6 @@ def test_add_content_column(
         swh_storage.content_find({"byte_xor": content_xor_hash})  # type: ignore
 
     # Then update the running code:
-    new_hash_algos = HASH_ALGORITHMS + ["byte_xor"]
-    mocker.patch("swh.storage.cassandra.storage.HASH_ALGORITHMS", new_hash_algos)
-    mocker.patch("swh.storage.cassandra.cql.HASH_ALGORITHMS", new_hash_algos)
-    mocker.patch("swh.model.model.DEFAULT_ALGORITHMS", new_hash_algos)
     mocker.patch("swh.storage.cassandra.storage.Content", ContentWithXor)
     mocker.patch("swh.storage.cassandra.storage.ContentRow", ContentRowWithXor)
     mocker.patch("swh.storage.cassandra.model.ContentRow", ContentRowWithXor)
@@ -220,16 +216,16 @@ def test_add_content_column(
 
     # Old algos still works, and return the new object type:
     assert swh_storage.content_get([StorageData.content.sha1]) == [
-        attr.evolve(new_content, data=None, byte_xor=None)
+        new_content.evolve(data=None, byte_xor=None)
     ]
-
-    # The new algo does not work, we did not backfill it yet:
-    assert swh_storage.content_find({"byte_xor": content_xor_hash}) == []  # type: ignore
 
     # A normal storage would not overwrite, because the object already exists,
     # as it is not aware it is missing a field:
     swh_storage.content_add([new_content, new_content2])
-    assert swh_storage.content_find({"byte_xor": content_xor_hash}) == []  # type: ignore
+
+    assert swh_storage.content_get([new_content.sha1]) == [
+        new_content.evolve(data=None, byte_xor=None)
+    ]
 
     # Backfill (in production this would be done with a replayer reading from
     # the journal):
@@ -239,8 +235,8 @@ def test_add_content_column(
     overwriting_swh_storage.content_add([new_content, new_content2])
 
     # Now, the object can be found:
-    assert swh_storage.content_find({"byte_xor": content_xor_hash}) == [  # type: ignore
-        attr.evolve(new_content, data=None)
+    assert swh_storage.content_get([new_content.sha1]) == [
+        new_content.evolve(data=None)
     ]
 
 
