@@ -319,12 +319,76 @@ class CassandraStorage:
                 yield row
 
     def _content_add(self, contents: List[Content], with_data: bool) -> Dict[str, int]:
-        # Filter-out content already in the database.
+        # Check for hash collisions and existing contents. This test is not
+        # atomic with the insertion, so it won't detect a collision if both
+        # contents are inserted at the same time from different storage
+        # instances. The low number of wild collisions makes this unlikely
+        # (especially considering that most colliding contents will, as of now,
+        # ship together in the same origin, and therefore be inserted
+        # sequentially).
+        #
+        # The proper way to do it would probably be a BATCH, but this
+        # would be inefficient because of the number of partitions we
+        # need to affect (len(HASH_ALGORITHMS)+1, which is currently 5)
+
+        # Positions of contents being inserted that are already in storage
+        known_content_ids: Set[int] = set()
+
+        # Hashes for known objects that collide with an object that is being inserted
+        colliding_hashes: List[Dict[str, bytes]] = []
+
+        # Positions of contents being inserted that collide with an object already
+        # present in storage
+        colliding_content_ids: Set[int] = set()
+
+        # Positions of all the objects that have a given hash (for each hash algorithm)
+        content_ids_by_hash: Dict[str, Dict[bytes, List[int]]] = {}
+
+        for algo in HASH_ALGORITHMS:
+            content_ids_by_hash[algo] = defaultdict(list)
+            for i, content in enumerate(contents):
+                content_ids_by_hash[algo][content.get_hash(algo)].append(i)
+
+            # Get all rows that could match one of the hashes being inserted
+            rows = self._content_get_from_hashes(algo, list(content_ids_by_hash[algo]))
+            for row in rows:
+                content_ids = content_ids_by_hash[algo].get(getattr(row, algo))
+                if content_ids is None:
+                    # collision of token(partition key), ignore this row
+                    continue
+
+                # The row has a matching hash with the following contents being inserted
+                for content_id in content_ids:
+                    if content_id in known_content_ids:
+                        # The content being inserted is already in storage, we can
+                        # skip it
+                        continue
+
+                    content = contents[content_id]
+                    # Check whether other hashes are a match
+                    for other_algo in HASH_ALGORITHMS:
+                        if algo == other_algo:
+                            continue
+
+                        if getattr(row, other_algo) != content.get_hash(other_algo):
+                            # This hash didn't match; we have an actual hash collision
+                            colliding_hashes.append(
+                                {k: getattr(row, k) for k in HASH_ALGORITHMS}
+                            )
+                            colliding_content_ids.add(content_id)
+                            break
+                    else:
+                        # All hashes are identical, mark this content is already known
+                        # in storage
+                        known_content_ids.add(content_id)
+
+        contents_to_add = contents
         if not self._allow_overwrite:
-            contents = [
-                c
-                for c in contents
-                if not self._cql_runner.content_get_from_pk(c.to_dict())
+            # We don't allow overwrites so skip known contents
+            contents_to_add = [
+                content
+                for i, content in enumerate(contents)
+                if i not in known_content_ids
             ]
 
         if with_data:
@@ -337,54 +401,11 @@ class CassandraStorage:
             # 2. the objstorage mirroring, which reads from the journal, may attempt to
             #    read from the objstorage before we finished writing it
             summary = self.objstorage.content_add(
-                c for c in contents if c.status != "absent"
+                c for c in contents_to_add if c.status != "absent"
             )
-            content_add_bytes = summary["content:add:bytes"]
+            content_bytes_added = summary["content:add:bytes"]
 
-        self.journal_writer.content_add(contents)
-
-        # Check for hash collisions. This test is not atomic with the insertion,
-        # so it won't detect a collision if both contents are inserted at the
-        # same time from different storage instances. The low number of wild
-        # collisions makes this unlikely (especially considering that most
-        # colliding contents will, as of now, ship together in the same origin,
-        # and therefore be inserted sequentially).
-        #
-        # The proper way to do it would probably be a BATCH, but this
-        # would be inefficient because of the number of partitions we
-        # need to affect (len(HASH_ALGORITHMS)+1, which is currently 5)
-        colliding_hashes: List[Dict[str, bytes]] = []
-        known_contents: Set[int] = set()
-        colliding_content_ids: Set[int] = set()
-        content_ids_by_hash: Dict[str, Dict[bytes, List[int]]] = {}
-        for algo in HASH_ALGORITHMS:
-            content_ids_by_hash[algo] = defaultdict(list)
-            for i, content in enumerate(contents):
-                content_ids_by_hash[algo][content.get_hash(algo)].append(i)
-
-            rows = self._content_get_from_hashes(algo, list(content_ids_by_hash[algo]))
-            for row in rows:
-                content_ids = content_ids_by_hash[algo].get(getattr(row, algo))
-                if content_ids is None:
-                    # collision of token(partition key), ignore this row
-                    continue
-
-                for content_id in content_ids:
-                    if content_id in known_contents:
-                        continue
-                    for other_algo in set(HASH_ALGORITHMS) - {algo}:
-                        content = contents[content_id]
-                        if getattr(row, other_algo) != content.get_hash(other_algo):
-                            # This hash didn't match; the content has one hash that
-                            # collides with another known content
-                            colliding_hashes.append(
-                                {k: getattr(row, k) for k in HASH_ALGORITHMS}
-                            )
-                            colliding_content_ids.add(content_id)
-                            break
-                    else:
-                        # Content is known, skip it in next iterations
-                        known_contents.add(content_id)
+        self.journal_writer.content_add(contents_to_add)
 
         colliding_objects = []
         if with_data:
@@ -406,13 +427,14 @@ class CassandraStorage:
                         colliding_content_ids.update(ids)
 
             for i in colliding_content_ids:
+                # remove ctime from all colliding contents
                 colliding_objects.append(contents[i].evolve(ctime=None))
 
             self.journal_writer.hash_colliding_content_add(colliding_objects)
 
-        content_add = 0
-        for content in contents:
-            content_add += 1
+        content_added = 0
+        for content in contents_to_add:
+            content_added += 1
 
             (token, insertion_finalizer) = self._cql_runner.content_add_prepare(
                 ContentRow(**remove_keys(content.to_dict(), ("data",)))
@@ -426,11 +448,11 @@ class CassandraStorage:
             insertion_finalizer()
 
         summary = {
-            "content:add": content_add,
+            "content:add": content_added,
         }
 
         if with_data:
-            summary["content:add:bytes"] = content_add_bytes
+            summary["content:add:bytes"] = content_bytes_added
             if colliding_objects:
                 summary["content:add:collision"] = len(colliding_objects)
 
