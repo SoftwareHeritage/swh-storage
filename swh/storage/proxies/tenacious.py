@@ -68,12 +68,12 @@ class TenaciousProxyStorage:
 
         storage:
           cls: tenacious
-        storage:
-          cls: remote
-          args: http://storage.internal.staging.swh.network:5002/
-        error-rate-limit:
-          errors: 10
-          window_size: 1000
+          storage:
+            cls: remote
+            args: http://storage.internal.staging.swh.network:5002/
+          error-rate-limit:
+            errors: 10
+            window_size: 1000
 
     """
 
