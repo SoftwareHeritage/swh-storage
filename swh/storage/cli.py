@@ -454,6 +454,7 @@ def replay(
     from swh.journal.client import get_journal_client
     from swh.model.swhids import CoreSWHID
     from swh.storage import get_storage
+    from swh.storage.interface import StorageInterface
     from swh.storage.replay import ModelObjectDeserializer, process_replay_objects
 
     ensure_check_config(ctx.obj["config"], ctx.obj["check_config"], "write")
@@ -503,6 +504,14 @@ def replay(
         validate=validate,
         known_mismatched_hashes=known_mismatched_hashes,
     )
+
+    # inject the reporter in compatible storages, if any
+    if reporter:
+        sto: StorageInterface | None = storage
+        while sto:
+            if hasattr(sto, "error_reporter") and sto.error_reporter is None:
+                sto.error_reporter = reporter
+            sto = getattr(sto, "storage", None)
 
     client_cfg["value_deserializer"] = deserializer.convert
     if object_types:

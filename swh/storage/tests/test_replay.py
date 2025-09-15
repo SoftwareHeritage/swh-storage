@@ -12,12 +12,14 @@ from typing import Any, Container, Dict, Optional, Tuple, cast
 
 import attr
 import pytest
+import yaml
 
 from swh.journal.client import EofBehavior, JournalClient
 from swh.journal.serializers import kafka_to_value, key_to_kafka, value_to_kafka
 from swh.journal.writer import JournalWriterInterface
 from swh.model.hashutil import MultiHash, hash_to_bytes, hash_to_hex
 from swh.model.model import (
+    Content,
     Directory,
     OriginVisit,
     OriginVisitStatus,
@@ -64,6 +66,10 @@ WRONG_ID_REG = re.compile(
 )
 
 
+def now():
+    return datetime.datetime.now(datetime.UTC)
+
+
 def nullify_ctime(obj: Any) -> Any:
     if isinstance(obj, (ContentRow, SkippedContentRow)):
         return dataclasses.replace(obj, ctime=None)
@@ -72,9 +78,7 @@ def nullify_ctime(obj: Any) -> Any:
 
 
 @pytest.fixture()
-def replayer_storage_and_client(
-    kafka_prefix: str, kafka_consumer_group: str, kafka_server: str
-):
+def replayer_storage(kafka_prefix: str, kafka_server: str):
     journal_writer_config = {
         "cls": "kafka",
         "brokers": [kafka_server],
@@ -86,9 +90,13 @@ def replayer_storage_and_client(
         "cls": "memory",
         "journal_writer": journal_writer_config,
     }
-    storage = get_storage(**storage_config)
+    return get_storage(**storage_config)
+
+
+@pytest.fixture()
+def replayer_client(kafka_prefix: str, kafka_consumer_group: str, kafka_server: str):
     deserializer = ModelObjectDeserializer()
-    replayer = JournalClient(
+    return JournalClient(
         brokers=kafka_server,
         group_id=kafka_consumer_group,
         prefix=kafka_prefix,
@@ -96,14 +104,18 @@ def replayer_storage_and_client(
         value_deserializer=deserializer.convert,
     )
 
-    yield storage, replayer
+
+@pytest.fixture()
+def replayer_storage_and_client(replayer_storage, replayer_client):
+    # for bw compat
+    return replayer_storage, replayer_client
 
 
 @pytest.mark.parametrize(
-    "buffered",
-    [pytest.param(True, id="buffered"), pytest.param(False, id="unbuffered")],
+    "tenacious",
+    [pytest.param(True, id="tenacious"), pytest.param(False, id="non-tenacious")],
 )
-def test_storage_replayer(replayer_storage_and_client, caplog, buffered):
+def test_storage_replayer(replayer_storage_and_client, caplog, tenacious):
     """Optimal replayer scenario.
 
     This:
@@ -125,8 +137,8 @@ def test_storage_replayer(replayer_storage_and_client, caplog, buffered):
 
     caplog.set_level(logging.ERROR, "swh.journal.replay")
 
-    if buffered:
-        proxied_dst = get_storage("buffer", storage={"cls": "memory"})
+    if tenacious:
+        proxied_dst = get_storage("tenacious", storage={"cls": "memory"})
         dst = proxied_dst.storage
     else:
         proxied_dst = dst = get_storage(cls="memory")
@@ -508,7 +520,7 @@ def test_storage_replayer_with_validation_nok(
     src.journal_writer.journal.flush()
 
     # Fill the destination storage from Kafka
-    dst = get_storage(cls="memory")
+    dst = get_storage(cls="tenacious", storage={"cls": "memory"})
     worker_fn = functools.partial(process_replay_objects, storage=dst)
     nb_inserted = replayer.process(worker_fn)
     assert nb_sent == nb_inserted
@@ -711,3 +723,161 @@ def test_storage_replayer_with_validation_nok_raises(
             invalid += 1
     assert invalid == 1, "One invalid objects should be detected"
     assert len(redisdb.keys()) == 1
+
+
+def test_storage_replayer_tenacious_with_hashcollisions(
+    replayer_storage_and_client, caplog, redisdb
+):
+    """Replayer w/ tenacious proxy, filled with hash colliding content objects
+
+    Ensure colliding objects are reported as such
+    """
+    src, replayer = replayer_storage_and_client
+    jwriter = src.journal_writer
+
+    caplog.set_level(logging.ERROR, "swh.journal.replay")
+    # Fill Kafka using the journal writer
+    contents = [attr.evolve(c, ctime=now()) for c in TEST_OBJECTS["content"]]
+
+    dst = get_storage(
+        cls="tenacious", storage={"cls": "memory"}, error_reporter=redisdb.set
+    )
+    worker_fn = functools.partial(process_replay_objects, storage=dst)
+
+    jwriter.content_add(contents)
+    jwriter.journal.flush()
+    nb_processed = replayer.process(worker_fn)
+    assert nb_processed == len(contents)
+    assert len(dst.storage._cql_runner._contents.data) == len(contents)
+    assert not redisdb.keys()
+
+    # hash collisions on sha256
+    colliding_objs = [attr.evolve(c, sha256=b"\x00" * 32, data=None) for c in contents]
+    jwriter.content_add(colliding_objs)
+    jwriter.journal.flush()
+    nb_processed = replayer.process(worker_fn)
+    assert nb_processed == len(contents)
+    assert len(dst.storage._cql_runner._contents.data) == len(contents)
+    failed_objs = [
+        Content.from_dict(yaml.safe_load(redisdb.get(k))["obj"]) for k in redisdb.keys()
+    ]
+    assert set(failed_objs) == set(colliding_objs)
+    redisdb.delete(*redisdb.keys())
+
+    # hash collisions on blake2s256
+    colliding_objs = [
+        attr.evolve(c, blake2s256=b"\x00" * 32, data=None) for c in contents
+    ]
+    jwriter.content_add(colliding_objs)
+    jwriter.journal.flush()
+    nb_processed = replayer.process(worker_fn)
+    assert nb_processed == len(contents)
+    assert len(dst.storage._cql_runner._contents.data) == len(contents)
+    failed_objs = [
+        Content.from_dict(yaml.safe_load(redisdb.get(k))["obj"]) for k in redisdb.keys()
+    ]
+    assert set(failed_objs) == set(colliding_objs)
+    redisdb.delete(*redisdb.keys())
+
+    # hash collisions on sha1
+    colliding_objs = [attr.evolve(c, sha1=b"\x00" * 20, data=None) for c in contents]
+    jwriter.content_add(colliding_objs)
+    jwriter.journal.flush()
+    nb_processed = replayer.process(worker_fn)
+    assert nb_processed == len(contents)
+    assert len(dst.storage._cql_runner._contents.data) == len(contents)
+    failed_objs = [
+        Content.from_dict(yaml.safe_load(redisdb.get(k))["obj"]) for k in redisdb.keys()
+    ]
+    assert set(failed_objs) == set(colliding_objs)
+    redisdb.delete(*redisdb.keys())
+
+    # hash collisions on sha1_git
+    colliding_objs = [
+        attr.evolve(c, sha1_git=b"\x00" * 20, data=None) for c in contents
+    ]
+    jwriter.content_add(colliding_objs)
+    jwriter.journal.flush()
+    nb_processed = replayer.process(worker_fn)
+    assert nb_processed == len(contents)
+    assert len(dst.storage._cql_runner._contents.data) == len(contents)
+    failed_objs = [
+        Content.from_dict(yaml.safe_load(redisdb.get(k))["obj"]) for k in redisdb.keys()
+    ]
+    assert set(failed_objs) == set(colliding_objs)
+    redisdb.delete(*redisdb.keys())
+
+
+def test_storage_replayer_tenacious_with_invalid_objects(
+    replayer_storage, replayer_client, caplog, redisdb
+):
+    """Replayer scenario with invalid objects
+
+    with raise_on_error set to True
+
+    This:
+    - writes both valid & invalid objects to a source storage
+    - a StorageArgumentException should be raised while replayer consumes
+      objects from the topic and replays them
+    """
+    # disable the validation made by the replayer itself since we want to test
+    # errors occurring in the storage backend here
+    replayer_client.value_deserializer.__self__.validate = False
+    jwriter = replayer_storage.journal_writer
+
+    caplog.set_level(logging.ERROR, "swh.journal.replay")
+
+    n_inserted = 0
+    # insert invalid objects
+    for object_type in (
+        Revision.object_type,
+        Directory.object_type,
+        Release.object_type,
+        Snapshot.object_type,
+    ):
+        inv_obj = attr.evolve(TEST_OBJECTS[object_type][0], id=b"\x00" * 20)
+        jwriter.write_additions(
+            object_type,
+            TEST_OBJECTS[object_type] + [inv_obj],
+        )
+        n_inserted += len(TEST_OBJECTS[object_type]) + 1
+    jwriter.journal.flush()
+
+    # Fill the destination storage from Kafka
+    dst = get_storage(
+        cls="tenacious",
+        storage={"cls": "validate", "storage": {"cls": "memory"}},
+        error_reporter=redisdb.set,
+    )
+    worker_fn = functools.partial(process_replay_objects, storage=dst)
+    nb_processed = replayer_client.process(worker_fn)
+
+    assert nb_processed == n_inserted
+    assert len(redisdb.keys()) == 4
+
+    # to check the timestamps for reported errors are in a reasonable range
+    n = now()
+    dt0 = datetime.timedelta(0)
+    dt1 = datetime.timedelta(minutes=1)
+
+    object_types = []
+    for k in (x.decode() for x in redisdb.keys()):
+        # keys are 'iso-date/object_type'
+        assert "/" in k
+        tstamp, object_type = k.split("/")
+        object_types.append(object_type)
+        dt = n - datetime.datetime.fromisoformat(tstamp)
+        assert dt0 < dt < dt1
+
+        # values are yaml serialized dicts with 2 keys: obj (as a dict) and exc
+        # (dump of the exception as a list of str)
+        value = redisdb.get(k)
+        # cannot use safe_load because this latter does not know how to load
+        # tuples, which can be generated by some ModelObject.to_dict() implems
+        error_struct = yaml.load(value, Loader=yaml.Loader)
+        assert "obj" in error_struct
+        assert error_struct["obj"]["id"] == b"\x00" * 20
+        assert "exc" in error_struct
+        assert "\n".join(error_struct["exc"]).startswith("Traceback")
+
+    assert set(object_types) == {"revision", "directory", "release", "snapshot"}

@@ -6,6 +6,7 @@
 from collections import Counter
 from contextlib import contextmanager
 import functools
+import logging
 import random
 from unittest.mock import patch
 
@@ -467,6 +468,7 @@ def test_tenacious_proxy_storage_rate_limit(
 
 def test_tenacious_proxy_storage_handle_hashcollisions(
     swh_storage_postgresql_backend_config,
+    caplog,
 ):
     # we cannot easily use the in-memory backend here (aka a Cassandra storage
     # using an in-memory cql backend) because it won't give reliable stats
@@ -478,6 +480,7 @@ def test_tenacious_proxy_storage_handle_hashcollisions(
             swh_storage_postgresql_backend_config,
         ],
     }
+    caplog.set_level(logging.INFO, "swh.storage.proxies.tenacious")
 
     storage = get_storage(**storage_config)
 
@@ -485,12 +488,23 @@ def test_tenacious_proxy_storage_handle_hashcollisions(
         attr.evolve(cnt, ctime=now()) for cnt in TEST_OBJECTS[Content.object_type]
     ]
     bad_contents = [attr.evolve(cnt, sha256=b"\x00" * 32) for cnt in contents]
+    # only collide on the last 3 contents of the list
     insert_contents = contents + bad_contents[:3]
     random.shuffle(insert_contents)
 
     s = storage.content_add_metadata(insert_contents)
     assert s == {"content:add": 17, "content:add:errors": 6}
+    log_drops = {rec.args[0] for rec in caplog.records if rec.msg == "dropped %s"}
+    assert log_drops == set(contents[:3] + bad_contents[:3])
+    caplog.clear()
+
     s = storage.content_add_metadata(contents)
     assert s == {"content:add": 3}
+    log_drops = {rec.args[0] for rec in caplog.records if rec.msg == "dropped %s"}
+    assert log_drops == set()
+    caplog.clear()
+
     s = storage.content_add_metadata(bad_contents)
     assert s == {"content:add": 0, "content:add:errors": 20}
+    log_drops = {rec.args[0] for rec in caplog.records if rec.msg == "dropped %s"}
+    assert log_drops == set(bad_contents)

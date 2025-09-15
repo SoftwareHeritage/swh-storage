@@ -4,16 +4,25 @@
 # See top-level LICENSE file for more information
 
 from collections import Counter, deque
+import datetime
 from functools import partial
 import logging
+import traceback
+from typing import Callable
 from typing import Counter as CounterT
-from typing import Deque, Dict, Iterable, List, Optional, cast
+from typing import Deque, Dict, Iterable, List, cast
+
+import yaml
 
 from swh.model.model import BaseModel, Content
 from swh.storage import get_storage
 from swh.storage.exc import HashCollision
 
 logger = logging.getLogger(__name__)
+
+
+def now():
+    return datetime.datetime.now(datetime.UTC)
 
 
 class RateQueue:
@@ -92,8 +101,9 @@ class TenaciousProxyStorage:
     def __init__(
         self,
         storage,
-        error_rate_limit: Optional[Dict[str, int]] = None,
+        error_rate_limit: Dict[str, int] | None = None,
         retries: int = 3,
+        error_reporter: Callable[[str, bytes], None] | None = None,
     ):
         self.storage = get_storage(**storage)
         if error_rate_limit is None:
@@ -105,6 +115,7 @@ class TenaciousProxyStorage:
             max_errors=error_rate_limit["errors"],
         )
         self._single_object_retries: int = retries
+        self.error_reporter = error_reporter
 
     def __getattr__(self, key):
         if key in self.tenacious_methods:
@@ -156,14 +167,27 @@ class TenaciousProxyStorage:
                         if obj.hashes() not in exc.colliding_content_hashes()
                     ]
                 )
-                n_dropped = len(objs) - len(to_add[-1])
-                print("Dropping", n_dropped, "on", len(objs))
+                dropped_objs = [
+                    obj
+                    for obj in cast(List[Content], objs)
+                    if obj.hashes() in exc.colliding_content_hashes()
+                ]
+                n_dropped = len(dropped_objs)
                 logger.info(
                     "%s: dropping %s %s objects (hash collision)",
                     func_name,
                     n_dropped,
                     object_type,
                 )
+                for dropped in dropped_objs:
+                    logger.info("dropped %s", dropped)
+                    if self.error_reporter:
+                        key = f"{now().isoformat()}/{object_type}"
+                        value = {
+                            "exc": traceback.format_exception(exc),
+                            "obj": dropped.to_dict(),
+                        }
+                        self.error_reporter(key, yaml.dump(value).encode())
                 results.update({f"{object_type}:add:errors": n_dropped})
 
             except Exception as exc:
@@ -181,6 +205,8 @@ class TenaciousProxyStorage:
                     # one-object-batch retries counter
                     retries = self._single_object_retries
                 else:
+                    assert len(objs) == 1
+                    obj = objs[0]
                     retries -= 1
                     if retries:
                         logger.info(
@@ -194,7 +220,7 @@ class TenaciousProxyStorage:
                         logger.error(
                             "%s: failed to insert an object, excluding %s (from a batch of %s)",
                             func_name,
-                            objs,
+                            obj,
                             n_objs,
                         )
                         logger.error(
@@ -203,6 +229,13 @@ class TenaciousProxyStorage:
                             exc_info=not isinstance(exc, HashCollision),
                         )
                         results.update({f"{object_type}:add:errors": 1})
+                        if self.error_reporter:
+                            key = f"{now().isoformat()}/{object_type}"
+                            value = {
+                                "obj": obj.to_dict(),
+                                "exc": traceback.format_exception(exc),
+                            }
+                            self.error_reporter(key, yaml.dump(value).encode())
                         self.rate_queue.add_error()
                         # reset the retries counter (needed in case the next
                         # batch is also 1 element only)
