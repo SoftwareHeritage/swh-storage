@@ -4,12 +4,16 @@
 # See top-level LICENSE file for more information
 
 from collections import Counter
+import datetime
 from functools import partial
 import logging
+import traceback
 from typing import Any, Callable
 from typing import Counter as CounterT
 from typing import Dict, List, Optional, Tuple, TypeVar, Union, cast
 from uuid import uuid4
+
+import yaml
 
 try:
     from systemd.daemon import notify
@@ -77,6 +81,10 @@ OBJECT_FIXERS = {
 }
 
 
+def now():
+    return datetime.datetime.now(datetime.UTC)
+
+
 class ModelObjectDeserializer:
     """A swh.journal object deserializer that checks object validity and reports
     invalid objects
@@ -136,7 +144,7 @@ class ModelObjectDeserializer:
             # we do not catch AttributeTypeError here since these are (most
             # likely) a clue of something very wrong is occurring, so better crash
             error_msg = f"Unable to create model object {object_type}: {repr(exc)}"
-            self.report_failure(msg, (object_type, dict_repr))
+            self.report_failure(msg, (object_type, dict_repr), exc)
             if self.raise_on_error:
                 raise StorageArgumentException(error_msg)
             return None
@@ -155,7 +163,7 @@ class ModelObjectDeserializer:
                         not in self.known_mismatched_hashes
                     ):
                         logger.error(error_msg)
-                        self.report_failure(msg, obj)
+                        self.report_failure(msg, obj, None)
                         if self.raise_on_error:
                             raise StorageArgumentException(error_msg)
                         return None
@@ -166,7 +174,10 @@ class ModelObjectDeserializer:
         return obj
 
     def report_failure(
-        self, msg: bytes, obj: Union[BaseModel, Tuple[str, Dict[str, Any]]]
+        self,
+        msg: bytes,
+        obj: Union[BaseModel, Tuple[str, Dict[str, Any]]],
+        exc: BaseException | None,
     ):
         if self.reporter:
             oid: str
@@ -178,16 +189,20 @@ class ModelObjectDeserializer:
                     oid = f"{object_type}:{uid.hex()}"
                 else:
                     oid = f"{object_type}:uuid:{uuid4()}"
-            elif hasattr(obj, "swhid"):
-                swhid = obj.swhid()
-                oid = str(swhid)
-            elif isinstance(obj, HashableObject):
-                uid = obj.compute_hash()
-                oid = f"{obj.object_type}:{uid.hex()}"
             else:
-                oid = f"{obj.object_type}:uuid:{uuid4()}"
+                dict_repr = obj.to_dict()
+                if isinstance(obj, HashableObject):
+                    oid = f"{obj.object_type}:{obj.id.hex()}"
+                else:
+                    oid = f"{obj.object_type}:uuid:{uuid4()}"
 
-            self.reporter(oid, msg)
+            key = f"{now().isoformat()}/{oid}"
+            value = {
+                "kafka_message": msg,
+                "obj": dict_repr,
+                "exc": traceback.format_exception(exc) if exc is not None else None,
+            }
+            self.reporter(key, yaml.dump(value).encode())
 
 
 def process_replay_objects(
