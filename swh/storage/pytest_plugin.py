@@ -246,8 +246,8 @@ def swh_storage_cassandra_cluster(tmpdir_factory, tmp_path_factory, session_uuid
                 ["127.0.0.1"],
                 port=native_transport_port,
                 auth_provider=auth_provider,
-                connect_timeout=30,
-                control_connection_timeout=30,
+                connect_timeout=60,
+                control_connection_timeout=60,
             ) as cluster:
 
                 session = None
