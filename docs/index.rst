@@ -84,6 +84,7 @@ Reference Documentation
 
    db-schema
    cassandra-migrations
+   replayer
    cli
 
 .. only:: standalone_package_doc
