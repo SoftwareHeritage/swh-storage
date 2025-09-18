@@ -270,12 +270,6 @@ def swh_storage_cassandra_cluster(tmpdir_factory, tmp_path_factory, session_uuid
         (root_tmp_dir / session_uuid).touch()
 
     if proc is not None:
-        if not listening or os.environ.get("SWH_CASSANDRA_LOG"):
-            debug_log_path = str(cassandra_log.join("debug.log"))
-            if os.path.exists(debug_log_path):
-                with open(debug_log_path) as fd:
-                    print(fd.read(), file=sys.stderr)
-
         if not listening:
             if proc.poll() is None:
                 raise Exception("cassandra process unexpectedly not listening.")
@@ -289,6 +283,12 @@ def swh_storage_cassandra_cluster(tmpdir_factory, tmp_path_factory, session_uuid
         # kill cassandra process
         pgrp = os.getpgid(proc.pid)
         os.killpg(pgrp, signal.SIGKILL)
+
+        if not listening or os.environ.get("SWH_CASSANDRA_LOG"):
+            debug_log_path = str(cassandra_log.join("debug.log"))
+            if os.path.exists(debug_log_path):
+                with open(debug_log_path) as fd:
+                    print(fd.read(), file=sys.stderr)
 
 
 @pytest.fixture(scope="session")
