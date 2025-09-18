@@ -12,6 +12,7 @@ import shutil
 import signal
 import socket
 import subprocess
+import sys
 import time
 from typing import List, Optional
 import uuid
@@ -273,7 +274,7 @@ def swh_storage_cassandra_cluster(tmpdir_factory, tmp_path_factory, session_uuid
             debug_log_path = str(cassandra_log.join("debug.log"))
             if os.path.exists(debug_log_path):
                 with open(debug_log_path) as fd:
-                    print(fd.read())
+                    print(fd.read(), file=sys.stderr)
 
         if not listening:
             if proc.poll() is None:
