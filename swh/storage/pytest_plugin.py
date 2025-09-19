@@ -3,6 +3,7 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import atexit
 import datetime
 from functools import partial
 import os
@@ -119,6 +120,10 @@ def _wait_for_peer(addr, port):
             sock.close()
             return True
     return False
+
+
+def _kill_cassandra_cluster(pgrp):
+    os.killpg(pgrp, signal.SIGKILL)
 
 
 @pytest.fixture(scope="session")
@@ -260,6 +265,9 @@ def swh_storage_cassandra_cluster(tmpdir_factory, tmp_path_factory, session_uuid
                         time.sleep(1)
                         retry += 1
 
+        # ensure to kill cassandra cluster when test runner process exits
+        atexit.register(_kill_cassandra_cluster, os.getpgid(proc.pid))
+
         data = (["127.0.0.1"], native_transport_port)
 
     token: CleanupToken = yield data
@@ -279,10 +287,6 @@ def swh_storage_cassandra_cluster(tmpdir_factory, tmp_path_factory, session_uuid
         while not (root_tmp_dir / session_uuid).exists():
             # wait until all pytest-xdist workers executed their test suites
             time.sleep(1)
-
-        # kill cassandra process
-        pgrp = os.getpgid(proc.pid)
-        os.killpg(pgrp, signal.SIGKILL)
 
         if not listening or os.environ.get("SWH_CASSANDRA_LOG"):
             debug_log_path = str(cassandra_log.join("debug.log"))
