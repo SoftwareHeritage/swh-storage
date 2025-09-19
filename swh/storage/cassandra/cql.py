@@ -10,6 +10,7 @@ import functools
 import importlib
 import itertools
 import logging
+import os
 import random
 from typing import (
     TYPE_CHECKING,
@@ -28,9 +29,22 @@ from typing import (
     cast,
 )
 
-from cassandra import ConsistencyLevel, CoordinationFailure, ReadTimeout, WriteTimeout
+from cassandra import (
+    ConsistencyLevel,
+    CoordinationFailure,
+    OperationTimedOut,
+    ReadTimeout,
+    WriteTimeout,
+)
 from cassandra.auth import AuthProvider
-from cassandra.cluster import EXEC_PROFILE_DEFAULT, Cluster, ExecutionProfile, ResultSet
+from cassandra.cluster import (
+    EXEC_PROFILE_DEFAULT,
+    Cluster,
+    ConnectionShutdown,
+    ExecutionProfile,
+    NoHostAvailable,
+    ResultSet,
+)
 from cassandra.concurrent import execute_concurrent, execute_concurrent_with_args
 from cassandra.policies import DCAwareRoundRobinPolicy, TokenAwarePolicy
 from cassandra.query import BoundStatement, PreparedStatement, dict_factory
@@ -38,7 +52,7 @@ from cassandra.util import Date
 from mypy_extensions import NamedArg
 from tenacity import (
     retry,
-    retry_if_exception_type,
+    retry_if_exception,
     stop_after_attempt,
     wait_random_exponential,
 )
@@ -190,6 +204,31 @@ def mark_all_migrations_completed(cql_runner: "CqlRunner") -> None:
     )
 
 
+MAX_RETRIES = 3
+
+
+def is_retryable_cassandra_exception(exception):
+    running_parallel_tests = os.environ.get("PYTEST_XDIST_WORKER_COUNT")
+    if running_parallel_tests and isinstance(exception, NoHostAvailable):
+        # retry NoHostAvailable related to timeouts when running tests in parallel
+        if not exception.errors:
+            # could not connect to any host, retry
+            return True
+        # only one local cassandra node when running tests
+        inner_exc = next(iter(exception.errors.values()))
+        # a timeout occurred, retry
+        return isinstance(inner_exc, (OperationTimedOut, ConnectionShutdown))
+    return isinstance(exception, (CoordinationFailure, OperationTimedOut))
+
+
+def cassandra_retry():
+    return retry(
+        wait=wait_random_exponential(multiplier=1, max=10),
+        stop=stop_after_attempt(MAX_RETRIES),
+        retry=retry_if_exception(is_retryable_cassandra_exception),
+    )
+
+
 TRet = TypeVar("TRet")
 
 
@@ -205,6 +244,7 @@ def _prepared_statement(
 
     def decorator(f: Callable[..., TRet]):
         @functools.wraps(f)
+        @cassandra_retry()
         def newf(self: "CqlRunner", *args, **kwargs) -> TRet:
             if f.__name__ not in self._prepared_statements:
                 statement: PreparedStatement = self._session.prepare(
@@ -279,6 +319,7 @@ def _prepared_select_statements(
 
     def decorator(f: Callable[..., TRet]):
         @functools.wraps(f)
+        @cassandra_retry()
         def newf(self: "CqlRunner", *args, **kwargs) -> TRet:
             if f.__name__ not in self._prepared_statements:
                 self._prepared_statements[f.__name__] = {
@@ -364,17 +405,9 @@ class CqlRunner:
         if auth_provider:
             auth_provider_impl = _instantiate_auth_provider(auth_provider)
         self.table_options = table_options or {}
-
-        self._cluster = Cluster(
-            hosts,
-            port=port,
-            auth_provider=auth_provider_impl,
-            execution_profiles=get_execution_profiles(consistency_level),
-            connect_timeout=60,
-            control_connection_timeout=60,
-        )
         self.keyspace = keyspace
-        self._session = self._cluster.connect()
+
+        self._connect(hosts, port, auth_provider_impl, consistency_level)
 
         # directly a PreparedStatement for methods decorated with
         # @_prepared_statements (and its wrappers, _prepared_insert_statement,
@@ -391,6 +424,18 @@ class CqlRunner:
         if hasattr(self, "_cluster"):
             self._cluster.shutdown()
 
+    @cassandra_retry()
+    def _connect(self, hosts, port, auth_provider_impl, consistency_level):
+        self._cluster = Cluster(
+            hosts,
+            port=port,
+            auth_provider=auth_provider_impl,
+            execution_profiles=get_execution_profiles(consistency_level),
+            connect_timeout=60,
+            control_connection_timeout=60,
+        )
+        self._session = self._cluster.connect()
+
     def register_user_types(self):
         self._cluster.register_user_type(
             self.keyspace, "microtimestamp_with_timezone", TimestampWithTimezone
@@ -402,13 +447,7 @@ class CqlRunner:
     # Common utility functions
     ##########################
 
-    MAX_RETRIES = 3
-
-    @retry(
-        wait=wait_random_exponential(multiplier=1, max=10),
-        stop=stop_after_attempt(MAX_RETRIES),
-        retry=retry_if_exception_type(CoordinationFailure),
-    )
+    @cassandra_retry()
     def _execute_with_retries_inner(
         self, statement, args: Optional[Sequence]
     ) -> ResultSet:
@@ -420,11 +459,7 @@ class CqlRunner:
         except (ReadTimeout, WriteTimeout) as e:
             raise QueryTimeout(*e.args) from None
 
-    @retry(
-        wait=wait_random_exponential(multiplier=1, max=10),
-        stop=stop_after_attempt(MAX_RETRIES),
-        retry=retry_if_exception_type(CoordinationFailure),
-    )
+    @cassandra_retry()
     def _execute_many_with_retries_inner(
         self, statement, args_list: Sequence[Tuple]
     ) -> Iterable[Dict[str, Any]]:
@@ -450,11 +485,7 @@ class CqlRunner:
             # Need to consume the generator to actually run the INSERTs
             pass
 
-    @retry(
-        wait=wait_random_exponential(multiplier=1, max=10),
-        stop=stop_after_attempt(MAX_RETRIES),
-        retry=retry_if_exception_type(CoordinationFailure),
-    )
+    @cassandra_retry()
     def _execute_many_statements_with_retries_inner(
         self,
         statements_and_parameters: Sequence[Tuple[Any, Tuple]],
