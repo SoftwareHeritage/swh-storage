@@ -422,9 +422,6 @@ def swh_storage_backend(swh_storage_backend_config):
     if cassandra_backend:
         from swh.storage.cassandra.schema import TABLES
 
-        for partition in backend.object_references_list_partitions():
-            backend.object_references_drop_partition(partition)
-
         keyspace = backend._keyspace
         for table in TABLES:
             table_rows = backend._cql_runner.execute_with_retries(

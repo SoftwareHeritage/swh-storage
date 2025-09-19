@@ -1,4 +1,4 @@
-# Copyright (C) 2024  The Software Heritage developers
+# Copyright (C) 2024-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -23,6 +23,20 @@ def swh_storage_backend_config(swh_storage_cassandra_backend_config):
             "object_references_*": "default_time_to_live = 2",
         },
     }
+
+
+@pytest.fixture
+def swh_storage(swh_storage_backend):
+    # need to drop and recreate object references partition for the
+    # defined TTLs to be applied to cassandra tables
+    for partition in swh_storage_backend.object_references_list_partitions():
+        swh_storage_backend.object_references_drop_partition(partition)
+        swh_storage_backend.object_references_create_partition(
+            partition.year, partition.week
+        )
+    yield swh_storage_backend
+    for partition in swh_storage_backend.object_references_list_partitions():
+        swh_storage_backend.object_references_drop_partition(partition)
 
 
 @pytest.mark.cassandra
