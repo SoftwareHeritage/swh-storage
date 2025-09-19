@@ -1,4 +1,4 @@
-# Copyright (C) 2020-2024  The Software Heritage developers
+# Copyright (C) 2020-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -7,8 +7,6 @@ import datetime
 import logging
 
 import pytest
-
-from swh.storage import get_storage
 
 from .test_cli import invoke
 
@@ -88,13 +86,16 @@ def test_create_object_reference_partitions(
 
 
 @pytest.fixture
-def swh_storage_with_partitions(swh_storage_backend_config):
+def swh_storage_with_partitions(swh_storage):
     # Setup partitions from 2022-12-26 00:00 to 2023-01-15 23:59
-    swh_storage = get_storage(**swh_storage_backend_config)
+    for partition in swh_storage.object_references_list_partitions():
+        swh_storage.object_references_drop_partition(partition)
     swh_storage.object_references_create_partition(2022, 52)
     for week in range(1, 3):
         swh_storage.object_references_create_partition(2023, week)
-    return swh_storage
+    yield swh_storage
+    for partition in swh_storage.object_references_list_partitions():
+        swh_storage.object_references_drop_partition(partition)
 
 
 @pytest.mark.parametrize(
