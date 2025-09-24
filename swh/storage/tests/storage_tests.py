@@ -1193,13 +1193,13 @@ class TestStorage:
         content, content2 = sample_data.contents[:2]
         swh_storage.content_add([content, content2])
         dir1, dir2, dir3 = sample_data.directories[:3]
+        dir4 = sample_data.directory7
 
-        dir_ids = [d.id for d in [dir1, dir2, dir3]]
+        dir_ids = [d.id for d in [dir1, dir2, dir3, dir4]]
         init_missing = set(swh_storage.directory_missing(dir_ids))
         assert init_missing == set(dir_ids)
 
-        actual_result = swh_storage.directory_add([dir1, dir2, dir3])
-        assert actual_result == {"directory:add": 3}
+        swh_storage.directory_add(sample_data.directories)
 
         # List directory containing one file
         actual_data = list(swh_storage.directory_ls(dir1.id, recursive=True))
@@ -1225,6 +1225,35 @@ class TestStorage:
 
         for data in actual_data:
             assert data in expected_data
+
+        actual_data = list(swh_storage.directory_ls(dir4.id, recursive=True))
+
+        # List directory containing three levels of sub-directories
+        expected_data = list(
+            itertools.chain(
+                transform_entries(swh_storage, dir4),
+                transform_entries(
+                    swh_storage, sample_data.directory5, prefix=b"subdir1/"
+                ),
+                transform_entries(
+                    swh_storage, sample_data.directory5, prefix=b"subdir2/"
+                ),
+                transform_entries(
+                    swh_storage, sample_data.directory4, prefix=b"subdir3/"
+                ),
+                transform_entries(
+                    swh_storage, sample_data.directory3, prefix=b"subdir3/subdir1/"
+                ),
+                transform_entries(
+                    swh_storage,
+                    sample_data.directory,
+                    prefix=b"subdir3/subdir1/subdir/",
+                ),
+            )
+        )
+
+        for data in actual_data:
+            assert data in expected_data, data
 
     def test_directory_ls_non_recursive(self, swh_storage, sample_data):
         # create consistent dataset regarding the directories we want to list

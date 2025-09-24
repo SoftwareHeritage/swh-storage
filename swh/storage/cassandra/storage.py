@@ -763,9 +763,7 @@ class CassandraStorage:
             yield ret
 
             if recursive and ret["type"] == "dir":
-                yield from self._directory_ls(
-                    ret["target"], True, prefix + ret["name"] + b"/"
-                )
+                yield from self._directory_ls(ret["target"], True, ret["name"] + b"/")
 
     def directory_entry_get_by_path(
         self, directory: Sha1Git, paths: List[bytes]
