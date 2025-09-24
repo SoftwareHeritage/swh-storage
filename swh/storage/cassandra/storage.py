@@ -4,7 +4,7 @@
 # See top-level LICENSE file for more information
 
 import base64
-from collections import Counter, defaultdict
+from collections import Counter, defaultdict, deque
 import datetime
 import itertools
 import logging
@@ -706,7 +706,7 @@ class CassandraStorage:
         return self._cql_runner.directory_missing(directories)
 
     def _join_dentry_to_content(
-        self, dentry: DirectoryEntry, contents: List[Content]
+        self, dentry: DirectoryEntry, contents: Dict[Sha1Git, Content]
     ) -> Dict[str, Any]:
         content: Union[None, Content, SkippedContentRow]
         keys = (
@@ -719,10 +719,8 @@ class CassandraStorage:
         ret = dict.fromkeys(keys)
         ret.update(dentry.to_dict())
         if ret["type"] == "file":
-            for content in contents:
-                if dentry.target == content.sha1_git:
-                    break
-            else:
+            content = contents.get(dentry.target)
+            if content is None:
                 target = ret["target"]
                 assert target is not None
                 tokens = list(
@@ -734,36 +732,10 @@ class CassandraStorage:
                     content = list(
                         self._cql_runner.skipped_content_get_from_token(tokens[0])
                     )[0]
-                else:
-                    content = None
             if content:
                 for key in keys:
                     ret[key] = getattr(content, key)
         return ret
-
-    def _directory_ls(
-        self, directory_id: Sha1Git, recursive: bool, prefix: bytes = b""
-    ) -> Iterable[Dict[str, Any]]:
-        if self.directory_missing([directory_id]):
-            return
-        rows = list(self._cql_runner.directory_entry_get(directory_id))
-
-        # TODO: dedup to be fast in case the directory contains the same subdir/file
-        # multiple times
-        contents = self._content_find_many([{"sha1_git": row.target} for row in rows])
-
-        for row in rows:
-            entry_d = row.to_dict()
-            # Build and yield the directory entry dict
-            del entry_d["directory_id"]
-            entry = DirectoryEntry.from_dict(entry_d)
-            ret = self._join_dentry_to_content(entry, contents)
-            ret["name"] = prefix + ret["name"]
-            ret["dir_id"] = directory_id
-            yield ret
-
-            if recursive and ret["type"] == "dir":
-                yield from self._directory_ls(ret["target"], True, ret["name"] + b"/")
 
     def directory_entry_get_by_path(
         self, directory: Sha1Git, paths: List[bytes]
@@ -807,7 +779,39 @@ class CassandraStorage:
     def directory_ls(
         self, directory: Sha1Git, recursive: bool = False
     ) -> Iterable[Dict[str, Any]]:
-        yield from self._directory_ls(directory, recursive)
+        if self.directory_missing([directory]):
+            return
+
+        queue = deque([(b"", directory)])
+
+        while queue:
+            path, dir_id = queue.popleft()
+            rows = list(self._cql_runner.directory_entry_get(dir_id))
+
+            contents = {
+                c.sha1_git: c
+                for c in self._content_find_many(
+                    [
+                        {"sha1_git": sha1_git}
+                        for sha1_git in {
+                            row.target for row in rows if row.type == "file"
+                        }
+                    ]
+                )
+            }
+
+            for row in rows:
+                entry_d = row.to_dict()
+                # Build and yield the directory entry dict
+                del entry_d["directory_id"]
+                entry = DirectoryEntry.from_dict(entry_d)
+                ret = self._join_dentry_to_content(entry, contents)
+                ret["name"] = path + ret["name"]
+                ret["dir_id"] = dir_id
+                yield ret
+
+                if recursive and ret["type"] == "dir":
+                    queue.append((ret["name"] + b"/", ret["target"]))
 
     def directory_get_entries(
         self,
