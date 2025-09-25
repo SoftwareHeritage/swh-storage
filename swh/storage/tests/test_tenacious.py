@@ -493,18 +493,12 @@ def test_tenacious_proxy_storage_handle_hashcollisions(
     random.shuffle(insert_contents)
 
     s = storage.content_add_metadata(insert_contents)
-    assert s == {"content:add": 17, "content:add:errors": 6}
-    log_drops = {rec.args[0] for rec in caplog.records if rec.msg == "dropped %s"}
-    assert log_drops == set(contents[:3] + bad_contents[:3])
-    caplog.clear()
+    assert s == {"content:add": len(insert_contents)}
 
     s = storage.content_add_metadata(contents)
-    assert s == {"content:add": 3}
-    log_drops = {rec.args[0] for rec in caplog.records if rec.msg == "dropped %s"}
-    assert log_drops == set()
-    caplog.clear()
+    # All duplicates, no insertions
+    assert s == {"content:add": 0}
 
     s = storage.content_add_metadata(bad_contents)
-    assert s == {"content:add": 0, "content:add:errors": 20}
-    log_drops = {rec.args[0] for rec in caplog.records if rec.msg == "dropped %s"}
-    assert log_drops == set(bad_contents)
+    # Three contents were already inserted
+    assert s == {"content:add": 17}

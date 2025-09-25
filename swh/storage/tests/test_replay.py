@@ -19,7 +19,6 @@ from swh.journal.serializers import kafka_to_value, key_to_kafka, value_to_kafka
 from swh.journal.writer import JournalWriterInterface
 from swh.model.hashutil import MultiHash, hash_to_bytes
 from swh.model.model import (
-    Content,
     Directory,
     OriginVisit,
     OriginVisitStatus,
@@ -723,7 +722,7 @@ def test_storage_replayer_tenacious_with_hashcollisions(
 ):
     """Replayer w/ tenacious proxy, filled with hash colliding content objects
 
-    Ensure colliding objects are reported as such
+    Ensure colliding objects are inserted properly
     """
     src, replayer = replayer_storage_and_client
     jwriter = src.journal_writer
@@ -750,12 +749,10 @@ def test_storage_replayer_tenacious_with_hashcollisions(
     jwriter.journal.flush()
     nb_processed = replayer.process(worker_fn)
     assert nb_processed == len(contents)
-    assert len(dst.storage._cql_runner._contents.data) == len(contents)
-    failed_objs = [
-        Content.from_dict(yaml.safe_load(redisdb.get(k))["obj"]) for k in redisdb.keys()
-    ]
-    assert set(failed_objs) == set(colliding_objs)
-    redisdb.delete(*redisdb.keys())
+    assert sum(
+        len(x) for x in dst.storage._cql_runner._contents.data.values()
+    ) == 2 * len(contents)
+    assert set(redisdb.keys()) == set()
 
     # hash collisions on blake2s256
     colliding_objs = [
@@ -765,12 +762,10 @@ def test_storage_replayer_tenacious_with_hashcollisions(
     jwriter.journal.flush()
     nb_processed = replayer.process(worker_fn)
     assert nb_processed == len(contents)
-    assert len(dst.storage._cql_runner._contents.data) == len(contents)
-    failed_objs = [
-        Content.from_dict(yaml.safe_load(redisdb.get(k))["obj"]) for k in redisdb.keys()
-    ]
-    assert set(failed_objs) == set(colliding_objs)
-    redisdb.delete(*redisdb.keys())
+    assert sum(
+        len(x) for x in dst.storage._cql_runner._contents.data.values()
+    ) == 3 * len(contents)
+    assert set(redisdb.keys()) == set()
 
     # hash collisions on sha1
     colliding_objs = [attr.evolve(c, sha1=b"\x00" * 20, data=None) for c in contents]
@@ -778,12 +773,10 @@ def test_storage_replayer_tenacious_with_hashcollisions(
     jwriter.journal.flush()
     nb_processed = replayer.process(worker_fn)
     assert nb_processed == len(contents)
-    assert len(dst.storage._cql_runner._contents.data) == len(contents)
-    failed_objs = [
-        Content.from_dict(yaml.safe_load(redisdb.get(k))["obj"]) for k in redisdb.keys()
-    ]
-    assert set(failed_objs) == set(colliding_objs)
-    redisdb.delete(*redisdb.keys())
+    assert sum(
+        len(x) for x in dst.storage._cql_runner._contents.data.values()
+    ) == 4 * len(contents)
+    assert set(redisdb.keys()) == set()
 
     # hash collisions on sha1_git
     colliding_objs = [
@@ -793,12 +786,10 @@ def test_storage_replayer_tenacious_with_hashcollisions(
     jwriter.journal.flush()
     nb_processed = replayer.process(worker_fn)
     assert nb_processed == len(contents)
-    assert len(dst.storage._cql_runner._contents.data) == len(contents)
-    failed_objs = [
-        Content.from_dict(yaml.safe_load(redisdb.get(k))["obj"]) for k in redisdb.keys()
-    ]
-    assert set(failed_objs) == set(colliding_objs)
-    redisdb.delete(*redisdb.keys())
+    assert sum(
+        len(x) for x in dst.storage._cql_runner._contents.data.values()
+    ) == 5 * len(contents)
+    assert set(redisdb.keys()) == set()
 
 
 def test_storage_replayer_tenacious_with_invalid_objects(
