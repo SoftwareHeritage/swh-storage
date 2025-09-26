@@ -920,29 +920,39 @@ class CassandraStorage:
 
         return [revisions.get(rev_id) for rev_id in revision_ids]
 
-    def _get_parent_revs(
+    def _revisions_walker_dfs(
         self,
         rev_ids: Iterable[Sha1Git],
-        seen: Set[Sha1Git],
         limit: Optional[int],
         short: bool,
     ) -> Union[
         Iterable[Dict[str, Any]],
         Iterable[Tuple[Sha1Git, Tuple[Sha1Git, ...]]],
     ]:
-        if limit and len(seen) >= limit:
-            return
-        rev_ids = [id_ for id_ in rev_ids if id_ not in seen]
+
+        rev_ids = list(reversed(list(rev_ids)))
         if not rev_ids:
             return
-        seen |= set(rev_ids)
 
-        # We need this query, even if short=True, to return consistent
-        # results (ie. not return only a subset of a revision's parents
-        # if it is being written)
-        if short:
-            ids = self._cql_runner.revision_get_ids(rev_ids)
-            for id_ in ids:
+        seen: Set[Sha1Git] = set()
+
+        while rev_ids:
+
+            rev_id = rev_ids.pop()
+            if rev_id in seen:
+                continue
+
+            seen.add(rev_id)
+
+            # We need this query, even if short=True, to return consistent
+            # results (ie. not return only a subset of a revision's parents
+            # if it is being written)
+            if short:
+                ids = list(self._cql_runner.revision_get_ids([rev_id]))
+                if not ids:
+                    continue
+                id_ = ids[0]
+
                 # TODO: use a single query to get all parents?
                 # (it might have less latency, but requires less code and more
                 # bandwidth (because revision id would be part of each returned
@@ -953,11 +963,12 @@ class CassandraStorage:
                 # sorted by rank.
 
                 yield (id_, parents)
-                yield from self._get_parent_revs(parents, seen, limit, short)
-        else:
-            rows = self._cql_runner.revision_get(rev_ids)
+            else:
+                rows = list(self._cql_runner.revision_get([rev_id]))
+                if not rows:
+                    continue
+                row = rows[0]
 
-            for row in rows:
                 # TODO: use a single query to get all parents?
                 # (it might have less latency, but requires less code and more
                 # bandwidth (because revision id would be part of each returned
@@ -969,7 +980,11 @@ class CassandraStorage:
 
                 rev = converters.revision_from_db(row, parents=parents)
                 yield rev.to_dict()
-                yield from self._get_parent_revs(parents, seen, limit, short)
+
+            rev_ids += reversed(parents)
+
+            if limit and len(seen) >= limit:
+                return
 
     def revision_get_partition(
         self,
@@ -998,19 +1013,17 @@ class CassandraStorage:
         ignore_displayname: bool = False,
         limit: Optional[int] = None,
     ) -> Iterable[Optional[Dict[str, Any]]]:
-        seen: Set[Sha1Git] = set()
         yield from cast(
             Iterable[Optional[Dict[str, Any]]],
-            self._get_parent_revs(revisions, seen, limit, short=False),
+            self._revisions_walker_dfs(revisions, limit, short=False),
         )
 
     def revision_shortlog(
         self, revisions: List[Sha1Git], limit: Optional[int] = None
     ) -> Iterable[Optional[Tuple[Sha1Git, Tuple[Sha1Git, ...]]]]:
-        seen: Set[Sha1Git] = set()
         yield from cast(
             Iterable[Optional[Tuple[Sha1Git, Tuple[Sha1Git, ...]]]],
-            self._get_parent_revs(revisions, seen, limit, short=True),
+            self._revisions_walker_dfs(revisions, limit, short=True),
         )
 
     def revision_get_random(self) -> Sha1Git:
