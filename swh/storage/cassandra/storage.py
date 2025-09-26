@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2024  The Software Heritage developers
+# Copyright (C) 2019-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -746,7 +746,7 @@ class CassandraStorage:
     ) -> Iterable[Dict[str, Any]]:
         if self.directory_missing([directory_id]):
             return
-        rows = list(self._cql_runner.directory_entry_get([directory_id]))
+        rows = list(self._cql_runner.directory_entry_get(directory_id))
 
         # TODO: dedup to be fast in case the directory contains the same subdir/file
         # multiple times

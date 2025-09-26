@@ -1,4 +1,4 @@
-# Copyright (C) 2018-2024  The Software Heritage developers
+# Copyright (C) 2018-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -514,7 +514,7 @@ class TestCassandraStorage(_TestStorage):
         # However, because they are inserted simultaneously, the backend may crash
         # before the last handful of entries; so we allow them to be missing
         # without failing the test (which would make it flaky).
-        entry_rows = swh_storage._cql_runner.directory_entry_get([directory.id])
+        entry_rows = swh_storage._cql_runner.directory_entry_get(directory.id)
         assert (
             {entry.name for entry in entries[0:-100]}
             <= {row.name for row in entry_rows}

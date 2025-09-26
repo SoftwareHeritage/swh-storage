@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2022  The Software Heritage developers
+# Copyright (C) 2015-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -378,11 +378,8 @@ class InMemoryCqlRunner:
     def directory_entry_add_one(self, entry: DirectoryEntryRow) -> None:
         self._directory_entries.insert(entry)
 
-    def directory_entry_get(
-        self, directory_ids: List[Sha1Git]
-    ) -> Iterable[DirectoryEntryRow]:
-        for id_ in directory_ids:
-            yield from self._directory_entries.get_from_partition_key((id_,))
+    def directory_entry_get(self, directory_id: Sha1Git) -> Iterable[DirectoryEntryRow]:
+        yield from self._directory_entries.get_from_partition_key((directory_id,))
 
     def directory_entry_get_from_name(
         self, directory_id: Sha1Git, from_: bytes, limit: int

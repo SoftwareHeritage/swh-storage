@@ -889,13 +889,13 @@ class CqlRunner:
                 # Fall back to inserting concurrently.
                 self.directory_entry_add_concurrent(entry_group_list)
 
-    @_prepared_select_statement(DirectoryEntryRow, "WHERE directory_id IN ?")
+    @_prepared_select_statement(DirectoryEntryRow, "WHERE directory_id = ?")
     def directory_entry_get(
-        self, directory_ids, *, statement
+        self, directory_id, *, statement
     ) -> Iterable[DirectoryEntryRow]:
         return map(
             DirectoryEntryRow.from_dict,
-            self.execute_with_retries(statement, [directory_ids]),
+            self.execute_with_retries(statement, [directory_id]),
         )
 
     @_prepared_select_statement(
