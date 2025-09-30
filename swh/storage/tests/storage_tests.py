@@ -430,7 +430,7 @@ class TestStorage:
         assert len(swh_storage.content_find(cont.to_dict())) == 1
         assert len(swh_storage.content_find(cont2.to_dict())) == 1
 
-    @pytest.mark.parametrize("colliding_hash", DEFAULT_ALGORITHMS)
+    @pytest.mark.parametrize("colliding_hash", sorted(DEFAULT_ALGORITHMS))
     def test_content_add_collision(
         self, swh_storage_backend, swh_storage, sample_data, colliding_hash
     ):
@@ -542,7 +542,7 @@ class TestStorage:
             "content:add": 2,
         }
 
-    @pytest.mark.parametrize("colliding_hash", DEFAULT_ALGORITHMS)
+    @pytest.mark.parametrize("colliding_hash", sorted(DEFAULT_ALGORITHMS))
     def test_content_add_metadata_collision(
         self, swh_storage, sample_data, colliding_hash
     ):

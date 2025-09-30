@@ -109,7 +109,7 @@ def test_storage_direct_writer(kafka_prefix: str, kafka_server, consumer: Consum
     "object_types",
     (set(k.value for k in TEST_OBJECTS.keys()) | {"hash_colliding_content"},),
 )  # consume from the hash_colliding_content topic, which is not listened to by default
-@pytest.mark.parametrize("colliding_hash", DEFAULT_ALGORITHMS)
+@pytest.mark.parametrize("colliding_hash", sorted(DEFAULT_ALGORITHMS))
 def test_storage_direct_writer_content_hash_collision_sequential(
     kafka_prefix: str,
     kafka_server,
