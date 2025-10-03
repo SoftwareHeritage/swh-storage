@@ -6,7 +6,7 @@
 
 import pytest
 
-from swh.storage.proxies.blocking import BlockingProxyStorage
+from swh.storage.proxies.blocking.cls import BlockingProxyStorage
 from swh.storage.tests.test_in_memory import TestInMemoryStorage as _TestStorage
 
 # This simply test that without any blocked URL defined in the blocking proxy,

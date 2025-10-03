@@ -27,7 +27,7 @@ from swh.model.model import (
 from swh.model.swhids import CoreSWHID, ExtendedObjectType, ExtendedSWHID, ObjectType
 from swh.storage.exc import MaskedObjectException
 from swh.storage.interface import HashDict
-from swh.storage.proxies.masking import MaskingProxyStorage
+from swh.storage.proxies.masking.cls import MaskingProxyStorage
 from swh.storage.proxies.masking.db import MaskedState
 from swh.storage.tests.storage_data import StorageData
 

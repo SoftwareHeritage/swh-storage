@@ -10,7 +10,7 @@ import pytest
 from pytest_postgresql import factories
 
 from swh.core.db.db_utils import initialize_database_for_module
-from swh.storage.proxies.masking import MaskingProxyStorage
+from swh.storage.proxies.masking.cls import MaskingProxyStorage
 from swh.storage.proxies.masking.db import MaskingAdmin, MaskingQuery
 
 masking_db_postgresql_proc = factories.postgresql_proc(

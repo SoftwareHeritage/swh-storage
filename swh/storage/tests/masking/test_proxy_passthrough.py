@@ -6,7 +6,7 @@
 
 import pytest
 
-from swh.storage.proxies.masking import MaskingProxyStorage
+from swh.storage.proxies.masking.cls import MaskingProxyStorage
 from swh.storage.tests.test_in_memory import TestInMemoryStorage as _TestStorage
 
 

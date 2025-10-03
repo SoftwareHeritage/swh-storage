@@ -11,7 +11,7 @@ import pytest
 
 from swh.model.model import Origin, OriginVisit, OriginVisitStatus
 from swh.storage.exc import BlockedOriginException
-from swh.storage.proxies.blocking import BlockingProxyStorage
+from swh.storage.proxies.blocking.cls import BlockingProxyStorage
 from swh.storage.proxies.blocking.db import BlockingState
 
 

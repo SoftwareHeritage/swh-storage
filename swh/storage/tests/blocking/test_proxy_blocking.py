@@ -8,7 +8,7 @@ import functools
 import pytest
 
 from swh.storage.exc import BlockedOriginException
-from swh.storage.proxies.blocking import BlockingProxyStorage
+from swh.storage.proxies.blocking.cls import BlockingProxyStorage
 from swh.storage.proxies.blocking.db import BlockingState
 from swh.storage.tests.storage_data import StorageData
 from swh.storage.tests.test_in_memory import TestInMemoryStorage as _TestStorage

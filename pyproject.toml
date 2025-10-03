@@ -41,8 +41,8 @@ journal = {file = ["requirements-swh-journal.txt"]}
 "tenacious" = "swh.storage.proxies.tenacious:TenaciousProxyStorage"
 "validate" = "swh.storage.proxies.validate:ValidatingProxyStorage"
 "record_references" = "swh.storage.proxies.record_references:RecordReferencesProxyStorage"
-"masking" = "swh.storage.proxies.masking:MaskingProxyStorage"
-"blocking" = "swh.storage.proxies.blocking:BlockingProxyStorage"
+"masking" = "swh.storage.proxies.masking.cls:MaskingProxyStorage"
+"blocking" = "swh.storage.proxies.blocking.cls:BlockingProxyStorage"
 
 [project.entry-points."swh.cli.subcommands"]
 "swh.storage" = "swh.storage.cli"
