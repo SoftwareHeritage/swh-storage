@@ -42,7 +42,7 @@ class BlockingProxyStorage:
 
     It uses a specific PostgreSQL database (which for now is colocated with the
     swh.storage PostgreSQL database), the access to which is implemented in the
-    :mod:`.db` submodule.
+    :mod:`..blocking.db` submodule.
 
     Sample configuration
 

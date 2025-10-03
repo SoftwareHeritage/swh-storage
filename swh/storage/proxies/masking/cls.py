@@ -69,7 +69,7 @@ class MaskingProxyStorage:
 
     It uses a specific PostgreSQL database (which for now is colocated with the
     swh.storage PostgreSQL database), the access to which is implemented in the
-    :mod:`.db` submodule.
+    :mod:`..masking.db` submodule.
 
     Sample configuration
 
