@@ -108,7 +108,7 @@ class CqlRunnerWithXor(CqlRunner):
         )
 
     # Redecorate content_add_prepare with the new ContentRow class
-    content_add_prepare = _prepared_insert_statement(ContentRowWithXor)(  # type: ignore
+    content_add_prepare = _prepared_insert_statement(ContentRowWithXor)(
         CqlRunner.content_add_prepare.__wrapped__  # type: ignore
     )
 
@@ -291,7 +291,7 @@ class CqlRunnerWithXorPK(CqlRunner):
         )
 
     # Redecorate content_add_prepare with the new ContentRow class
-    content_add_prepare = _prepared_insert_statement(ContentRowWithXorPK)(  # type: ignore  # noqa
+    content_add_prepare = _prepared_insert_statement(ContentRowWithXorPK)(
         CqlRunner.content_add_prepare.__wrapped__  # type: ignore
     )
 

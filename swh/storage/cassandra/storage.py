@@ -2287,10 +2287,10 @@ class CassandraStorage:
                 for row in self._cql_runner.skipped_content_get_from_token(token):
                     skipped_content_hashes.append(
                         TotalHashDict(
-                            sha1=row.sha1,
-                            sha1_git=row.sha1_git,
-                            sha256=row.sha256,
-                            blake2s256=row.blake2s256,
+                            sha1=row.sha1 or b"",
+                            sha1_git=row.sha1_git or b"",
+                            sha256=row.sha256 or b"",
+                            blake2s256=row.blake2s256 or b"",
                         )
                     )
         for skipped_content_hash in skipped_content_hashes:
