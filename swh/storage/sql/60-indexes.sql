@@ -225,14 +225,6 @@ create index concurrently origin_visit_origin_date_idx on origin_visit (origin, 
 create unique index concurrently origin_visit_status_pkey on origin_visit_status(origin, visit, date);
 alter table origin_visit_status add primary key using index origin_visit_status_pkey;
 
-\if :dbflavor_default
-  alter table origin_visit_status
-    add constraint origin_visit_status_origin_visit_fkey
-    foreign key (origin, visit)
-    references origin_visit(origin, visit) not valid;
-  alter table origin_visit_status validate constraint origin_visit_status_origin_visit_fkey;
-\endif
-
 -- release
 create unique index concurrently release_pkey on release(id);
 alter table release add primary key using index release_pkey;
