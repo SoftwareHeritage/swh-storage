@@ -4,9 +4,8 @@
 # See top-level LICENSE file for more information
 import hashlib
 
-from swh.model.model import Content
 from swh.model.swhids import CoreSWHID
-from swh.storage.algos.swhid import known_swhids
+from swh.storage.algos.swhid import known_swhids, swhid_is_known
 
 from ..storage_data import StorageData
 
@@ -30,8 +29,9 @@ def test_known_swhids(swh_storage):
     missing_directory_swhid = CoreSWHID.from_string(
         f"swh:1:dir:{hashlib.sha1(b'test directory').hexdigest()}"
     )
-    missing_content_swhid = Content.from_data(b"test content")
-
+    missing_content_swhid = CoreSWHID.from_string(
+        f"swh:1:cnt:{hashlib.sha1(b'test content').hexdigest()}"
+    )
     results = known_swhids(
         swh_storage,
         [
@@ -50,13 +50,22 @@ def test_known_swhids(swh_storage):
 
     assert len(results) == 10
 
-    assert results[StorageData.snapshot.swhid]
+    assert results[StorageData.snapshot.swhid()]
     assert not results[missing_snapshot_swhid]
-    assert results[StorageData.revision.swhid]
+    assert results[StorageData.revision.swhid()]
     assert not results[missing_revision_swhid]
-    assert results[StorageData.release.swhid]
+    assert results[StorageData.release.swhid()]
     assert not results[missing_release_swhid]
-    assert results[StorageData.directory.swhid]
+    assert results[StorageData.directory.swhid()]
     assert not results[missing_directory_swhid]
-    assert results[StorageData.content.swhid]
+    assert results[StorageData.content.swhid()]
     assert not results[missing_content_swhid]
+
+
+def test_swhid_is_known(swh_storage):
+    swh_storage.snapshot_add([StorageData.snapshot])
+    missing_snapshot_swhid = CoreSWHID.from_string(
+        f"swh:1:snp:{hashlib.sha1(b'test snapshot').hexdigest()}"
+    )
+    assert swhid_is_known(swh_storage, StorageData.snapshot.swhid())
+    assert not swhid_is_known(swh_storage, missing_snapshot_swhid)

@@ -6,13 +6,21 @@ from collections import defaultdict
 from typing import Iterable
 
 from swh.model.hashutil import hash_to_bytes
-from swh.model.swhids import ObjectType, QualifiedSWHID
+from swh.model.swhids import (
+    CoreSWHID,
+    ExtendedObjectType,
+    ExtendedSWHID,
+    ObjectType,
+    QualifiedSWHID,
+)
 from swh.storage.interface import StorageInterface
+
+AnySWHID = CoreSWHID | QualifiedSWHID | ExtendedSWHID
 
 
 def known_swhids(
-    storage: StorageInterface, swhids: Iterable[QualifiedSWHID]
-) -> dict[QualifiedSWHID, bool]:
+    storage: StorageInterface, swhids: Iterable[AnySWHID]
+) -> dict[AnySWHID, bool]:
     """Query the storage to check if ``swhids`` exist.
 
     We group SWHIDs by type and then call the corresponding storage ``_missing`` method
@@ -21,21 +29,28 @@ def known_swhids(
 
     Args:
         storage: a ``StorageInterface``
-        swhid: a list of ``QualifiedSWHID``
+        swhid: a list of SWHIDs
 
     Returns:
         A dictionary with SWHIDs as keys and a boolean indicating their existence in the
         storage
     """
 
-    grouped_swhids: dict[ObjectType, list[QualifiedSWHID]] = defaultdict(list)
-    results: dict[QualifiedSWHID, bool] = {}
+    grouped_swhids: dict[ObjectType | ExtendedObjectType, list[AnySWHID]] = defaultdict(
+        list
+    )
+    results: dict[AnySWHID, bool] = {}
 
     for swhid in swhids:
         grouped_swhids[swhid.object_type].append(swhid)
 
     for object_type, swhids in grouped_swhids.items():
-        storage_missing_method = getattr(storage, f"{object_type.name.lower()}_missing")
+        if object_type == ObjectType.CONTENT:
+            storage_missing_method = storage.content_missing_per_sha1_git
+        else:
+            storage_missing_method = getattr(
+                storage, f"{object_type.name.lower()}_missing"
+            )
         missing_ids: list[bytes] = list(
             storage_missing_method([hash_to_bytes(swhid.object_id) for swhid in swhids])
         )
@@ -45,14 +60,14 @@ def known_swhids(
     return results
 
 
-def known_swhid(storage: StorageInterface, swhid: QualifiedSWHID) -> bool:
+def swhid_is_known(storage: StorageInterface, swhid: AnySWHID) -> bool:
     """Query the storage to check if ``swhid`` exists.
 
-    Like ``known_swhids`` but for a single SWHID.
+    A wrapper for ``known_swhids`` but for a single SWHID.
 
     Args:
         storage: a ``StorageInterface``
-        swhid: a ``QualifiedSWHID``
+        swhid: a SWHID
 
     Returns:
         True if ``swhid`` exists in the storage
