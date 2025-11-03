@@ -4,7 +4,9 @@
 # See top-level LICENSE file for more information
 import hashlib
 
-from swh.model.swhids import CoreSWHID
+import pytest
+
+from swh.model.swhids import CoreSWHID, QualifiedSWHID
 from swh.storage.algos.swhid import known_swhids, swhid_is_known
 
 from ..storage_data import StorageData
@@ -69,3 +71,15 @@ def test_swhid_is_known(swh_storage):
     )
     assert swhid_is_known(swh_storage, StorageData.snapshot.swhid())
     assert not swhid_is_known(swh_storage, missing_snapshot_swhid)
+
+
+def test_does_not_handle_qualified_swhid(swh_storage):
+    swhid = f"swh:1:snp:{hashlib.sha1(b'test qualified').hexdigest()}"
+    qualified_swhid = QualifiedSWHID.from_string(swhid)
+    with pytest.raises(AssertionError) as exc:
+        known_swhids(swh_storage, [qualified_swhid])
+    assert swhid in str(exc.value)
+
+    with pytest.raises(AssertionError) as exc:
+        swhid_is_known(swh_storage, qualified_swhid)
+    assert swhid in str(exc.value)

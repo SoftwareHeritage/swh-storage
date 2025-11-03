@@ -15,33 +15,45 @@ from swh.model.swhids import (
 )
 from swh.storage.interface import StorageInterface
 
-AnySWHID = CoreSWHID | QualifiedSWHID | ExtendedSWHID
-
 
 def known_swhids(
-    storage: StorageInterface, swhids: Iterable[AnySWHID]
-) -> dict[AnySWHID, bool]:
+    storage: StorageInterface, swhids: Iterable[CoreSWHID | ExtendedSWHID]
+) -> dict[CoreSWHID | ExtendedSWHID, bool]:
     """Query the storage to check if ``swhids`` exist.
 
     We group SWHIDs by type and then call the corresponding storage ``_missing`` method
     (directory_missing, snapshot_missing, etc.) and switch the results as we want to
     know what exists, not what's missing.
 
+    As the storage does not use values from the qualifier (snapshot, etc.) we exclude
+    ``QualifiedSWHID`` from this method because
+    ``known_swhids(storage, swh:1:cnt:1234567890;visit=swh:1:snp:098654321)``
+    could return that `swh:1:cnt:1234567890` exists even if `swh:1:snp:098654321`
+    doesn't.
+
     Args:
         storage: a ``StorageInterface``
         swhid: a list of SWHIDs
+
+    Raises:
+        AssertionError: received a ``QualifiedSWHID`` in the ``swhids`` list
 
     Returns:
         A dictionary with SWHIDs as keys and a boolean indicating their existence in the
         storage
     """
 
-    grouped_swhids: dict[ObjectType | ExtendedObjectType, list[AnySWHID]] = defaultdict(
-        list
-    )
-    results: dict[AnySWHID, bool] = {}
+    grouped_swhids: dict[
+        ObjectType | ExtendedObjectType, list[CoreSWHID | ExtendedSWHID]
+    ] = defaultdict(list)
+    results: dict[CoreSWHID | ExtendedSWHID, bool] = {}
 
     for swhid in swhids:
+        if isinstance(swhid, QualifiedSWHID):
+            raise AssertionError(
+                f"This method can't properly handle QualifiedSWHID like {swhid} but "
+                "but CoreSWHID or ExtendedSWHID"
+            )
         grouped_swhids[swhid.object_type].append(swhid)
 
     for object_type, swhids in grouped_swhids.items():
@@ -60,7 +72,7 @@ def known_swhids(
     return results
 
 
-def swhid_is_known(storage: StorageInterface, swhid: AnySWHID) -> bool:
+def swhid_is_known(storage: StorageInterface, swhid: CoreSWHID | ExtendedSWHID) -> bool:
     """Query the storage to check if ``swhid`` exists.
 
     A wrapper for ``known_swhids`` but for a single SWHID.
