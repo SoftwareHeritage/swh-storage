@@ -72,13 +72,13 @@ def known_swhids(storage: StorageInterface, swhids: Iterable[T]) -> set[T]:
 def swhid_is_known(storage: StorageInterface, swhid: CoreSWHID | ExtendedSWHID) -> bool:
     """Query the storage to check if ``swhid`` exists.
 
-    A wrapper for ``known_swhids`` but for a single SWHID.
+    A wrapper for :meth:`known_swhids` but for a single SWHID.
 
     Args:
         storage: a ``StorageInterface``
         swhid: a SWHID
 
     Returns:
-        True if ``swhid`` exists in the storage
+        :const:`True` if ``swhid`` exists in the storage
     """
     return swhid in known_swhids(storage, [swhid])
