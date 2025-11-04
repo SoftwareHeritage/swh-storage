@@ -50,18 +50,18 @@ def test_known_swhids(swh_storage):
         ],
     )
 
-    assert len(results) == 10
+    assert len(results) == 5
 
-    assert results[StorageData.snapshot.swhid()]
-    assert not results[missing_snapshot_swhid]
-    assert results[StorageData.revision.swhid()]
-    assert not results[missing_revision_swhid]
-    assert results[StorageData.release.swhid()]
-    assert not results[missing_release_swhid]
-    assert results[StorageData.directory.swhid()]
-    assert not results[missing_directory_swhid]
-    assert results[StorageData.content.swhid()]
-    assert not results[missing_content_swhid]
+    assert StorageData.snapshot.swhid() in results
+    assert missing_snapshot_swhid not in results
+    assert StorageData.revision.swhid() in results
+    assert missing_revision_swhid not in results
+    assert StorageData.release.swhid() in results
+    assert missing_release_swhid not in results
+    assert StorageData.directory.swhid() in results
+    assert missing_directory_swhid not in results
+    assert StorageData.content.swhid() in results
+    assert missing_content_swhid not in results
 
 
 def test_swhid_is_known(swh_storage):
@@ -76,10 +76,10 @@ def test_swhid_is_known(swh_storage):
 def test_does_not_handle_qualified_swhid(swh_storage):
     swhid = f"swh:1:snp:{hashlib.sha1(b'test qualified').hexdigest()}"
     qualified_swhid = QualifiedSWHID.from_string(swhid)
-    with pytest.raises(AssertionError) as exc:
+    with pytest.raises(TypeError) as exc:
         known_swhids(swh_storage, [qualified_swhid])
     assert swhid in str(exc.value)
 
-    with pytest.raises(AssertionError) as exc:
+    with pytest.raises(TypeError) as exc:
         swhid_is_known(swh_storage, qualified_swhid)
     assert swhid in str(exc.value)
