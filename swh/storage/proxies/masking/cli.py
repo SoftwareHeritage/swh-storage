@@ -217,10 +217,8 @@ def list_requests(ctx: click.Context, include_cleared_requests: bool) -> None:
 
 class MaskedStateType(click.Choice):
     def __init__(self):
-        from .db import MaskedState
-
         super().__init__(
-            [format_masked_state(state) for state in MaskedState], case_sensitive=False
+            ["visible", "decision-pending", "restricted"], case_sensitive=False
         )
 
 

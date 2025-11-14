@@ -19,8 +19,10 @@ from swh.model.swhids import ExtendedSWHID, ValidationError
 
 from ...proxies.masking.cli import (
     EditAborted,
+    MaskedStateType,
     clear_request,
     edit_message,
+    format_masked_state,
     history_cmd,
     list_requests,
     masking_cli_group,
@@ -616,3 +618,12 @@ def test_clear_request_not_found(mocked_masking_admin):
     assert "Error: Request “garbage” not found" in result.output
     mocked_masking_admin.delete_masks.assert_not_called()
     mocked_masking_admin.record_history.assert_not_called()
+
+
+def test_masked_state_type():
+    masked_states = set(MaskedStateType().choices)
+    # check MaskedStateType choices match MaskedState enum
+    assert masked_states == {format_masked_state(state) for state in MaskedState}
+    # check MaskedStateType choices are referenced in command documentation
+    for masked_state in masked_states:
+        assert masked_state in update_objects.__doc__
