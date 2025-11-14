@@ -156,10 +156,9 @@ def list_requests(ctx: click.Context, include_cleared_requests: bool) -> None:
 
 class BlockedStateType(click.Choice):
     def __init__(self):
-        from .db import BlockingState
 
         super().__init__(
-            [format_blocked_state(state) for state in BlockingState],
+            ["non-blocked", "blocked", "decision-pending"],
             case_sensitive=False,
         )
 
@@ -217,7 +216,7 @@ def update_objects(
     The blocked state of the provided Origins will be updated to NEW_STATE for the
     request SLUG.
 
-    NEW_STATE must be one of “blocked”, “decision-pending” or “non_blocked”.
+    NEW_STATE must be one of “blocked”, “decision-pending” or “non-blocked”.
 
     origins must be provided one per line, either via the standard input or a
     file specified via the `-f` option. `-` is synonymous for the standard

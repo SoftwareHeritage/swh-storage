@@ -18,10 +18,12 @@ from swh.core.tests.test_cli import assert_result
 from swh.storage.tests.storage_data import StorageData as data
 
 from ...proxies.blocking.cli import (
+    BlockedStateType,
     EditAborted,
     blocking_cli_group,
     clear_request,
     edit_message,
+    format_blocked_state,
     history_cmd,
     list_requests,
     new_request,
@@ -584,3 +586,12 @@ def test_clear_request_not_found(mocked_blocking_admin):
     assert "Error: Request “garbage” not found" in result.output
     mocked_blocking_admin.delete_blocking_states.assert_not_called()
     mocked_blocking_admin.record_history.assert_not_called()
+
+
+def test_blocked_state_type():
+    blocked_states = set(BlockedStateType().choices)
+    # check BlockedStateType choices match BlockingState enum
+    assert blocked_states == {format_blocked_state(state) for state in BlockingState}
+    # check BlockedStateType choices are referenced in command documentation
+    for blocked_state in blocked_states:
+        assert blocked_state in update_objects.__doc__
