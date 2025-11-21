@@ -1,12 +1,10 @@
 backports.entry_points_selectable
-cassandra-driver >= 3.19.0, != 3.21.0
+cassandra-driver >= 3.29.3
 click != 8.2.1
 deprecated
 flask
 iso8601
 mypy_extensions
-# To remove once https://github.com/datastax/python-driver/pull/1242 is merged
-pyasyncore ; python_version > "3.12"
 psycopg
 psycopg_pool >= 3.1
 redis
