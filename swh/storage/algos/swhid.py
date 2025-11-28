@@ -2,8 +2,9 @@
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
+
 from collections import defaultdict
-from typing import Iterable, TypeVar
+from typing import Iterable, Tuple, TypeVar
 
 from swh.model.swhids import (
     CoreSWHID,
@@ -42,7 +43,7 @@ def known_swhids(storage: StorageInterface, swhids: Iterable[T]) -> set[T]:
     """
 
     grouped_swhids: dict[ObjectType | ExtendedObjectType, list[T]] = defaultdict(list)
-    missing: set[bytes] = set()
+    missing: set[Tuple[ObjectType | ExtendedObjectType, bytes]] = set()
 
     for swhid in swhids:
         if isinstance(swhid, QualifiedSWHID):
@@ -60,8 +61,15 @@ def known_swhids(storage: StorageInterface, swhids: Iterable[T]) -> set[T]:
                 storage, f"{object_type.name.lower()}_missing"
             )
 
-        missing |= set(storage_missing_method([swhid.object_id for swhid in objects]))
-    return {swhid for swhid in swhids if swhid.object_id not in missing}
+        missing |= set(
+            (object_type, object_id)
+            for object_id in storage_missing_method(
+                [swhid.object_id for swhid in objects]
+            )
+        )
+    return {
+        swhid for swhid in swhids if (swhid.object_type, swhid.object_id) not in missing
+    }
 
 
 def swhid_is_known(storage: StorageInterface, swhid: CoreSWHID | ExtendedSWHID) -> bool:

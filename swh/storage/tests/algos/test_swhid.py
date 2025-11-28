@@ -2,11 +2,12 @@
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
+
 import hashlib
 
 import pytest
 
-from swh.model.swhids import CoreSWHID, QualifiedSWHID
+from swh.model.swhids import CoreSWHID, ObjectType, QualifiedSWHID
 from swh.storage.algos.swhid import known_swhids, swhid_is_known
 
 from ..storage_data import StorageData
@@ -83,3 +84,19 @@ def test_does_not_handle_qualified_swhid(swh_storage):
     with pytest.raises(TypeError) as exc:
         swhid_is_known(swh_storage, qualified_swhid)
     assert swhid in str(exc.value)
+
+
+def test_known_swhids_same_hash(swh_storage):
+    swh_storage.content_add([StorageData.content])
+
+    content_swhid = CoreSWHID(
+        object_type=ObjectType.CONTENT, object_id=StorageData.content.sha1_git
+    )
+
+    directory_swhid = CoreSWHID(
+        object_type=ObjectType.DIRECTORY, object_id=StorageData.content.sha1_git
+    )
+
+    assert known_swhids(swh_storage, [content_swhid, directory_swhid]) == {
+        content_swhid
+    }
