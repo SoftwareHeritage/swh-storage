@@ -5,7 +5,6 @@
 from collections import defaultdict
 from typing import Iterable, TypeVar
 
-from swh.model.hashutil import hash_to_bytes
 from swh.model.swhids import (
     CoreSWHID,
     ExtendedObjectType,
@@ -61,12 +60,8 @@ def known_swhids(storage: StorageInterface, swhids: Iterable[T]) -> set[T]:
                 storage, f"{object_type.name.lower()}_missing"
             )
 
-        missing |= set(
-            storage_missing_method(
-                [hash_to_bytes(swhid.object_id) for swhid in objects]
-            )
-        )
-    return {swhid for swhid in swhids if hash_to_bytes(swhid.object_id) not in missing}
+        missing |= set(storage_missing_method([swhid.object_id for swhid in objects]))
+    return {swhid for swhid in swhids if swhid.object_id not in missing}
 
 
 def swhid_is_known(storage: StorageInterface, swhid: CoreSWHID | ExtendedSWHID) -> bool:
