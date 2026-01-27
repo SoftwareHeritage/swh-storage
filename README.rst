@@ -207,6 +207,12 @@ configuration.
      url: http://localhost:5002/
 
 
+.. warning::
+
+   Loaders do not batch their insertions so this basic configuration should be slow,
+   even with a local server. You most probably want to wrap a remote storage in a
+   :py:class:`BufferingProxyStorage <swh.storage.proxies.buffer.BufferingProxyStorage>`.
+
 You could directly define a postgresql storage with the following snippet:
 
 .. code-block:: yaml

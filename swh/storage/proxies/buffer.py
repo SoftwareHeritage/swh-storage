@@ -94,7 +94,8 @@ def estimate_release_size(release: Release) -> int:
 
 
 class BufferingProxyStorage:
-    """
+    # only a string *literal* can be automatically assigned to __doc__!
+    __doc__ = """
     Storage implementation in charge of accumulating objects prior to
     discussing with the "main" storage.
     When the number of objects of any given type exceeds the configure threshold,
