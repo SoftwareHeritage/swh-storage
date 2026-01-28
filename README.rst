@@ -209,21 +209,26 @@ configuration.
 
 .. warning::
 
-   Loaders do not batch their insertions so this basic configuration should be slow,
-   even with a local server. You most probably want to wrap a remote storage in a
-   :py:class:`BufferingProxyStorage <swh.storage.proxies.buffer.BufferingProxyStorage>`.
-
-You could directly define a postgresql storage with the following snippet:
+   Loaders do not batch their insertions nor deduplicate the objects they insert,
+   so the configuration above should be slow, even with a local server.
+   Grouped inserts and deduplication are implemented as proxies that you can activate
+   by configuring a pipeline as follows:
 
 .. code-block:: yaml
 
    storage:
-     cls: postgresql
-     db: service=swh-dev
-     objstorage:
-       cls: pathslicing
-       root: /home/storage/swh-storage/
-       slicing: 0:2/2:4/4:6
+   cls: pipeline
+   steps:
+      - cls: buffer
+         min_batch_size:
+         content: 10000
+         content_bytes: 104857600
+         directory: 1000
+         revision: 1000
+      - cls: filter
+      - cls: remote
+         url: http://localhost:5002/
+
 
 
 Cassandra
