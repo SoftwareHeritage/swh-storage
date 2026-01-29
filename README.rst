@@ -217,16 +217,16 @@ configuration.
 .. code-block:: yaml
 
    storage:
-   cls: pipeline
-   steps:
-      - cls: buffer
+     cls: pipeline
+     steps:
+       - cls: buffer
          min_batch_size:
          content: 10000
          content_bytes: 104857600
          directory: 1000
          revision: 1000
-      - cls: filter
-      - cls: remote
+       - cls: filter
+       - cls: remote
          url: http://localhost:5002/
 
 
