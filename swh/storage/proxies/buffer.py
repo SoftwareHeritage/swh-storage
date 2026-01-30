@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2023  The Software Heritage developers
+# Copyright (C) 2019-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -94,7 +94,8 @@ def estimate_release_size(release: Release) -> int:
 
 
 class BufferingProxyStorage:
-    """
+    # only a string *literal* can be automatically assigned to __doc__!
+    __doc__ = """
     Storage implementation in charge of accumulating objects prior to
     discussing with the "main" storage.
     When the number of objects of any given type exceeds the configure threshold,
