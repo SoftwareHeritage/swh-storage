@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2025  The Software Heritage developers
+# Copyright (C) 2019-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -766,7 +766,7 @@ class CassandraStorage:
         return self._cql_runner.directory_missing(directories)
 
     def _join_dentry_to_content(
-        self, dentry: DirectoryEntry, contents: Dict[Sha1Git, Content]
+        self, dentry: Dict[str, Any], contents: Dict[Sha1Git, Content]
     ) -> Dict[str, Any]:
         content: Union[None, Content, SkippedContentRow]
         keys = (
@@ -776,12 +776,11 @@ class CassandraStorage:
             "sha256",
             "length",
         )
-        ret = dict.fromkeys(keys)
-        ret.update(dentry.to_dict())
-        if ret["type"] == "file":
-            content = contents.get(dentry.target)
+        dentry.update(dict.fromkeys(keys))
+        if dentry["type"] == "file":
+            content = contents.get(dentry["target"])
             if content is None:
-                target = ret["target"]
+                target = dentry["target"]
                 assert target is not None
                 tokens = list(
                     self._cql_runner.skipped_content_get_tokens_from_single_hash(
@@ -794,8 +793,8 @@ class CassandraStorage:
                     )[0]
             if content:
                 for key in keys:
-                    ret[key] = getattr(content, key)
-        return ret
+                    dentry[key] = getattr(content, key)
+        return dentry
 
     def directory_entry_get_by_path(
         self, directory: Sha1Git, paths: List[bytes]
@@ -864,8 +863,7 @@ class CassandraStorage:
                 entry_d = row.to_dict()
                 # Build and yield the directory entry dict
                 del entry_d["directory_id"]
-                entry = DirectoryEntry.from_dict(entry_d)
-                ret = self._join_dentry_to_content(entry, contents)
+                ret = self._join_dentry_to_content(entry_d, contents)
                 ret["name"] = path + ret["name"]
                 ret["dir_id"] = dir_id
                 yield ret
