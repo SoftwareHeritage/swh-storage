@@ -424,9 +424,6 @@ class TestCassandraStorage(_TestStorage):
                     ), f"Duplicate timing for suboperation {suboperation}"
                     timings[suboperation] = value
 
-            from pprint import pprint
-
-            pprint(timings)
             for suboperation, value in timings.items():
                 assert value > 0.0, (
                     f"swh_storage_content_add_suboperations_total with "

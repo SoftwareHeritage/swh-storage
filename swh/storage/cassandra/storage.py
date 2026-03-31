@@ -415,16 +415,13 @@ class CassandraStorage:
             #    we didn't have time to write to the objstorage before the crash
             # 2. the objstorage mirroring, which reads from the journal, may attempt to
             #    read from the objstorage before we finished writing it
-            import time
 
-            print("before add_to_objstorage", time.monotonic())
             with statsd.timed(
                 CONTENT_ADD_DURATION_METRIC, tags={"suboperation": "add_to_objstorage"}
             ):
                 summary = self.objstorage.content_add(
                     c for c in contents_to_add if c.status != "absent"
                 )
-            print("after add_to_objstorage", time.monotonic())
             content_bytes_added = summary["content:add:bytes"]
 
         with statsd.timed(
