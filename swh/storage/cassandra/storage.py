@@ -11,6 +11,7 @@ import logging
 import operator
 import random
 import re
+import time
 from typing import (
     Any,
     Callable,
@@ -321,6 +322,8 @@ class CassandraStorage:
                 yield row
 
     def _content_add(self, contents: List[Content], with_data: bool) -> Dict[str, int]:
+        timings = {}
+
         # Check for hash collisions and existing contents. This test is not
         # atomic with the insertion, so it won't detect a collision if both
         # contents are inserted at the same time from different storage
@@ -352,18 +355,17 @@ class CassandraStorage:
                 content_ids_by_hash[algo][content.get_hash(algo)].append(i)
 
         # Get all rows that could match one of the hashes being inserted
-        with statsd.timed(
-            CONTENT_ADD_DURATION_METRIC, tags={"suboperation": "get_from_hashes"}
-        ):
-            rows_by_algo = [
-                (
-                    algo,
-                    self._content_get_from_hashes(
-                        algo, list(content_ids_by_hash[algo])
-                    ),
-                )
-                for algo in HASH_ALGORITHMS
-            ]
+        start_time = time.monotonic()
+        rows_by_algo = [
+            (
+                algo,
+                self._content_get_from_hashes(algo, list(content_ids_by_hash[algo])),
+            )
+            for algo in HASH_ALGORITHMS
+        ]
+
+        end_time = time.monotonic()
+        timings["get_from_hashes"] = end_time - start_time
 
         for algo, rows in rows_by_algo:
             for row in rows:
@@ -406,6 +408,7 @@ class CassandraStorage:
                 if i not in known_content_ids
             ]
 
+        start_time = time.monotonic()
         if with_data:
             # First insert to the objstorage, if the endpoint is
             # `content_add` (as opposed to `content_add_metadata`).
@@ -416,27 +419,26 @@ class CassandraStorage:
             # 2. the objstorage mirroring, which reads from the journal, may attempt to
             #    read from the objstorage before we finished writing it
 
-            with statsd.timed(
-                CONTENT_ADD_DURATION_METRIC, tags={"suboperation": "add_to_objstorage"}
-            ):
-                summary = self.objstorage.content_add(
-                    c for c in contents_to_add if c.status != "absent"
-                )
+            summary = self.objstorage.content_add(
+                c for c in contents_to_add if c.status != "absent"
+            )
             content_bytes_added = summary["content:add:bytes"]
 
-        with statsd.timed(
-            CONTENT_ADD_DURATION_METRIC, tags={"suboperation": "add_to_journal"}
-        ):
-            self.journal_writer.content_add(contents_to_add)
+            end_time = time.monotonic()
+            timings["add_to_objstorage"] = end_time - start_time
+            start_time = end_time
+
+        self.journal_writer.content_add(contents_to_add)
+
+        end_time = time.monotonic()
+        timings["add_to_journal"] = end_time - start_time
+        start_time = end_time
 
         colliding_objects = []
         if with_data:
             for collision in colliding_hashes:
                 # Fetch external collisions from object storage
-                with statsd.timed(
-                    CONTENT_ADD_DURATION_METRIC, tags={"suboperation": "get_data"}
-                ):
-                    known_data = self.content_get_data(objid_from_dict(collision))
+                known_data = self.content_get_data(objid_from_dict(collision))
                 known = Content.from_data(known_data)
                 if known.hashes() != collision:
                     raise ValueError(
@@ -445,22 +447,29 @@ class CassandraStorage:
                     )
                 colliding_objects.append(known)
 
+            if colliding_hashes:
+                end_time = time.monotonic()
+                timings["get_data"] = end_time - start_time
+                start_time = end_time
+
             # Also handle collisions within the current batch
             for algo in HASH_ALGORITHMS:
                 for ids in content_ids_by_hash[algo].values():
                     if len(ids) > 1:
                         colliding_content_ids.update(ids)
 
-            for i in colliding_content_ids:
-                # remove ctime from all colliding contents
-                colliding_objects.append(contents[i].evolve(ctime=None))
+            if colliding_content_ids:
+                start_time = time.monotonic()
+                for i in colliding_content_ids:
+                    # remove ctime from all colliding contents
+                    colliding_objects.append(contents[i].evolve(ctime=None))
 
-            with statsd.timed(
-                CONTENT_ADD_DURATION_METRIC,
-                tags={"suboperation": "add_collision_to_journal"},
-            ):
-                self.journal_writer.hash_colliding_content_add(colliding_objects)
+                    self.journal_writer.hash_colliding_content_add(colliding_objects)
 
+                end_time = time.monotonic()
+                timings["add_collision_to_journal"] = end_time - start_time
+
+        start_time = time.monotonic()
         content_added = 0
         for content in contents_to_add:
             content_added += 1
@@ -470,17 +479,23 @@ class CassandraStorage:
             )
 
             # Then add to index tables
-            with statsd.timed(
-                CONTENT_ADD_DURATION_METRIC, tags={"suboperation": "add_to_index_table"}
-            ):
-                for algo in HASH_ALGORITHMS:
-                    self._cql_runner.content_index_add_one(algo, content, token)
+
+            for algo in HASH_ALGORITHMS:
+                self._cql_runner.content_index_add_one(algo, content, token)
+            end_time = time.monotonic()
+            timings["add_to_index_table"] = end_time - start_time
+            start_time = end_time
 
             # Then to the main table
-            with statsd.timed(
-                CONTENT_ADD_DURATION_METRIC, tags={"suboperation": "add_to_main_table"}
-            ):
-                insertion_finalizer()
+            insertion_finalizer()
+            end_time = time.monotonic()
+            timings["add_to_main_table"] = end_time - start_time
+            start_time = end_time  # for next loop
+
+        for suboperation, value in timings.items():
+            statsd.increment(
+                CONTENT_ADD_DURATION_METRIC, value, tags={"suboperation": suboperation}
+            )
 
         summary = {
             "content:add": content_added,

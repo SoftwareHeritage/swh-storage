@@ -438,7 +438,7 @@ class TestCassandraStorage(_TestStorage):
             mock_statsd.reset_mock()
             return timings
 
-        with patch("swh.storage.metrics.statsd.timing") as mock_statsd:
+        with patch("swh.storage.metrics.statsd.increment") as mock_statsd:
             insertion_start_time = time.monotonic()
             swh_storage.content_add([sample_data.content])
             insertion_time = time.monotonic() - insertion_start_time
@@ -449,7 +449,6 @@ class TestCassandraStorage(_TestStorage):
             "get_from_hashes",
             "add_to_objstorage",
             "add_to_journal",
-            "add_collision_to_journal",
             "add_to_index_table",
             "add_to_main_table",
         }
@@ -461,7 +460,7 @@ class TestCassandraStorage(_TestStorage):
         )
 
         # same content again, does not need to be inserted
-        with patch("swh.storage.metrics.statsd.timing") as mock_statsd:
+        with patch("swh.storage.metrics.statsd.increment") as mock_statsd:
             insertion_start_time = time.monotonic()
             swh_storage.content_add([sample_data.content])
             insertion_time = time.monotonic() - insertion_start_time
@@ -472,7 +471,6 @@ class TestCassandraStorage(_TestStorage):
             "get_from_hashes",
             "add_to_objstorage",
             "add_to_journal",
-            "add_collision_to_journal",
         }
 
     @pytest.mark.skip("content_update is not yet implemented for Cassandra")
