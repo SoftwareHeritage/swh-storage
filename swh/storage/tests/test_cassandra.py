@@ -1,4 +1,4 @@
-# Copyright (C) 2018-2025  The Software Heritage developers
+# Copyright (C) 2018-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -7,7 +7,9 @@ import dataclasses
 import datetime
 import itertools
 import re
+import time
 from typing import Any, Dict, List, Union
+from unittest.mock import patch
 
 import attr
 from cassandra.cluster import NoHostAvailable
@@ -408,6 +410,73 @@ class TestCassandraStorage(_TestStorage):
         # as we duplicated the returned results, dropping duplicate should yield
         # the original length
         assert len(set(actual_results)) == len(sample_data.contents)
+
+    def test_content_add_metrics(self, swh_storage, sample_data):
+        def get_timings():
+            timings = {}
+            for call in mock_statsd.mock_calls:
+                (_name, args, kwargs) = call
+                (metric_name, value) = args
+                if metric_name == "swh_storage_content_add_suboperations_total":
+                    suboperation = kwargs["tags"]["suboperation"]
+                    assert (
+                        suboperation not in timings
+                    ), f"Duplicate timing for suboperation {suboperation}"
+                    timings[suboperation] = value
+
+            from pprint import pprint
+
+            pprint(timings)
+            for suboperation, value in timings.items():
+                assert value > 0.0, (
+                    f"swh_storage_content_add_suboperations_total with "
+                    f"suboperation={suboperation} has nonpositive timing {value}"
+                )
+
+                assert value < insertion_time * 1000, (
+                    f"swh_storage_content_add_suboperations_total with "
+                    f"suboperation={suboperation} has excessively long timing {value} ms"
+                )
+
+            mock_statsd.reset_mock()
+            return timings
+
+        with patch("swh.storage.metrics.statsd.timing") as mock_statsd:
+            insertion_start_time = time.monotonic()
+            swh_storage.content_add([sample_data.content])
+            insertion_time = time.monotonic() - insertion_start_time
+
+        timings = get_timings()
+
+        assert set(timings) == {
+            "get_from_hashes",
+            "add_to_objstorage",
+            "add_to_journal",
+            "add_collision_to_journal",
+            "add_to_index_table",
+            "add_to_main_table",
+        }
+
+        value = sum(timings.values())
+        assert value < insertion_time * 1000, (
+            f"swh_storage_content_add_suboperations_total excessively "
+            f"long cumulated timing {value}"
+        )
+
+        # same content again, does not need to be inserted
+        with patch("swh.storage.metrics.statsd.timing") as mock_statsd:
+            insertion_start_time = time.monotonic()
+            swh_storage.content_add([sample_data.content])
+            insertion_time = time.monotonic() - insertion_start_time
+
+        timings = get_timings()
+
+        assert set(timings) == {
+            "get_from_hashes",
+            "add_to_objstorage",
+            "add_to_journal",
+            "add_collision_to_journal",
+        }
 
     @pytest.mark.skip("content_update is not yet implemented for Cassandra")
     def test_content_update(self):

@@ -32,6 +32,7 @@ from packaging.version import Version
 
 from swh.core.api.classes import stream_results
 from swh.core.api.serializers import msgpack_dumps, msgpack_loads
+from swh.core.statsd import statsd
 from swh.model.hashutil import DEFAULT_ALGORITHMS, LiteralHashAlgo, hash_to_hex
 from swh.model.model import (
     Content,
@@ -70,6 +71,7 @@ from swh.storage.interface import (
     SnapshotBranchByNameResponse,
     TotalHashDict,
 )
+from swh.storage.metrics import CONTENT_ADD_DURATION_METRIC
 from swh.storage.objstorage import ObjStorage
 from swh.storage.utils import now
 from swh.storage.writer import JournalWriter
@@ -349,8 +351,21 @@ class CassandraStorage:
             for i, content in enumerate(contents):
                 content_ids_by_hash[algo][content.get_hash(algo)].append(i)
 
-            # Get all rows that could match one of the hashes being inserted
-            rows = self._content_get_from_hashes(algo, list(content_ids_by_hash[algo]))
+        # Get all rows that could match one of the hashes being inserted
+        with statsd.timed(
+            CONTENT_ADD_DURATION_METRIC, tags={"suboperation": "get_from_hashes"}
+        ):
+            rows_by_algo = [
+                (
+                    algo,
+                    self._content_get_from_hashes(
+                        algo, list(content_ids_by_hash[algo])
+                    ),
+                )
+                for algo in HASH_ALGORITHMS
+            ]
+
+        for algo, rows in rows_by_algo:
             for row in rows:
                 content_ids = content_ids_by_hash[algo].get(getattr(row, algo))
                 if content_ids is None:
@@ -400,18 +415,31 @@ class CassandraStorage:
             #    we didn't have time to write to the objstorage before the crash
             # 2. the objstorage mirroring, which reads from the journal, may attempt to
             #    read from the objstorage before we finished writing it
-            summary = self.objstorage.content_add(
-                c for c in contents_to_add if c.status != "absent"
-            )
+            import time
+
+            print("before add_to_objstorage", time.monotonic())
+            with statsd.timed(
+                CONTENT_ADD_DURATION_METRIC, tags={"suboperation": "add_to_objstorage"}
+            ):
+                summary = self.objstorage.content_add(
+                    c for c in contents_to_add if c.status != "absent"
+                )
+            print("after add_to_objstorage", time.monotonic())
             content_bytes_added = summary["content:add:bytes"]
 
-        self.journal_writer.content_add(contents_to_add)
+        with statsd.timed(
+            CONTENT_ADD_DURATION_METRIC, tags={"suboperation": "add_to_journal"}
+        ):
+            self.journal_writer.content_add(contents_to_add)
 
         colliding_objects = []
         if with_data:
             for collision in colliding_hashes:
                 # Fetch external collisions from object storage
-                known_data = self.content_get_data(objid_from_dict(collision))
+                with statsd.timed(
+                    CONTENT_ADD_DURATION_METRIC, tags={"suboperation": "get_data"}
+                ):
+                    known_data = self.content_get_data(objid_from_dict(collision))
                 known = Content.from_data(known_data)
                 if known.hashes() != collision:
                     raise ValueError(
@@ -430,7 +458,11 @@ class CassandraStorage:
                 # remove ctime from all colliding contents
                 colliding_objects.append(contents[i].evolve(ctime=None))
 
-            self.journal_writer.hash_colliding_content_add(colliding_objects)
+            with statsd.timed(
+                CONTENT_ADD_DURATION_METRIC,
+                tags={"suboperation": "add_collision_to_journal"},
+            ):
+                self.journal_writer.hash_colliding_content_add(colliding_objects)
 
         content_added = 0
         for content in contents_to_add:
@@ -441,11 +473,17 @@ class CassandraStorage:
             )
 
             # Then add to index tables
-            for algo in HASH_ALGORITHMS:
-                self._cql_runner.content_index_add_one(algo, content, token)
+            with statsd.timed(
+                CONTENT_ADD_DURATION_METRIC, tags={"suboperation": "add_to_index_table"}
+            ):
+                for algo in HASH_ALGORITHMS:
+                    self._cql_runner.content_index_add_one(algo, content, token)
 
             # Then to the main table
-            insertion_finalizer()
+            with statsd.timed(
+                CONTENT_ADD_DURATION_METRIC, tags={"suboperation": "add_to_main_table"}
+            ):
+                insertion_finalizer()
 
         summary = {
             "content:add": content_added,
