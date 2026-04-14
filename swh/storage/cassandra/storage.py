@@ -322,7 +322,7 @@ class CassandraStorage:
                 yield row
 
     def _content_add(self, contents: List[Content], with_data: bool) -> Dict[str, int]:
-        timings = {}
+        timings = defaultdict(float)
 
         # Check for hash collisions and existing contents. This test is not
         # atomic with the insertion, so it won't detect a collision if both
@@ -483,13 +483,13 @@ class CassandraStorage:
             for algo in HASH_ALGORITHMS:
                 self._cql_runner.content_index_add_one(algo, content, token)
             end_time = time.monotonic()
-            timings["add_to_index_table"] = end_time - start_time
+            timings["add_to_index_table"] += end_time - start_time
             start_time = end_time
 
             # Then to the main table
             insertion_finalizer()
             end_time = time.monotonic()
-            timings["add_to_main_table"] = end_time - start_time
+            timings["add_to_main_table"] += end_time - start_time
             start_time = end_time  # for next loop
 
         for suboperation, value in timings.items():
