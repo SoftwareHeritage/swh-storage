@@ -11,6 +11,7 @@ import logging
 import operator
 import random
 import re
+import time
 from typing import (
     Any,
     Callable,
@@ -32,6 +33,7 @@ from packaging.version import Version
 
 from swh.core.api.classes import stream_results
 from swh.core.api.serializers import msgpack_dumps, msgpack_loads
+from swh.core.statsd import statsd
 from swh.model.hashutil import DEFAULT_ALGORITHMS, LiteralHashAlgo, hash_to_hex
 from swh.model.model import (
     Content,
@@ -70,6 +72,7 @@ from swh.storage.interface import (
     SnapshotBranchByNameResponse,
     TotalHashDict,
 )
+from swh.storage.metrics import CONTENT_ADD_DURATION_METRIC
 from swh.storage.objstorage import ObjStorage
 from swh.storage.utils import now
 from swh.storage.writer import JournalWriter
@@ -319,6 +322,8 @@ class CassandraStorage:
                 yield row
 
     def _content_add(self, contents: List[Content], with_data: bool) -> Dict[str, int]:
+        timings = defaultdict(float)
+
         # Check for hash collisions and existing contents. This test is not
         # atomic with the insertion, so it won't detect a collision if both
         # contents are inserted at the same time from different storage
@@ -349,8 +354,20 @@ class CassandraStorage:
             for i, content in enumerate(contents):
                 content_ids_by_hash[algo][content.get_hash(algo)].append(i)
 
-            # Get all rows that could match one of the hashes being inserted
-            rows = self._content_get_from_hashes(algo, list(content_ids_by_hash[algo]))
+        # Get all rows that could match one of the hashes being inserted
+        start_time = time.monotonic()
+        rows_by_algo = [
+            (
+                algo,
+                self._content_get_from_hashes(algo, list(content_ids_by_hash[algo])),
+            )
+            for algo in HASH_ALGORITHMS
+        ]
+
+        end_time = time.monotonic()
+        timings["get_from_hashes"] = end_time - start_time
+
+        for algo, rows in rows_by_algo:
             for row in rows:
                 content_ids = content_ids_by_hash[algo].get(getattr(row, algo))
                 if content_ids is None:
@@ -391,6 +408,7 @@ class CassandraStorage:
                 if i not in known_content_ids
             ]
 
+        start_time = time.monotonic()
         if with_data:
             # First insert to the objstorage, if the endpoint is
             # `content_add` (as opposed to `content_add_metadata`).
@@ -400,12 +418,21 @@ class CassandraStorage:
             #    we didn't have time to write to the objstorage before the crash
             # 2. the objstorage mirroring, which reads from the journal, may attempt to
             #    read from the objstorage before we finished writing it
+
             summary = self.objstorage.content_add(
                 c for c in contents_to_add if c.status != "absent"
             )
             content_bytes_added = summary["content:add:bytes"]
 
+            end_time = time.monotonic()
+            timings["add_to_objstorage"] = end_time - start_time
+            start_time = end_time
+
         self.journal_writer.content_add(contents_to_add)
+
+        end_time = time.monotonic()
+        timings["add_to_journal"] = end_time - start_time
+        start_time = end_time
 
         colliding_objects = []
         if with_data:
@@ -420,18 +447,29 @@ class CassandraStorage:
                     )
                 colliding_objects.append(known)
 
+            if colliding_hashes:
+                end_time = time.monotonic()
+                timings["get_data_collision"] = end_time - start_time
+                start_time = end_time
+
             # Also handle collisions within the current batch
             for algo in HASH_ALGORITHMS:
                 for ids in content_ids_by_hash[algo].values():
                     if len(ids) > 1:
                         colliding_content_ids.update(ids)
 
-            for i in colliding_content_ids:
-                # remove ctime from all colliding contents
-                colliding_objects.append(contents[i].evolve(ctime=None))
+            if colliding_content_ids:
+                start_time = time.monotonic()
+                for i in colliding_content_ids:
+                    # remove ctime from all colliding contents
+                    colliding_objects.append(contents[i].evolve(ctime=None))
 
-            self.journal_writer.hash_colliding_content_add(colliding_objects)
+                    self.journal_writer.hash_colliding_content_add(colliding_objects)
 
+                end_time = time.monotonic()
+                timings["add_collision_to_journal"] = end_time - start_time
+
+        start_time = time.monotonic()
         content_added = 0
         for content in contents_to_add:
             content_added += 1
@@ -441,11 +479,23 @@ class CassandraStorage:
             )
 
             # Then add to index tables
+
             for algo in HASH_ALGORITHMS:
                 self._cql_runner.content_index_add_one(algo, content, token)
+            end_time = time.monotonic()
+            timings["add_to_index_table"] += end_time - start_time
+            start_time = end_time
 
             # Then to the main table
             insertion_finalizer()
+            end_time = time.monotonic()
+            timings["add_to_main_table"] += end_time - start_time
+            start_time = end_time  # for next loop
+
+        for suboperation, value in timings.items():
+            statsd.increment(
+                CONTENT_ADD_DURATION_METRIC, value, tags={"suboperation": suboperation}
+            )
 
         summary = {
             "content:add": content_added,
