@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2025  The Software Heritage developers
+# Copyright (C) 2019-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -569,19 +569,13 @@ class CqlRunner:
     # 'content' table
     ##########################
 
-    def _content_add_finalize(self, statement: BoundStatement) -> None:
-        """Returned currified by content_add_prepare, to be called when the
-        content row should be added to the primary table."""
-        self.execute_with_retries(statement, None)
-
     @_prepared_insert_statement(ContentRow)
     def content_add_prepare(
         self, content: ContentRow, *, statement
-    ) -> Tuple[int, Callable[[], None]]:
-        """Prepares insertion of a Content to the main 'content' table.
-        Returns a token (to be used in secondary tables), and a function to be
-        called to perform the insertion in the main table."""
-        statement = statement.bind(dataclasses.astuple(content))
+    ) -> Tuple[int, BoundStatement]:
+        """Returns the token of a content on the main table, so it can be inserted in
+        an index table before inserting to the main table"""
+        bound_statement = statement.bind(dataclasses.astuple(content))
 
         # Type used for hashing keys (usually, it will be
         # cassandra.metadata.Murmur3Token)
@@ -591,14 +585,19 @@ class CqlRunner:
         # "SELECT token({', '.join(ContentRow.PARTITION_KEY)}) FROM content WHERE ..."
         # after the row is inserted; but we need the token to insert in the
         # index tables *before* inserting to the main 'content' table
-        token = token_class.from_key(statement.routing_key).value
+        token = token_class.from_key(bound_statement.routing_key).value
         assert TOKEN_BEGIN <= token <= TOKEN_END
 
-        # Function to be called after the indexes contain their respective
-        # row
-        finalizer = functools.partial(self._content_add_finalize, statement)
+        return (token, bound_statement)
 
-        return (token, finalizer)
+    def content_add_finalize(self, statements: List[BoundStatement]) -> None:
+        if not statements:
+            return
+        for _ in self.execute_many_statements_with_retries(
+            [(statement, ()) for statement in statements]
+        ):
+            # consume the generator
+            pass
 
     @_prepared_select_statement(
         ContentRow, f"WHERE {' AND '.join(map('%s = ?'.__mod__, HASH_ALGORITHMS))}"
@@ -689,14 +688,20 @@ class CqlRunner:
     # 'content_by_*' tables
     ##########################
 
-    def content_index_add_one(self, algo: str, content: Content, token: int) -> None:
-        """Adds a row mapping content[algo] to the token of the Content in
-        the main 'content' table."""
+    def content_index_add_concurrent(
+        self, algo: str, contents: List[Tuple[int, Content]]
+    ) -> None:
+        """For each ``(token, content)`` in ``contents``, adds a row mapping content[algo] to
+        the token of the Content in the main 'content' table."""
         table = content_index_table_name(algo, skipped_content=False)
         query = f"""
             INSERT INTO {self.keyspace}.{table} ({algo}, target_token) VALUES (%s, %s)
         """
-        self.execute_with_retries(query, [content.get_hash(algo), token])
+        for _ in self.execute_many_with_retries(
+            query, [(content.get_hash(algo), token) for (token, content) in contents]
+        ):
+            # consume the generator
+            pass
 
     def content_get_tokens_from_single_algo(
         self, algo: str, hashes: List[bytes]

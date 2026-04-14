@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2025  The Software Heritage developers
+# Copyright (C) 2015-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -227,12 +227,13 @@ class InMemoryCqlRunner:
     # 'content' table
     ##########################
 
-    def _content_add_finalize(self, content: ContentRow) -> None:
-        self._contents.insert(content)
+    def content_add_finalize(self, contents: List[ContentRow]) -> None:
+        for content in contents:
+            self._contents.insert(content)
         self.increment_counter("content", 1)
 
     def content_add_prepare(self, content: ContentRow):
-        finalizer = functools.partial(self._content_add_finalize, content)
+        finalizer = content
         return (self._contents.token(self._contents.partition_key(content)), finalizer)
 
     def content_get_from_pk(
@@ -281,8 +282,11 @@ class InMemoryCqlRunner:
                 missing.append(id_)
         return missing
 
-    def content_index_add_one(self, algo: str, content: Content, token: int) -> None:
-        self._content_indexes[algo][content.get_hash(algo)].add(token)
+    def content_index_add_concurrent(
+        self, algo: str, contents: List[Tuple[int, Content]]
+    ) -> None:
+        for token, content in contents:
+            self._content_indexes[algo][content.get_hash(algo)].add(token)
 
     def content_get_tokens_from_single_algo(
         self, algo: str, hashes: List[bytes]

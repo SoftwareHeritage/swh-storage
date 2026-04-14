@@ -469,36 +469,40 @@ class CassandraStorage:
                 end_time = time.monotonic()
                 timings["add_collision_to_journal"] = end_time - start_time
 
-        start_time = time.monotonic()
-        content_added = 0
-        for content in contents_to_add:
-            content_added += 1
+        if contents_to_add:
+            # Compute the token of each content
+            contents_with_tokens = []
+            finalizers = []
+            for content in contents_to_add:
+                row = ContentRow(**remove_keys(content.to_dict(), ("data",)))
+                (token, finalizer) = self._cql_runner.content_add_prepare(row)
+                contents_with_tokens.append((token, content))
+                finalizers.append(finalizer)
 
-            (token, insertion_finalizer) = self._cql_runner.content_add_prepare(
-                ContentRow(**remove_keys(content.to_dict(), ("data",)))
-            )
-
-            # Then add to index tables
-
+            # Add the token to index tables
+            start_time = time.monotonic()
             for algo in HASH_ALGORITHMS:
-                self._cql_runner.content_index_add_one(algo, content, token)
+                self._cql_runner.content_index_add_concurrent(
+                    algo, contents_with_tokens
+                )
             end_time = time.monotonic()
             timings["add_to_index_table"] += end_time - start_time
-            start_time = end_time
 
             # Then to the main table
-            insertion_finalizer()
+            start_time = end_time
+            self._cql_runner.content_add_finalize(finalizers)
             end_time = time.monotonic()
             timings["add_to_main_table"] += end_time - start_time
-            start_time = end_time  # for next loop
 
         for suboperation, value in timings.items():
             statsd.increment(
-                CONTENT_ADD_DURATION_METRIC, value, tags={"suboperation": suboperation}
+                CONTENT_ADD_DURATION_METRIC,
+                value,
+                tags={"suboperation": suboperation},
             )
 
         summary = {
-            "content:add": content_added,
+            "content:add": len(contents_to_add),
         }
 
         if with_data:
