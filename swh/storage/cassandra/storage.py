@@ -449,7 +449,7 @@ class CassandraStorage:
 
             if colliding_hashes:
                 end_time = time.monotonic()
-                timings["get_data"] = end_time - start_time
+                timings["get_data_collision"] = end_time - start_time
                 start_time = end_time
 
             # Also handle collisions within the current batch
