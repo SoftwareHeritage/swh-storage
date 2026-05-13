@@ -183,6 +183,7 @@ class CassandraStorage:
         consistency_level="ONE",
         directory_entries_insert_algo="one-by-one",
         content_add_algo="sequential",
+        content_add_concurrency=50,
         auth_provider: Optional[Dict] = None,
         table_options: Optional[Dict[str, str]] = None,
     ):
@@ -226,6 +227,14 @@ class CassandraStorage:
                   swh/devel/swh-storage#4727 for the full safety story
                   (Kafka as durable intent log, Cassandra as derived
                   index, journal-driven reconciler as repair path).
+            content_add_concurrency: When ``content_add_algo`` is
+                ``"concurrent"``, the maximum number of in-flight
+                concurrent CQL requests across a single content batch.
+                Default ``50`` (vs cassandra-driver's own default ``100``)
+                — conservative for production multi-loader workloads
+                where many CassandraStorage instances are issuing
+                content batches in parallel.  Ignored when
+                ``content_add_algo`` is ``"sequential"``.
             auth_provider: An optional dict describing the authentication provider to use.
                 Must contain at least a ``cls`` entry and the parameters to pass to the
                 constructor. For example::
@@ -245,6 +254,7 @@ class CassandraStorage:
             consistency_level=consistency_level,
             directory_entries_insert_algo=directory_entries_insert_algo,
             content_add_algo=content_add_algo,
+            content_add_concurrency=content_add_concurrency,
             auth_provider=auth_provider,
             table_options=table_options,
         )
@@ -259,6 +269,7 @@ class CassandraStorage:
         consistency_level: str = "ONE",
         directory_entries_insert_algo: str = "one-by-one",
         content_add_algo: str = "sequential",
+        content_add_concurrency: int = 50,
         auth_provider: Optional[Dict] = None,
         table_options: Optional[Dict[str, str]] = None,
     ) -> None:
@@ -285,6 +296,13 @@ class CassandraStorage:
                 f"content_add_algo must be one of: " f"{', '.join(CONTENT_ADD_ALGOS)}"
             )
         self._content_add_algo = content_add_algo
+
+        if not isinstance(content_add_concurrency, int) or content_add_concurrency < 1:
+            raise ValueError(
+                "content_add_concurrency must be a positive integer "
+                f"(got {content_add_concurrency!r})"
+            )
+        self._content_add_concurrency = content_add_concurrency
 
     def _connect(self, objstorage=None, journal_writer=None) -> None:
         self._set_cql_runner()
@@ -560,17 +578,17 @@ class CassandraStorage:
                 statements.append((main_stmt, None))
 
             # Drain the generator to drive all inserts to completion.
-            for _ in self._cql_runner.execute_many_statements_with_retries(statements):
+            for _ in self._cql_runner.execute_many_statements_with_retries(
+                statements, concurrency=self._content_add_concurrency
+            ):
                 pass
 
             # Coarse-grained timer for the concurrent path: index and main
             # writes interleave at the cassandra-driver level, so we cannot
             # cleanly separate index-vs-main timing the way the sequential
-            # path does. See notes/PLAN-rec-l4-concurrent-content.md
-            # §"Rebase status (2026-05-05)" for the rationale and the
-            # alternative split-timing options that were considered and
-            # rejected (separate execute_concurrent calls per statement
-            # type would defeat the batching win).
+            # path does. Splitting into per-statement-type execute_concurrent
+            # calls would defeat the batching win, so a single bucket is the
+            # right granularity here.
             end_time = time.monotonic()
             timings["add_concurrent_writes"] = end_time - start_time
         else:

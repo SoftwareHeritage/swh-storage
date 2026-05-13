@@ -489,19 +489,24 @@ class CqlRunner:
     def _execute_many_statements_with_retries_inner(
         self,
         statements_and_parameters: Sequence[Tuple[Any, Tuple]],
+        concurrency: Optional[int] = None,
     ) -> Iterable[Dict[str, Any]]:
+        kwargs: Dict[str, Any] = {"results_generator": True}
+        if concurrency is not None:
+            kwargs["concurrency"] = concurrency
         for res in execute_concurrent(
-            self._session, statements_and_parameters, results_generator=True
+            self._session, statements_and_parameters, **kwargs
         ):
             yield from res.result_or_exc
 
     def execute_many_statements_with_retries(
         self,
         statements_and_parameters: Sequence[Tuple[Any, Tuple]],
+        concurrency: Optional[int] = None,
     ) -> Iterable[Dict[str, Any]]:
         try:
             return self._execute_many_statements_with_retries_inner(
-                statements_and_parameters
+                statements_and_parameters, concurrency=concurrency
             )
         except (ReadTimeout, WriteTimeout) as e:
             raise QueryTimeout(*e.args) from None
