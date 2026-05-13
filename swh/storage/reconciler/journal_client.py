@@ -19,9 +19,12 @@ from typing import Any, Dict, List, Optional
 
 from swh.core.statsd import Statsd
 from swh.model.model import Content
-from swh.storage.cassandra.schema import HASH_ALGORITHMS
 
 from .verifier import ContentVerifier
+
+# HASH_ALGORITHMS is imported lazily inside _verify_one() — see the
+# corresponding comment in verifier.py about the entry-point
+# partial-import cycle.
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +96,8 @@ class ContentReconciler:
         row counts as one repair (so a 5-row crash counts as 5 repairs),
         making the metric a direct rate of insert-recovery activity.
         """
+        from swh.storage.cassandra.schema import HASH_ALGORITHMS
+
         result = self.verifier.verify_and_repair(content)
 
         if result.all_present:

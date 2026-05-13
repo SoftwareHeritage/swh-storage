@@ -32,10 +32,17 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List, Optional, cast
 
+import attr
+
 from swh.model.model import Content
-from swh.storage.cassandra.model import ContentRow
-from swh.storage.cassandra.schema import HASH_ALGORITHMS
-from swh.storage.utils import remove_keys
+
+# swh.storage.cassandra.{model,schema} are imported lazily inside
+# verify_and_repair() to avoid a partial-import cycle when this
+# package is loaded as a `swh.cli.subcommands` entry-point: importing
+# swh.storage.cassandra.* eagerly would trigger
+# swh.storage.cassandra.__init__ → swh.storage.cassandra.storage, which
+# itself does `from swh.storage import __version__` — and that fails
+# while swh.storage's own __init__ is still mid-execution.
 
 
 @dataclass
@@ -79,7 +86,22 @@ class ContentVerifier:
         self.repair_enabled = repair_enabled
 
     def verify_and_repair(self, content: Content) -> VerifyResult:
+        # Lazy imports — see the module-level comment about the
+        # entry-point partial-import cycle.
+        from swh.storage.cassandra.model import ContentRow
+        from swh.storage.cassandra.schema import HASH_ALGORITHMS
+        from swh.storage.utils import now, remove_keys
+
         cql = self.storage._cql_runner
+
+        # Journal events written by the production storage always carry
+        # a ctime (set by `_content_add` before the journal write).
+        # Defensive fallback if ctime is None (e.g. unit-test content
+        # constructed without going through the writer): the writer's
+        # `now()` helper.  ctime is part of the row body, not the
+        # partition key, so this does not affect token computation.
+        if content.ctime is None:
+            content = attr.evolve(content, ctime=now())
 
         # Derive the token deterministically from the Content's primary
         # key.  ``content_add_prepare`` returns ``(token, finalizer)``

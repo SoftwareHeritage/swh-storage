@@ -48,6 +48,7 @@ journal = {file = ["requirements-swh-journal.txt"]}
 "swh.storage" = "swh.storage.cli"
 "swh.storage.proxies.masking" = "swh.storage.proxies.masking.cli"
 "swh.storage.proxies.blocking" = "swh.storage.proxies.blocking.cli"
+"swh.storage.reconciler" = "swh.storage.reconciler.cli"
 
 [project.urls]
 "Homepage" = "https://gitlab.softwareheritage.org/swh/devel/swh-storage"
