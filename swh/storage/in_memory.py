@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2025  The Software Heritage developers
+# Copyright (C) 2015-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -1054,10 +1054,12 @@ class InMemoryStorage(CassandraStorage):
     _cql_runner: InMemoryCqlRunner  # type: ignore
 
     def __init__(self, journal_writer=None):
-        self.reset()
+        # Inherit configuration defaults from CassandraStorage._configure()
+        # so any future config attribute on the parent class is picked up
+        # automatically by InMemoryStorage too.
+        self._configure()
         self.journal_writer = JournalWriter(journal_writer)
-        self._allow_overwrite = False
-        self._directory_entries_insert_algo = "one-by-one"
+        self.reset()
 
     def reset(self):
         self._cql_runner = InMemoryCqlRunner()
