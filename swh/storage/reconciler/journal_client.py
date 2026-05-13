@@ -19,6 +19,9 @@ from typing import Any, Dict, List, Optional
 
 from swh.core.statsd import Statsd
 from swh.model.model import Content
+from swh.storage.cassandra.schema import HASH_ALGORITHMS
+
+from .verifier import ContentVerifier
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +68,7 @@ class ContentReconciler:
             namespace=_STATSD_NAMESPACE,
             constant_tags=statsd_constant_tags or {},
         )
+        self.verifier = ContentVerifier(storage, repair_enabled=repair_enabled)
 
     def process_batch(self, objects: Dict[str, List[Any]]) -> None:
         """Worker callback for :meth:`JournalClient.process`.
@@ -84,9 +88,34 @@ class ContentReconciler:
     def _verify_one(self, content: Content) -> None:
         """Verify a single ``Content`` event against Cassandra state.
 
-        Skeleton in commit 1.  Verification + repair logic lands in the
-        next commit; this hook keeps the worker callback signature
-        stable.
+        Delegates to :class:`ContentVerifier` and reports any miss via
+        ``swh_storage_reconciler_repairs_total{reason}``.  Each missing
+        row counts as one repair (so a 5-row crash counts as 5 repairs),
+        making the metric a direct rate of insert-recovery activity.
         """
-        # Skeleton; verifier wired up in the next commit.
-        return None
+        result = self.verifier.verify_and_repair(content)
+
+        if result.all_present:
+            return
+
+        for algo in result.missing_indexes:
+            assert algo in HASH_ALGORITHMS  # defensive — verifier guarantees this
+            self.statsd.increment(
+                "repairs_total",
+                1,
+                tags={"reason": f"missing_index_{algo}"},
+            )
+
+        if result.main_missing:
+            self.statsd.increment(
+                "repairs_total",
+                1,
+                tags={"reason": "missing_main"},
+            )
+
+        if not self.repair_enabled:
+            logger.debug(
+                "observe-only: %d missing rows for content with sha1=%s",
+                len(result.missing_indexes) + (1 if result.main_missing else 0),
+                content.sha1.hex() if content.sha1 else "<no sha1>",
+            )
