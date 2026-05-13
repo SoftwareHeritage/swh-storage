@@ -113,6 +113,7 @@ from .schema import HASH_ALGORITHMS
 BULK_BLOCK_CONTENT_LEN_MAX = 10000
 
 DIRECTORY_ENTRIES_INSERT_ALGOS = ["one-by-one", "concurrent", "batch"]
+CONTENT_ADD_ALGOS = ["sequential", "concurrent"]
 
 
 TResult = TypeVar("TResult")
@@ -181,6 +182,7 @@ class CassandraStorage:
         allow_overwrite=False,
         consistency_level="ONE",
         directory_entries_insert_algo="one-by-one",
+        content_add_algo="sequential",
         auth_provider: Optional[Dict] = None,
         table_options: Optional[Dict[str, str]] = None,
     ):
@@ -208,6 +210,22 @@ class CassandraStorage:
                 * one-by-one: naive, one INSERT per directory entry, serialized
                 * concurrent: one INSERT per directory entry, concurrent
                 * batch: using UNLOGGED BATCH to insert many entries in a few statements
+            content_add_algo: Must be one of:
+                * sequential: 5 sequential CQL round-trips per content (4 index
+                  inserts + 1 main insert), default for backwards compatibility
+                  and byte-identical to historical behaviour.
+                * concurrent: Fire all statements across the batch via
+                  ``execute_concurrent``.  Much faster but relaxes the
+                  "indexes written before main row" ordering guarantee — a
+                  concurrent reader doing hash lookup may briefly see the
+                  main row without an index row.  Enabling this algorithm
+                  in production requires the journal-driven content
+                  reconciler to be running with low lag (consumer-lag <
+                  60s p95) so that any missing index rows are repaired
+                  promptly.  See the architectural issue
+                  swh/devel/swh-storage#4727 for the full safety story
+                  (Kafka as durable intent log, Cassandra as derived
+                  index, journal-driven reconciler as repair path).
             auth_provider: An optional dict describing the authentication provider to use.
                 Must contain at least a ``cls`` entry and the parameters to pass to the
                 constructor. For example::
@@ -226,6 +244,7 @@ class CassandraStorage:
             allow_overwrite=allow_overwrite,
             consistency_level=consistency_level,
             directory_entries_insert_algo=directory_entries_insert_algo,
+            content_add_algo=content_add_algo,
             auth_provider=auth_provider,
             table_options=table_options,
         )
@@ -239,6 +258,7 @@ class CassandraStorage:
         allow_overwrite: bool = False,
         consistency_level: str = "ONE",
         directory_entries_insert_algo: str = "one-by-one",
+        content_add_algo: str = "sequential",
         auth_provider: Optional[Dict] = None,
         table_options: Optional[Dict[str, str]] = None,
     ) -> None:
@@ -259,6 +279,12 @@ class CassandraStorage:
                 f"{', '.join(DIRECTORY_ENTRIES_INSERT_ALGOS)}"
             )
         self._directory_entries_insert_algo = directory_entries_insert_algo
+
+        if content_add_algo not in CONTENT_ADD_ALGOS:
+            raise ValueError(
+                f"content_add_algo must be one of: " f"{', '.join(CONTENT_ADD_ALGOS)}"
+            )
+        self._content_add_algo = content_add_algo
 
     def _connect(self, objstorage=None, journal_writer=None) -> None:
         self._set_cql_runner()
@@ -498,27 +524,73 @@ class CassandraStorage:
                 timings["add_collision_to_journal"] = end_time - start_time
 
         start_time = time.monotonic()
-        content_added = 0
-        for content in contents_to_add:
-            content_added += 1
+        content_added = len(contents_to_add)
+        if self._content_add_algo == "concurrent":
+            # Fire every (index + main) statement across the full batch
+            # concurrently via execute_concurrent.  Eliminates the 5N
+            # sequential round-trips that the "sequential" path pays.
+            #
+            # Ordering trade-off: the sequential path writes all 4
+            # index rows before the main row for each content, so a
+            # concurrent reader doing a hash lookup via an index table
+            # cannot false-miss.  With execute_concurrent, completions
+            # are unordered, so a hash-lookup reader may briefly see
+            # the main row with an index row not yet present.
+            #
+            # Production safety relies on the journal-driven content
+            # reconciler (separate MR) replaying
+            # swh.journal.objects.content at consumer-lag and re-inserting
+            # any missing rows.  See architectural issue
+            # swh/devel/swh-storage#4727 for the full story.  Until the
+            # reconciler runs with low lag in production, this algorithm
+            # should remain off-by-default.
+            statements: List[Tuple[Any, Any]] = []
+            for content in contents_to_add:
+                (token, main_stmt) = self._cql_runner.content_add_statement(
+                    ContentRow(**remove_keys(content.to_dict(), ("data",)))
+                )
+                for algo in HASH_ALGORITHMS:
+                    statements.append(
+                        self._cql_runner.content_index_add_one_statement(
+                            algo, content, token
+                        )
+                    )
+                # Bound statement with params already embedded — pass None
+                # as the args-tuple to execute_many_statements_with_retries.
+                statements.append((main_stmt, None))
 
-            (token, insertion_finalizer) = self._cql_runner.content_add_prepare(
-                ContentRow(**remove_keys(content.to_dict(), ("data",)))
-            )
+            # Drain the generator to drive all inserts to completion.
+            for _ in self._cql_runner.execute_many_statements_with_retries(statements):
+                pass
 
-            # Then add to index tables
-
-            for algo in HASH_ALGORITHMS:
-                self._cql_runner.content_index_add_one(algo, content, token)
+            # Coarse-grained timer for the concurrent path: index and main
+            # writes interleave at the cassandra-driver level, so we cannot
+            # cleanly separate index-vs-main timing the way the sequential
+            # path does. See notes/PLAN-rec-l4-concurrent-content.md
+            # §"Rebase status (2026-05-05)" for the rationale and the
+            # alternative split-timing options that were considered and
+            # rejected (separate execute_concurrent calls per statement
+            # type would defeat the batching win).
             end_time = time.monotonic()
-            timings["add_to_index_table"] += end_time - start_time
-            start_time = end_time
+            timings["add_concurrent_writes"] = end_time - start_time
+        else:
+            for content in contents_to_add:
+                (token, insertion_finalizer) = self._cql_runner.content_add_prepare(
+                    ContentRow(**remove_keys(content.to_dict(), ("data",)))
+                )
 
-            # Then to the main table
-            insertion_finalizer()
-            end_time = time.monotonic()
-            timings["add_to_main_table"] += end_time - start_time
-            start_time = end_time  # for next loop
+                # Then add to index tables
+                for algo in HASH_ALGORITHMS:
+                    self._cql_runner.content_index_add_one(algo, content, token)
+                end_time = time.monotonic()
+                timings["add_to_index_table"] += end_time - start_time
+                start_time = end_time
+
+                # Then to the main table
+                insertion_finalizer()
+                end_time = time.monotonic()
+                timings["add_to_main_table"] += end_time - start_time
+                start_time = end_time  # for next loop
 
         for suboperation, value in timings.items():
             statsd.increment(

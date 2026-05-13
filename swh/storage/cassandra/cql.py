@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2025  The Software Heritage developers
+# Copyright (C) 2019-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -600,6 +600,28 @@ class CqlRunner:
 
         return (token, finalizer)
 
+    @_prepared_insert_statement(ContentRow)
+    def content_add_statement(
+        self, content: ContentRow, *, statement
+    ) -> Tuple[int, BoundStatement]:
+        """Like :meth:`content_add_prepare`, but returns the already-bound
+        statement directly instead of wrapping it in an executing callable.
+
+        The returned statement can be passed to
+        :meth:`execute_many_statements_with_retries` as ``(statement, None)``
+        so that it is fired alongside many other statements via
+        ``cassandra.concurrent.execute_concurrent`` — eliminating the
+        per-content serialisation of 5 round-trips that the sequential
+        ``content_add_prepare`` path incurs.
+
+        Used by the concurrent content-add path in
+        :meth:`CassandraStorage._content_add_concurrent` (REC-L4)."""
+        bound = statement.bind(dataclasses.astuple(content))
+        token_class = self._cluster.metadata.token_map.token_class
+        token = token_class.from_key(bound.routing_key).value
+        assert TOKEN_BEGIN <= token <= TOKEN_END
+        return (token, bound)
+
     @_prepared_select_statement(
         ContentRow, f"WHERE {' AND '.join(map('%s = ?'.__mod__, HASH_ALGORITHMS))}"
     )
@@ -697,6 +719,18 @@ class CqlRunner:
             INSERT INTO {self.keyspace}.{table} ({algo}, target_token) VALUES (%s, %s)
         """
         self.execute_with_retries(query, [content.get_hash(algo), token])
+
+    def content_index_add_one_statement(
+        self, algo: str, content: Content, token: int
+    ) -> Tuple[str, Sequence[Any]]:
+        """Like :meth:`content_index_add_one` but returns ``(query, params)``
+        without executing.  Companion to :meth:`content_add_statement` for
+        the concurrent content-add path (REC-L4)."""
+        table = content_index_table_name(algo, skipped_content=False)
+        query = f"""
+            INSERT INTO {self.keyspace}.{table} ({algo}, target_token) VALUES (%s, %s)
+        """
+        return (query, [content.get_hash(algo), token])
 
     def content_get_tokens_from_single_algo(
         self, algo: str, hashes: List[bytes]
