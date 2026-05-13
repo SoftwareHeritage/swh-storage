@@ -43,6 +43,7 @@ journal = {file = ["requirements-swh-journal.txt"]}
 "record_references" = "swh.storage.proxies.record_references:RecordReferencesProxyStorage"
 "masking" = "swh.storage.proxies.masking.cls:MaskingProxyStorage"
 "blocking" = "swh.storage.proxies.blocking.cls:BlockingProxyStorage"
+"miss_tolerant" = "swh.storage.proxies.miss_tolerant:MissTolerantProxyStorage"
 
 [project.entry-points."swh.cli.subcommands"]
 "swh.storage" = "swh.storage.cli"
