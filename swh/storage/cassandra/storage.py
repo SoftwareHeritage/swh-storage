@@ -219,15 +219,38 @@ class CassandraStorage:
             table_options: An optional dict mapping each table name (or the literal
                 ``object_references_*``) to `CQL table options <https://cassandra.apache.org/doc/latest/cassandra/reference/cql-commands/create-table.html#table_options>`_
         """  # noqa: B950
-        self._hosts = hosts
+        self._configure(
+            hosts=hosts,
+            keyspace=keyspace,
+            port=port,
+            allow_overwrite=allow_overwrite,
+            consistency_level=consistency_level,
+            directory_entries_insert_algo=directory_entries_insert_algo,
+            auth_provider=auth_provider,
+            table_options=table_options,
+        )
+        self._connect(objstorage=objstorage, journal_writer=journal_writer)
+
+    def _configure(
+        self,
+        hosts: Optional[List[str]] = None,
+        keyspace: str = "",
+        port: int = 9042,
+        allow_overwrite: bool = False,
+        consistency_level: str = "ONE",
+        directory_entries_insert_algo: str = "one-by-one",
+        auth_provider: Optional[Dict] = None,
+        table_options: Optional[Dict[str, str]] = None,
+    ) -> None:
+        # Splitting __init__ into _configure() + _connect() lets subclasses
+        # (e.g. InMemoryStorage) inherit configuration handling without
+        # triggering the connection-establishing I/O in _connect().
+        self._hosts = hosts if hosts is not None else []
         self._keyspace = keyspace
         self._port = port
         self._consistency_level = consistency_level
         self._auth_provider = auth_provider
         self._table_options = table_options
-        self._set_cql_runner()
-        self.journal_writer: JournalWriter = JournalWriter(journal_writer)
-        self.objstorage: ObjStorage = ObjStorage(self, objstorage)
         self._allow_overwrite = allow_overwrite
 
         if directory_entries_insert_algo not in DIRECTORY_ENTRIES_INSERT_ALGOS:
@@ -236,6 +259,11 @@ class CassandraStorage:
                 f"{', '.join(DIRECTORY_ENTRIES_INSERT_ALGOS)}"
             )
         self._directory_entries_insert_algo = directory_entries_insert_algo
+
+    def _connect(self, objstorage=None, journal_writer=None) -> None:
+        self._set_cql_runner()
+        self.journal_writer: JournalWriter = JournalWriter(journal_writer)
+        self.objstorage: ObjStorage = ObjStorage(self, objstorage)
 
     @property
     def hosts(self) -> List[str]:

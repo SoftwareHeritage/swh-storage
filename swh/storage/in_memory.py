@@ -1058,10 +1058,12 @@ class InMemoryStorage(CassandraStorage):
     _cql_runner: InMemoryCqlRunner  # type: ignore
 
     def __init__(self, journal_writer=None):
-        self.reset()
+        # Inherit configuration defaults from CassandraStorage._configure()
+        # so any future config attribute on the parent class is picked up
+        # automatically by InMemoryStorage too.
+        self._configure()
         self.journal_writer = JournalWriter(journal_writer)
-        self._allow_overwrite = False
-        self._directory_entries_insert_algo = "one-by-one"
+        self.reset()
 
     def reset(self):
         self._cql_runner = InMemoryCqlRunner()
