@@ -7,7 +7,7 @@ pytest-mock
 # adding the [testing] extra.
 swh.core[testing] >= 3.0.0
 swh.model[testing]
-swh.journal[pytest] >= 2.0.0
+swh.journal@git+https://gitlab.softwareheritage.org/swh/devel/swh-journal.git@refs/merge-requests/284/head
 pytz
 pytest-postgresql
 pytest-redis
