@@ -1,10 +1,11 @@
-# Copyright (C) 2024  The Software Heritage developers
+# Copyright (C) 2024-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 from contextlib import closing
 import datetime as dt
+from importlib.metadata import version
 from io import StringIO
 import socket
 import textwrap
@@ -304,6 +305,10 @@ def test_new_request_empty_message_aborts(mocker, mocked_masking_admin):
     mocked_masking_admin.create_request.assert_not_called()
 
 
+@pytest.mark.skipif(
+    version("click") == "8.4.0",
+    reason="A regression from click 8.4.0 in click.echo_with_pager makes that test fail.",
+)
 def test_list_requests_default(mocked_masking_admin):
     runner = CliRunner()
     result = runner.invoke(
@@ -319,6 +324,10 @@ def test_list_requests_default(mocked_masking_admin):
     assert "4fd42e35-2b6c-4536-8447-bc213cd0118b" in result.output
 
 
+@pytest.mark.skipif(
+    version("click") == "8.4.0",
+    reason="A regression from click 8.4.0 in click.echo_with_pager makes that test fail.",
+)
 def test_list_requests_include_cleared_requests(mocked_masking_admin):
     runner = CliRunner()
     result = runner.invoke(
@@ -494,6 +503,10 @@ def test_status_request_via_uuid(mocked_masking_admin, request01):
     mocked_masking_admin.get_states_for_request.assert_called_once_with(request01.id)
 
 
+@pytest.mark.skipif(
+    version("click") == "8.4.0",
+    reason="A regression from click 8.4.0 in click.echo_with_pager makes that test fail.",
+)
 def test_history(mocked_masking_admin, request01):
     runner = CliRunner()
     result = runner.invoke(
@@ -518,6 +531,10 @@ def test_history_not_found(mocked_masking_admin):
     assert "Error: Request “garbage” not found" in result.output
 
 
+@pytest.mark.skipif(
+    version("click") == "8.4.0",
+    reason="A regression from click 8.4.0 in click.echo_with_pager makes that test fail.",
+)
 def test_object_state(mocked_masking_admin, masked_content, masked_content2):
     masked_content_in_request02 = MaskedObject(
         request_slug="request-02", swhid=masked_content.swhid, state=MaskedState.VISIBLE

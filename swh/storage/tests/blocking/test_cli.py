@@ -1,10 +1,11 @@
-# Copyright (C) 2024-2025  The Software Heritage developers
+# Copyright (C) 2024-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 from contextlib import closing
 import datetime as dt
+from importlib.metadata import version
 from io import StringIO
 import socket
 import textwrap
@@ -299,6 +300,10 @@ def test_new_request_empty_message_aborts(mocker, mocked_blocking_admin):
     mocked_blocking_admin.create_request.assert_not_called()
 
 
+@pytest.mark.skipif(
+    version("click") == "8.4.0",
+    reason="A regression from click 8.4.0 in click.echo_with_pager makes that test fail.",
+)
 def test_list_requests_default(mocked_blocking_admin):
     runner = CliRunner()
     result = runner.invoke(
@@ -314,6 +319,10 @@ def test_list_requests_default(mocked_blocking_admin):
     assert "4fd42e35-2b6c-4536-8447-bc213cd0118b" in result.output
 
 
+@pytest.mark.skipif(
+    version("click") == "8.4.0",
+    reason="A regression from click 8.4.0 in click.echo_with_pager makes that test fail.",
+)
 def test_list_requests_include_cleared_requests(mocked_blocking_admin):
     runner = CliRunner()
     result = runner.invoke(
@@ -469,6 +478,10 @@ def test_status_request_via_uuid(mocked_blocking_admin, request01):
     mocked_blocking_admin.get_states_for_request.assert_called_once_with(request01.id)
 
 
+@pytest.mark.skipif(
+    version("click") == "8.4.0",
+    reason="A regression from click 8.4.0 in click.echo_with_pager makes that test fail.",
+)
 def test_history(mocked_blocking_admin, request01):
     runner = CliRunner()
     result = runner.invoke(
@@ -493,6 +506,10 @@ def test_history_not_found(mocked_blocking_admin):
     assert "Error: Request “garbage” not found" in result.output
 
 
+@pytest.mark.skipif(
+    version("click") == "8.4.0",
+    reason="A regression from click 8.4.0 in click.echo_with_pager makes that test fail.",
+)
 def test_object_state(mocked_blocking_admin, blocked_origin, blocked_origin2):
     blocked_origin_in_request02 = BlockedOrigin(
         request_slug="request-02",
