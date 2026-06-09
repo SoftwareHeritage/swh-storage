@@ -1057,7 +1057,12 @@ class InMemoryCqlRunner:
 class InMemoryStorage(CassandraStorage):
     _cql_runner: InMemoryCqlRunner  # type: ignore
 
-    def __init__(self, journal_writer=None):
+    def __init__(
+        self,
+        journal_writer: Optional[Dict[str, Any]] = None,
+        objstorage: Optional[Dict[str, Any]] = None,
+    ):
+        self.objstorage_config = objstorage if objstorage else {"cls": "memory"}
         self.reset()
         self.journal_writer = JournalWriter(journal_writer)
         self._allow_overwrite = False
@@ -1065,7 +1070,7 @@ class InMemoryStorage(CassandraStorage):
 
     def reset(self):
         self._cql_runner = InMemoryCqlRunner()
-        self.objstorage = ObjStorage(self, {"cls": "memory"})
+        self.objstorage = ObjStorage(self, self.objstorage_config)
 
     def check_config(self, *, check_write: bool) -> bool:
         return True
