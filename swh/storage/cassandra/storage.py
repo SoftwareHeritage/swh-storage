@@ -639,7 +639,7 @@ class CassandraStorage:
         for content in self._cql_runner.content_missing_from_all_hashes(
             contents_with_all_hashes
         ):
-            yield content[key_hash]  # type: ignore
+            yield content[key_hash]
 
         if contents_with_missing_hashes:
             # For these, we need the expensive index lookups + main table.
@@ -691,7 +691,7 @@ class CassandraStorage:
                         break
                 else:
                     # Not found
-                    yield missing_content[key_hash]  # type: ignore
+                    yield missing_content[key_hash]
 
     def content_missing_per_sha1(self, contents: List[bytes]) -> Iterable[bytes]:
         return self.content_missing([{"sha1": c} for c in contents])
