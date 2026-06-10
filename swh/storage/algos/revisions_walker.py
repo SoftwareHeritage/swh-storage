@@ -1,4 +1,4 @@
-# Copyright (C) 2018-2025  The Software Heritage developers
+# Copyright (C) 2018-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -9,7 +9,7 @@ from abc import ABCMeta, abstractmethod
 from collections import deque
 import dataclasses
 import heapq
-from typing import TYPE_CHECKING, Any, Dict, Optional, Set, TypeVar
+from typing import TYPE_CHECKING, Any, Dict, Optional, Set, Type, TypeVar
 
 from swh.model.model import Sha1Git
 
@@ -26,7 +26,7 @@ class State:
     missing_revs: Set[Sha1Git] = dataclasses.field(default_factory=set)
 
 
-_revs_walker_classes = {}
+_revs_walker_classes: Dict[str, Type[RevisionsWalker]] = {}
 
 
 class _RevisionsWalkerMetaClass(ABCMeta):
@@ -515,7 +515,7 @@ class PathRevisionsWalker(CommitterDateRevisionsWalker):
         return False
 
 
-def get_revisions_walker(rev_walker_type, *args, **kwargs):
+def get_revisions_walker(rev_walker_type: str, *args, **kwargs) -> RevisionsWalker:
     """
     Instantiate a revisions walker of a given type.
 
@@ -554,12 +554,12 @@ def get_revisions_walker(rev_walker_type, *args, **kwargs):
 
 
     Args:
-        rev_walker_type (str): the type of revisions walker to return,
+        rev_walker_type: the type of revisions walker to return,
             possible values are: *committer_date*, *dfs*, *dfs_post*,
             *bfs* and *path*
-        args (list): position arguments to pass to the revisions walker
+        args: position arguments to pass to the revisions walker
             constructor
-        kwargs (dict): keyword arguments to pass to the revisions walker
+        kwargs: keyword arguments to pass to the revisions walker
             constructor
 
     """
