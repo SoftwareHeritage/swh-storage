@@ -1,4 +1,4 @@
-# Copyright (C) 2024  The Software Heritage developers
+# Copyright (C) 2024-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -395,11 +395,9 @@ class MaskingAdmin(MaskingDb):
         """
         with self.transaction() as cur:
             if clear:
-                cur.execute(
-                    """
+                cur.execute("""
                     DELETE FROM display_name
-                    """
-                )
+                    """)
             cur.executemany(
                 """
                 INSERT INTO display_name (original_email, display_name)
@@ -512,14 +510,12 @@ class MaskingQuery(MaskingDb):
 
         statsd.increment(METRIC_LIST_REQUESTS_TOTAL, 1)
 
-        cur.execute(
-            """
+        cur.execute("""
             SELECT object_id, object_type, request, state
             FROM masked_object
             WHERE state != 'visible'
             ORDER BY object_id, object_type
-            """
-        )
+            """)
 
         count = 0
 

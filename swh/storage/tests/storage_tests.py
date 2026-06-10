@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2025  The Software Heritage developers
+# Copyright (C) 2015-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -4259,7 +4259,7 @@ class TestStorage:
         origin = sample_data.origin
         swh_storage.origin_add([origin])
 
-        (date1, date2, date3, date4) = [
+        date1, date2, date3, date4 = [
             datetime.datetime(2021, 8, i, tzinfo=datetime.timezone.utc)
             for i in range(1, 5)
         ]
@@ -6455,25 +6455,21 @@ class TestStorage:
             @contextmanager
             def in_the_past():
                 with db_transaction(swh_storage_backend) as (db, cur):
-                    cur.execute(
-                        """
+                    cur.execute("""
                         ALTER TABLE object_references
                             ALTER COLUMN insertion_date
                             SET DEFAULT '2020-02-06'
-                        """
-                    )
+                        """)
 
                 try:
                     yield
                 finally:
                     with db_transaction(swh_storage_backend) as (db, cur):
-                        cur.execute(
-                            """
+                        cur.execute("""
                             ALTER TABLE object_references
                                 ALTER COLUMN insertion_date
                                 SET DEFAULT now()
-                            """
-                        )
+                            """)
 
         elif isinstance(swh_storage_backend, CassandraStorage):
 

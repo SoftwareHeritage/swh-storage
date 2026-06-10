@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2023  The Software Heritage developers
+# Copyright (C) 2015-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -119,9 +119,7 @@ class Db(BaseDb):
             (SELECT {cols} FROM {table} WHERE {id_col} < %s
              ORDER BY {id_col} DESC LIMIT 1)
             LIMIT 1
-            """.format(
-            cols=", ".join(cols), table=table_name, id_col=id_col
-        )
+            """.format(cols=", ".join(cols), table=table_name, id_col=id_col)
         cur.execute(query, (random_sha1, random_sha1))
         row = cur.fetchone()
         if row:
@@ -191,11 +189,9 @@ class Db(BaseDb):
         add_columns = ", ".join(self.content_add_keys)
         conflict_columns = ", ".join(self.content_hash_keys)
         cur = self._cursor(cur)
-        cur.execute(
-            f"""insert into content ({add_columns})
+        cur.execute(f"""insert into content ({add_columns})
             select distinct {add_columns} from tmp_content
-            on conflict ({conflict_columns}) do nothing"""
-        )
+            on conflict ({conflict_columns}) do nothing""")
         return cur.rowcount
 
     skipped_content_keys = [
@@ -228,9 +224,7 @@ class Db(BaseDb):
         query = """select %s from content
                    where %%s <= sha1 and sha1 <= %%s
                    order by sha1
-                   limit %%s""" % ", ".join(
-            self.content_get_metadata_keys
-        )
+                   limit %%s""" % ", ".join(self.content_get_metadata_keys)
         cur.execute(query, (start, end, limit))
         yield from cur
 
@@ -398,14 +392,12 @@ class Db(BaseDb):
 
         # XXX: The origin part is untested because of
         # https://gitlab.softwareheritage.org/swh/devel/swh-storage/-/issues/4693
-        query_parts = [
-            f"""
+        query_parts = [f"""
             SELECT {','.join(self.skipped_content_find_cols)}, origin.url AS origin
             FROM skipped_content
             LEFT JOIN origin ON origin.id = skipped_content.origin
             WHERE
-            """
-        ]
+            """]
         query_params = []
         where_parts = []
         # Adds only those keys which have values exist
@@ -640,8 +632,7 @@ class Db(BaseDb):
             LEFT JOIN person committer ON revision.committer = committer.id
             WHERE %%s <= revision.id AND revision.id <= %%s
             LIMIT %%s
-            """
-            % query_keys,
+            """ % query_keys,
             (start, end, limit),
         )
         yield from cur
@@ -655,9 +646,7 @@ class Db(BaseDb):
         SELECT %s
         FROM swh_revision_log(
           "root_revisions" := %%s, num_revs := %%s, "ignore_displayname" := %%s
-        )""" % ", ".join(
-            self.revision_get_cols
-        )
+        )""" % ", ".join(self.revision_get_cols)
 
         cur.execute(query, (root_revisions, limit, ignore_displayname))
         yield from cur
@@ -669,9 +658,7 @@ class Db(BaseDb):
 
         query = """SELECT %s
                    FROM swh_revision_list(%%s, %%s)
-                """ % ", ".join(
-            self.revision_shortlog_cols
-        )
+                """ % ", ".join(self.revision_shortlog_cols)
 
         cur.execute(query, (root_revisions, limit))
         yield from cur
@@ -816,8 +803,7 @@ class Db(BaseDb):
             LEFT JOIN release ON t.id = release.id
             LEFT JOIN person author ON release.author = author.id
             ORDER BY sortkey
-            """
-            % query_keys,
+            """ % query_keys,
             ((sortkey, id) for sortkey, id in enumerate(releases)),
         )
 
@@ -835,8 +821,7 @@ class Db(BaseDb):
             LEFT JOIN person author ON release.author = author.id
             WHERE %%s <= release.id AND release.id <= %%s
             LIMIT %%s
-            """
-            % query_keys,
+            """ % query_keys,
             (start, end, limit),
         )
         yield from cur
@@ -886,9 +871,7 @@ class Db(BaseDb):
         cur = self._cursor(cur)
         query = """\
            SELECT %s FROM swh_snapshot_count_branches(%%s, %%s)
-        """ % ", ".join(
-            self.snapshot_count_cols
-        )
+        """ % ", ".join(self.snapshot_count_cols)
 
         cur.execute(query, (snapshot_id, branch_name_exclude_prefix))
 
@@ -910,9 +893,7 @@ class Db(BaseDb):
         query = """\
         SELECT %s
         FROM swh_snapshot_get_by_id(%%s, %%s, %%s, %%s :: snapshot_target[], %%s, %%s)
-        """ % ", ".join(
-            self.snapshot_get_cols
-        )
+        """ % ", ".join(self.snapshot_get_cols)
 
         cur.execute(
             query,
@@ -1148,11 +1129,9 @@ class Db(BaseDb):
         origin_visit_cols = ["o.url as origin", "ov.visit", "ov.date", "ov.type"]
         builder = QueryBuilder()
         builder.add_query_part(
-            sql.SQL(
-                f"""SELECT {', '.join(origin_visit_cols)} FROM origin_visit ov
+            sql.SQL(f"""SELECT {', '.join(origin_visit_cols)} FROM origin_visit ov
                 INNER JOIN origin o ON o.id = ov.origin
-                WHERE ov.origin = (select id from origin where url = %s)"""
-            ),
+                WHERE ov.origin = (select id from origin where url = %s)"""),
             params=[origin],  # dynamic params
         )
         builder.add_pagination_clause(
@@ -1226,9 +1205,7 @@ class Db(BaseDb):
             WHERE ov.origin = (select id from origin where url = %%s) AND ov.visit = %%s
             ORDER BY ovs.date DESC
             LIMIT 1
-            """ % (
-            ", ".join(self.origin_visit_select_cols)
-        )
+            """ % (", ".join(self.origin_visit_select_cols))
 
         cur.execute(query, (origin_id, visit_id))
         r = cur.fetchall()
@@ -1356,9 +1333,7 @@ class Db(BaseDb):
 
         query = """SELECT %s FROM (VALUES (%%s)) as t(url)
                    LEFT JOIN origin ON t.url = origin.url
-                """ % ",".join(
-            "origin." + col for col in self.origin_cols
-        )
+                """ % ",".join("origin." + col for col in self.origin_cols)
 
         yield from execute_values_generator(cur, query, ((url,) for url in origins))
 
@@ -1368,9 +1343,7 @@ class Db(BaseDb):
 
         query = """SELECT %s FROM (VALUES (%%s)) as t(sha1)
                    LEFT JOIN origin ON t.sha1 = digest(origin.url, 'sha1')
-                """ % ",".join(
-            "origin." + col for col in self.origin_cols
-        )
+                """ % ",".join("origin." + col for col in self.origin_cols)
 
         yield from execute_values_generator(cur, query, ((sha1,) for sha1 in sha1s))
 
@@ -1403,9 +1376,7 @@ class Db(BaseDb):
         query = """SELECT %s
                    FROM origin WHERE id >= %%s
                    ORDER BY id LIMIT %%s
-                """ % ",".join(
-            self.origin_get_range_cols
-        )
+                """ % ",".join(self.origin_get_range_cols)
 
         cur.execute(query, (origin_from, origin_count))
         yield from cur
@@ -1835,8 +1806,7 @@ class Db(BaseDb):
             """SELECT %s
             FROM object_references
             WHERE target_type = %%s and target=%%s
-            LIMIT %%s"""
-            % (", ".join(self._object_references_cols)),
+            LIMIT %%s""" % (", ".join(self._object_references_cols)),
             (target_type, target, limit),
         )
         return [dict(zip(self._object_references_cols, row)) for row in cur.fetchall()]
@@ -1888,13 +1858,11 @@ class Db(BaseDb):
         """List existing partitions of the object_references table, ordered from
         oldest to the most recent."""
         cur = self._cursor(cur)
-        cur.execute(
-            """SELECT relname, pg_get_expr(relpartbound, oid)
+        cur.execute("""SELECT relname, pg_get_expr(relpartbound, oid)
                  FROM pg_partition_tree('object_references') pt
                       INNER JOIN pg_class ON relid = pg_class.oid
                 WHERE isleaf = true
-                ORDER BY relname"""
-        )
+                ORDER BY relname""")
         name_re = re.compile(r"^object_references_([0-9]+)w([0-9]+)$")
         bounds_re = re.compile(r"^FOR VALUES FROM \('([0-9-]+)'\) TO \('([0-9-]+)'\)$")
         partitions = []
@@ -1923,14 +1891,12 @@ class Db(BaseDb):
     ) -> Dict[str, int]:
         result = {}
         cur = self._cursor(cur)
-        cur.execute(
-            """
+        cur.execute("""
             CREATE TEMPORARY TABLE objects_to_remove (
                 type extended_object_type NOT NULL,
                 id BYTEA NOT NULL
             ) ON COMMIT DROP
-            """
-        )
+            """)
         cur.executemany(
             """INSERT INTO objects_to_remove (type, id)
                VALUES (%s, %s)""",
@@ -1938,118 +1904,88 @@ class Db(BaseDb):
         )
         # Let’s handle raw extrinsic metadata first as they’ll
         # be referencing other objects
-        cur.execute(
-            """SELECT COUNT(emd.id), emd.type AS target_type
+        cur.execute("""SELECT COUNT(emd.id), emd.type AS target_type
                  FROM raw_extrinsic_metadata emd
                 WHERE emd.id IN (SELECT id
                                    FROM objects_to_remove
                                   WHERE type = 'raw_extrinsic_metadata')
-                GROUP BY type"""
-        )
+                GROUP BY type""")
         for count, target_type in cur:
             result[
                 f"{ExtendedObjectType[target_type.upper()].value}_metadata:delete"
             ] = count
-        cur.execute(
-            """DELETE FROM raw_extrinsic_metadata emd
+        cur.execute("""DELETE FROM raw_extrinsic_metadata emd
                 WHERE emd.id IN (SELECT id
                                    FROM objects_to_remove
-                                  WHERE type = 'raw_extrinsic_metadata')"""
-        )
+                                  WHERE type = 'raw_extrinsic_metadata')""")
         # We need to remove lines from `origin_visit_status`,
         # `origin_visit` and `origin`.
-        cur.execute(
-            """CREATE TEMPORARY TABLE origins_to_remove
+        cur.execute("""CREATE TEMPORARY TABLE origins_to_remove
                  ON COMMIT DROP
                  AS
                    SELECT origin.id FROM origin
                     INNER JOIN objects_to_remove otr
-                       ON DIGEST(url, 'sha1') = otr.id and otr.type = 'origin'"""
-        )
-        cur.execute(
-            """DELETE FROM origin_visit_status ovs
-                WHERE ovs.origin IN (SELECT id FROM origins_to_remove)"""
-        )
+                       ON DIGEST(url, 'sha1') = otr.id and otr.type = 'origin'""")
+        cur.execute("""DELETE FROM origin_visit_status ovs
+                WHERE ovs.origin IN (SELECT id FROM origins_to_remove)""")
         result["origin_visit_status:delete"] = cur.rowcount
-        cur.execute(
-            """DELETE FROM origin_visit ov
-                WHERE ov.origin IN (SELECT id FROM origins_to_remove)"""
-        )
+        cur.execute("""DELETE FROM origin_visit ov
+                WHERE ov.origin IN (SELECT id FROM origins_to_remove)""")
         result["origin_visit:delete"] = cur.rowcount
-        cur.execute(
-            """DELETE FROM origin
-                WHERE origin.id IN (SELECT id FROM origins_to_remove)"""
-        )
+        cur.execute("""DELETE FROM origin
+                WHERE origin.id IN (SELECT id FROM origins_to_remove)""")
         result["origin:delete"] = cur.rowcount
         # We must not remove entries for snapshot_branch, they are shared across
         # multiple snapshots, and we don't keep a reverse index (to know if the
         # shared branches are still used by another snapshot).
-        cur.execute(
-            """CREATE TEMPORARY TABLE snapshots_to_remove
+        cur.execute("""CREATE TEMPORARY TABLE snapshots_to_remove
                   ON COMMIT DROP
                   AS
                     SELECT object_id
                       FROM snapshot s
                      INNER JOIN objects_to_remove otr
-                        ON s.id = otr.id AND otr.type = 'snapshot'"""
-        )
-        cur.execute(
-            """DELETE FROM snapshot_branches
+                        ON s.id = otr.id AND otr.type = 'snapshot'""")
+        cur.execute("""DELETE FROM snapshot_branches
                 WHERE snapshot_branches.snapshot_id IN
-                  (SELECT object_id FROM snapshots_to_remove)"""
-        )
-        cur.execute(
-            """DELETE FROM snapshot
+                  (SELECT object_id FROM snapshots_to_remove)""")
+        cur.execute("""DELETE FROM snapshot
                 WHERE snapshot.object_id IN (SELECT object_id
-                                               FROM snapshots_to_remove)"""
-        )
+                                               FROM snapshots_to_remove)""")
         result["snapshot:delete"] = cur.rowcount
-        cur.execute(
-            """DELETE FROM release
+        cur.execute("""DELETE FROM release
                 WHERE release.id IN (SELECT id
                                        FROM objects_to_remove
-                                      WHERE type = 'release')"""
-        )
+                                      WHERE type = 'release')""")
         result["release:delete"] = cur.rowcount
-        cur.execute(
-            """DELETE FROM revision_history
+        cur.execute("""DELETE FROM revision_history
                 WHERE revision_history.id IN (SELECT id
                                                 FROM objects_to_remove
-                                               WHERE type = 'revision')"""
-        )
-        cur.execute(
-            """DELETE FROM revision
+                                               WHERE type = 'revision')""")
+        cur.execute("""DELETE FROM revision
                 WHERE revision.id IN (SELECT id
                                         FROM objects_to_remove
-                                       WHERE type = 'revision')"""
-        )
+                                       WHERE type = 'revision')""")
         result["revision:delete"] = cur.rowcount
         # We do not remove anything from `directory_entry_dir`,
         # `directory_entry_file`, `directory_entry_rev`: these entries are
         # shared across directories and we don't have (or don’t want to keep) an
         # index to know which directory uses what entry.
-        cur.execute(
-            """DELETE FROM directory
+        cur.execute("""DELETE FROM directory
                 WHERE directory.id IN (SELECT id
                                          FROM objects_to_remove
-                                        WHERE type = 'directory')"""
-        )
+                                        WHERE type = 'directory')""")
         result["directory:delete"] = cur.rowcount
-        cur.execute(
-            """DELETE FROM skipped_content
+        cur.execute("""DELETE FROM skipped_content
                 WHERE skipped_content.sha1_git IN (
                     SELECT id
                       FROM objects_to_remove
-                     WHERE type = 'content')"""
-        )
+                     WHERE type = 'content')""")
         result["skipped_content:delete"] = cur.rowcount
-        cur.execute(
-            """DELETE FROM content
+        cur.execute("""DELETE FROM content
                 WHERE content.sha1_git IN (
                     SELECT id
                       FROM objects_to_remove
-                     WHERE type = 'content')"""
-        )
+                     WHERE type = 'content')""")
         result["content:delete"] = cur.rowcount
         # We are not an objstorage
         result["content:delete:bytes"] = 0

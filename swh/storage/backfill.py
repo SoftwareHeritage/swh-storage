@@ -1,4 +1,4 @@
-# Copyright (C) 2017-2025  The Software Heritage developers
+# Copyright (C) 2017-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -239,7 +239,7 @@ def directory_converter(db: BaseDb, directory_d: Dict[str, Any]) -> Directory:
                 )
                 entries.append(entry)
 
-    (is_corrupt, dir_) = Directory.from_possibly_duplicated_entries(
+    is_corrupt, dir_ = Directory.from_possibly_duplicated_entries(
         id=directory_d["id"],
         entries=tuple(entries),
         raw_manifest=directory_d["raw_manifest"],
@@ -295,9 +295,7 @@ def snapshot_converter(db: BaseDb, snapshot_d: Dict[str, Any]) -> Snapshot:
     from snapshot_branches sbs
     inner join snapshot_branch sb on sb.object_id=sbs.branch_id
     where sbs.snapshot_id=%%s
-    """ % ", ".join(
-        columns
-    )
+    """ % ", ".join(columns)
     with db.cursor() as cur:
         cur.execute(query, (snapshot_d["object_id"],))
         branches = {}

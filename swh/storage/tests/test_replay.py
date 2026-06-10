@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2025  The Software Heritage developers
+# Copyright (C) 2019-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -383,7 +383,7 @@ def test_storage_replay_anonymized(
         method = getattr(storage, f"{obj_type}_add")
         method(objs)
         nb_sent += len(objs)
-    journal: JournalWriterInterface = storage.journal_writer.journal  # type:ignore
+    journal: JournalWriterInterface = storage.journal_writer.journal  # type: ignore
     journal.flush()
 
     # Fill a destination storage from Kafka, potentially using privileged topics

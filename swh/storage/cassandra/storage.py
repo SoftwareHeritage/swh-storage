@@ -475,7 +475,7 @@ class CassandraStorage:
             finalizers = []
             for content in contents_to_add:
                 row = ContentRow(**remove_keys(content.to_dict(), ("data",)))
-                (token, finalizer) = self._cql_runner.content_add_prepare(row)
+                token, finalizer = self._cql_runner.content_add_prepare(row)
                 contents_with_tokens.append((token, content))
                 finalizers.append(finalizer)
 
@@ -725,7 +725,7 @@ class CassandraStorage:
 
         for content in contents:
             # Compute token of the row in the main table
-            (token, insertion_finalizer) = self._cql_runner.skipped_content_add_prepare(
+            token, insertion_finalizer = self._cql_runner.skipped_content_add_prepare(
                 SkippedContentRow.from_dict({"origin": None, **content.to_dict()})
             )
 
@@ -2010,7 +2010,7 @@ class CassandraStorage:
         limit: int = 1000,
     ) -> PagedResult[RawExtrinsicMetadata]:
         if page_token is not None:
-            (after_date, id_) = msgpack_loads(base64.b64decode(page_token))
+            after_date, id_ = msgpack_loads(base64.b64decode(page_token))
             if after and after_date < after:
                 raise StorageArgumentException(
                     "page_token is inconsistent with the value of 'after'."
@@ -2180,7 +2180,7 @@ class CassandraStorage:
                 target_type=target_type,
                 target=target,
             )
-            (token, insertion_finalizer) = self._cql_runner.extid_add_prepare(extidrow)
+            token, insertion_finalizer = self._cql_runner.extid_add_prepare(extidrow)
             indexrow = ExtIDByTargetRow(
                 target_type=target_type,
                 target=target,

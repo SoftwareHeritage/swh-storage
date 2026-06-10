@@ -122,28 +122,22 @@ def test_edit_message_success(mocker):
         edit_message("Hello!", extra_lines=["Sometimes I'm alone", "Sometimes I'm not"])
         == "Sometimes I'm round"
     )
-    mocked_click_edit.assert_called_once_with(
-        textwrap.dedent(
-            """
+    mocked_click_edit.assert_called_once_with(textwrap.dedent("""
 
         # Hello!
         # Lines starting with “#” will be ignored. An empty message will abort the operation.
         #
         # Sometimes I'm alone
-        # Sometimes I'm not"""
-        )
-    )
+        # Sometimes I'm not"""))
 
 
 def test_edit_message_removes_comment(mocker):
     mocker.patch(
         "swh.storage.proxies.blocking.cli.click.edit",
-        return_value=textwrap.dedent(
-            """\
+        return_value=textwrap.dedent("""\
         Hello!
 
-        # This is a comment"""
-        ),
+        # This is a comment"""),
     )
     assert edit_message("RANDOM PROMPT") == "Hello!"
 
@@ -450,12 +444,10 @@ def test_status(mocked_blocking_admin, request01):
     )
     assert_result(result)
     mocked_blocking_admin.get_states_for_request.assert_called_once_with(request01.id)
-    assert result.output == textwrap.dedent(
-        """\
+    assert result.output == textwrap.dedent("""\
         https://github.com/user1/repo1 blocked
         https://github.com/user2/repo1 decision-pending
-        """
-    )
+        """)
 
 
 def test_status_request_not_found(mocked_blocking_admin):
@@ -532,16 +524,14 @@ def test_object_state(mocked_blocking_admin, blocked_origin, blocked_origin2):
         obj={"blocking_admin": mocked_blocking_admin},
     )
     assert_result(result)
-    assert result.output == textwrap.dedent(
-        """\
+    assert result.output == textwrap.dedent("""\
         blocked  https://github.com/user1/repo1
                 request-02: allowed
                 request-01: blocked
         blocked  https://github.com/user2/repo1
                 request-01: decision-pending
 
-        """
-    )
+        """)
 
 
 def test_clear_request(mocker, mocked_blocking_admin, request01):

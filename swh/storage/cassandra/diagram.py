@@ -1,4 +1,4 @@
-# Copyright (C) 2024-2025  The Software Heritage developers
+# Copyright (C) 2024-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -6,6 +6,7 @@
 """Generates a graphical representation of the Cassandra schema using
 :mod:`swh.storage.cassandra.model`.
 """
+
 import dataclasses
 from typing import Tuple, Union
 
@@ -25,9 +26,7 @@ def dot_diagram() -> str:
         cls.TABLE: cls for cls in model.__dict__.values() if hasattr(cls, "TABLE")
     }
 
-    out.write(
-        textwrap.dedent(
-            """
+    out.write(textwrap.dedent("""
             digraph g {
             graph [
             rankdir = "LR",
@@ -109,9 +108,7 @@ def dot_diagram() -> str:
                     extid_by_target;
                 }
             }
-            """
-        )
-    )
+            """))
 
     def write_table_header(table_name: str) -> None:
         out.write(
@@ -126,7 +123,7 @@ def dot_diagram() -> str:
     def get_target_field(field_full_name: str) -> Tuple[str, int]:
         """Given a string like 'table.col', returns the table name and the index of the column
         within that table (1-indexed)"""
-        (points_to_table, points_to_col) = points_to.split(".")
+        points_to_table, points_to_col = points_to.split(".")
         try:
             target_cls = classes[points_to_table]
         except KeyError:
@@ -170,17 +167,13 @@ def dot_diagram() -> str:
                 # this is Optional[], unwrap it
                 (ty,) = [arg for arg in ty.__args__ if arg is not type(None)]  # noqa
             col_type = ty if isinstance(ty, str) else ty.__name__
-            out.write(
-                textwrap.dedent(
-                    f"""
+            out.write(textwrap.dedent(f"""
                     <TR><TD PORT="ltcol{i}" ></TD>
                     <TD align="left" > {field.name} </TD>
                     <TD align="left" > {col_type} </TD>
                     <TD align="left" > {key} </TD>
                     <TD align="left" PORT="rtcol{i}"> </TD></TR>
-                    """
-                )
-            )
+                    """))
 
         out.write("</TABLE>> ];\n")
 
@@ -188,9 +181,7 @@ def dot_diagram() -> str:
     for algo in HASH_ALGORITHMS:
         for main_table in ("content", "skipped_content"):
             write_table_header(f"{main_table}_by_{algo}")
-            out.write(
-                textwrap.dedent(
-                    f"""
+            out.write(textwrap.dedent(f"""
                     <TR><TD PORT="ltcol1" ></TD>
                     <TD align="left" > {algo} </TD>
                     <TD align="left" > bytes </TD>
@@ -201,9 +192,7 @@ def dot_diagram() -> str:
                     <TD align="left" > token </TD>
                     <TD align="left" > CK </TD>
                     <TD align="left" PORT="rtcol2"> </TD></TR>
-                    """
-                )
-            )
+                    """))
             out.write("</TABLE>> ];\n")
 
             out.write(
@@ -219,7 +208,7 @@ def dot_diagram() -> str:
             for points_to in field.metadata.get("points_to") or []:
                 links.append((False, points_to))
             for is_strong, points_to in links:
-                (target_table, target_field_id) = get_target_field(points_to)
+                target_table, target_field_id = get_target_field(points_to)
                 if is_strong:
                     style = "[style = solid]"
                 else:

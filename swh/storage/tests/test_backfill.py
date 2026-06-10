@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2025  The Software Heritage developers
+# Copyright (C) 2019-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -96,15 +96,12 @@ def test_compute_query_content():
         "ctime",
     ]
 
-    assert (
-        query
-        == """
+    assert query == """
 select sha1,sha1_git,sha256,blake2s256,length,status,ctime
 from content
 
 where (sha1) >= %s and (sha1) < %s
     """
-    )
 
 
 def test_compute_query_skipped_content():
@@ -123,15 +120,12 @@ def test_compute_query_skipped_content():
         "reason",
     ]
 
-    assert (
-        query
-        == """
+    assert query == """
 select sha1,sha1_git,sha256,blake2s256,length,ctime,status,reason
 from skipped_content
 
 
     """
-    )
 
 
 def test_compute_query_origin_visit():
@@ -146,15 +140,12 @@ def test_compute_query_origin_visit():
         "date",
     ]
 
-    assert (
-        query
-        == """
+    assert query == """
 select visit,type,origin.url as origin,date
 from origin_visit
 left join origin on origin_visit.origin=origin.id
 where (origin_visit.origin) >= %s and (origin_visit.origin) < %s
     """
-    )
 
 
 def test_compute_query_release():
@@ -178,15 +169,12 @@ def test_compute_query_release():
         "raw_manifest",
     ]
 
-    assert (
-        query
-        == """
+    assert query == """
 select release.id as id,date,date_offset_bytes,comment,release.name as name,synthetic,target,target_type,a.id as author_id,a.name as author_name,a.email as author_email,a.fullname as author_fullname,raw_manifest
 from release
 left join person a on release.author=a.id
 where (release.id) >= %s and (release.id) < %s
     """  # noqa
-    )
 
 
 @pytest.mark.parametrize("numbits", [2, 3, 8, 16])
@@ -485,7 +473,7 @@ def test_backfiller__duplicate_directory_entries(
     with db.conn.cursor() as cur:
         cur.execute("select id, dir_entries, file_entries, raw_manifest from directory")
         (row,) = cur
-        (id_, (dir_entry,), (file_entry,), raw_manifest) = row
+        id_, (dir_entry,), (file_entry,), raw_manifest = row
         assert id_ == invalid_directory.id
         assert raw_manifest is None
         cur.execute("select id, name, target from directory_entry_dir")

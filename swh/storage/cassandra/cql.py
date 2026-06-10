@@ -129,7 +129,7 @@ def _instantiate_auth_provider(configuration: Dict) -> AuthProvider:
             " in the auth_provider configuration section"
         )
 
-    (module_path, class_name) = cls.rsplit(".", 1)
+    module_path, class_name = cls.rsplit(".", 1)
     module = importlib.import_module(module_path, package=__package__)
     AuthProvider = getattr(module, class_name)
 
@@ -169,8 +169,7 @@ def create_keyspace(cql_runner: "CqlRunner", *, durable_writes=True) -> None:
                            'class' : 'SimpleStrategy',
                            'replication_factor' : 1
                        } %s;
-                    """
-        % (cql_runner.keyspace, extra_params),
+                    """ % (cql_runner.keyspace, extra_params),
         [],
     )
     cql_runner.execute_with_retries(f'USE "{cql_runner.keyspace}"', [])
@@ -1092,13 +1091,11 @@ class CqlRunner:
     def snapshot_branch_add_one(self, branch: SnapshotBranchRow, *, statement) -> None:
         self._add_one(statement, branch)
 
-    @_prepared_statement(
-        f"""
+    @_prepared_statement(f"""
         SELECT target_type
         FROM {{keyspace}}.{SnapshotBranchRow.TABLE}
         WHERE snapshot_id = ? AND name >= ?
-        """
-    )
+        """)
     def snapshot_count_branches_from_name(
         self, snapshot_id: Sha1Git, from_: bytes, *, statement
     ) -> Dict[Optional[str], int]:
@@ -1107,13 +1104,11 @@ class CqlRunner:
             for row in self.execute_with_retries(statement, [snapshot_id, from_])
         )
 
-    @_prepared_statement(
-        f"""
+    @_prepared_statement(f"""
         SELECT target_type
         FROM {{keyspace}}.{SnapshotBranchRow.TABLE}
         WHERE snapshot_id = ? AND name < ?
-        """
-    )
+        """)
     def snapshot_count_branches_before_name(
         self,
         snapshot_id: Sha1Git,
@@ -1242,13 +1237,11 @@ class CqlRunner:
     def origin_iter_all(self, *, statement) -> Iterable[OriginRow]:
         return map(OriginRow.from_dict, self.execute_with_retries(statement, []))
 
-    @_prepared_statement(
-        f"""
+    @_prepared_statement(f"""
         UPDATE {{keyspace}}.{OriginRow.TABLE}
         SET next_visit_id=?
         WHERE sha1 = ? IF next_visit_id<?
-        """
-    )
+        """)
     def origin_bump_next_visit_id(
         self, origin_url: str, visit_id: int, *, statement
     ) -> None:
@@ -1262,13 +1255,11 @@ class CqlRunner:
         assert len(rows) == 1  # TODO: error handling
         return rows[0]["next_visit_id"]
 
-    @_prepared_statement(
-        f"""
+    @_prepared_statement(f"""
         UPDATE {{keyspace}}.{OriginRow.TABLE}
         SET next_visit_id=?
         WHERE sha1 = ? IF next_visit_id=?
-        """
-    )
+        """)
     def origin_generate_unique_visit_id(self, origin_url: str, *, statement) -> int:
         origin_sha1 = hash_url(origin_url)
         next_id = self._origin_get_next_visit_id(origin_sha1)
@@ -1596,14 +1587,12 @@ class CqlRunner:
             for entry in self.execute_with_retries(statement, [target])
         )
 
-    @_prepared_statement(
-        """DELETE FROM {keyspace}.raw_extrinsic_metadata
+    @_prepared_statement("""DELETE FROM {keyspace}.raw_extrinsic_metadata
             WHERE target = ?
               AND authority_type = ?
               AND authority_url = ?
               AND discovery_date = ?
-              AND id = ?"""
-    )
+              AND id = ?""")
     def raw_extrinsic_metadata_delete(
         self,
         target,
@@ -1795,14 +1784,12 @@ class CqlRunner:
                     ):
                         yield extid
 
-    @_prepared_statement(
-        """DELETE FROM {keyspace}.extid
+    @_prepared_statement("""DELETE FROM {keyspace}.extid
             WHERE extid_type = ?
               AND extid = ?
               AND extid_version = ?
               AND target_type = ?
-              AND target = ?"""
-    )
+              AND target = ?""")
     def extid_delete(
         self,
         extid_type: str,
@@ -1838,11 +1825,9 @@ class CqlRunner:
             for row in self.execute_with_retries(statement, [target_type, target])
         )
 
-    @_prepared_statement(
-        """DELETE FROM {keyspace}.extid_by_target
+    @_prepared_statement("""DELETE FROM {keyspace}.extid_by_target
             WHERE target_type = ?
-              AND target = ?"""
-    )
+              AND target = ?""")
     def extid_delete_from_by_target_table(
         self, target_type: str, target: bytes, *, statement
     ) -> None:
@@ -1870,7 +1855,7 @@ class CqlRunner:
         if table_and_statement is None:
             refresh_table_cache = True
         else:
-            (table, statement) = table_and_statement
+            table, statement = table_and_statement
             refresh_table_cache = not (table.start <= Date(today) < table.end)
 
         # Update cached value _object_reference_current_table_and_statement
@@ -1970,7 +1955,7 @@ class CqlRunner:
     ) -> Tuple[datetime.date, datetime.date]:
         """Create the table of the object_references table for the given ISO
         ``year`` and ``week``."""
-        (year, week) = date
+        year, week = date
 
         # This date is guaranteed to be in week 1 by the ISO standard
         in_week1 = datetime.date(year=year, month=1, day=4)

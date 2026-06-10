@@ -1,4 +1,4 @@
-# Copyright (C) 2020-2025  The Software Heritage developers
+# Copyright (C) 2020-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -91,8 +91,8 @@ def test_retrying_proxy_storage_content_add_with_retry(
     )
 
     assert len(sleep.mock_calls) == 2
-    (_, args1, _) = sleep.mock_calls[0]
-    (_, args2, _) = sleep.mock_calls[1]
+    _, args1, _ = sleep.mock_calls[0]
+    _, args2, _ = sleep.mock_calls[1]
     assert 0 < args1[0] < 1
     assert 0 < args2[0] < 2
 
@@ -125,8 +125,8 @@ def test_retrying_proxy_storage_content_add_with_retry_of_transient(
     mock_memory.assert_has_calls([call([sample_content])] * max_attempts)
 
     assert len(sleep.mock_calls) == (max_attempts - 1)
-    (_, args1, _) = sleep.mock_calls[0]
-    (_, args2, _) = sleep.mock_calls[1]
+    _, args1, _ = sleep.mock_calls[0]
+    _, args2, _ = sleep.mock_calls[1]
     assert 10 < args1[0] < 11
     assert 10 < args2[0] < 12
 

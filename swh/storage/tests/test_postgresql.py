@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2025  The Software Heritage developers
+# Copyright (C) 2015-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -193,11 +193,9 @@ class TestPgStorage:
         swh_storage.journal_writer.journal = None  # TODO, not supported
 
         with db_transaction(swh_storage) as (_, cur):
-            cur.execute(
-                """alter table content
+            cur.execute("""alter table content
                            add column test text default null,
-                           add column test2 text default null"""
-            )
+                           add column test2 text default null""")
 
         swh_storage.content_add([content])
 
@@ -227,10 +225,8 @@ class TestPgStorage:
         )
 
         with db_transaction(swh_storage) as (_, cur):
-            cur.execute(
-                """alter table content drop column test,
-                                               drop column test2"""
-            )
+            cur.execute("""alter table content drop column test,
+                                               drop column test2""")
 
     def test_content_add_db(self, swh_storage, sample_data):
         content = sample_data.content

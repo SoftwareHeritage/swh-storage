@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2023  The Software Heritage developers
+# Copyright (C) 2015-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -189,7 +189,7 @@ def _get_paginated_sha1_partition(
 
     assert get_id is not None  # to please mypy
 
-    (start, end) = get_partition_bounds_bytes(partition_id, nb_partitions, SHA1_SIZE)
+    start, end = get_partition_bounds_bytes(partition_id, nb_partitions, SHA1_SIZE)
     if page_token:
         start = hash_to_bytes(page_token)
     if end is None:
@@ -1857,7 +1857,7 @@ class Storage:
         cur=None,
     ) -> PagedResult[RawExtrinsicMetadata]:
         if page_token:
-            (after_time, after_fetcher) = msgpack_loads(base64.b64decode(page_token))
+            after_time, after_fetcher = msgpack_loads(base64.b64decode(page_token))
             if after and after_time < after:
                 raise StorageArgumentException(
                     "page_token is inconsistent with the value of 'after'."

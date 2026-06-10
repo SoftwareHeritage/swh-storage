@@ -141,7 +141,7 @@ class Table(Generic[TRow]):
 
     def get_from_primary_key(self, primary_key: Tuple) -> Optional[TRow]:
         """Returns at most one row, from its primary key."""
-        (partition_key, clustering_key) = self.split_primary_key(primary_key)
+        partition_key, clustering_key = self.split_primary_key(primary_key)
 
         token = self.token(partition_key)
         partition = self.get_partition(token)
@@ -1023,7 +1023,7 @@ class InMemoryCqlRunner:
         self,
         date: Tuple[int, int],  # _prepared_insert_statement supports only one arg
     ) -> Tuple[datetime.date, datetime.date]:
-        (year, week) = date
+        year, week = date
 
         # This date is guaranteed to be in week 1 by the ISO standard
         in_week1 = datetime.date(year=year, month=1, day=4)

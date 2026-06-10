@@ -121,28 +121,22 @@ def test_edit_message_success(mocker):
         edit_message("Hello!", extra_lines=["Sometimes I'm alone", "Sometimes I'm not"])
         == "Sometimes I'm round"
     )
-    mocked_click_edit.assert_called_once_with(
-        textwrap.dedent(
-            """
+    mocked_click_edit.assert_called_once_with(textwrap.dedent("""
 
         # Hello!
         # Lines starting with “#” will be ignored. An empty message will abort the operation.
         #
         # Sometimes I'm alone
-        # Sometimes I'm not"""
-        )
-    )
+        # Sometimes I'm not"""))
 
 
 def test_edit_message_removes_comment(mocker):
     mocker.patch(
         "swh.storage.proxies.masking.cli.click.edit",
-        return_value=textwrap.dedent(
-            """\
+        return_value=textwrap.dedent("""\
         Hello!
 
-        # This is a comment"""
-        ),
+        # This is a comment"""),
     )
     assert edit_message("RANDOM PROMPT") == "Hello!"
 
@@ -475,12 +469,10 @@ def test_status(mocked_masking_admin, request01):
     )
     assert_result(result)
     mocked_masking_admin.get_states_for_request.assert_called_once_with(request01.id)
-    assert result.output == textwrap.dedent(
-        """\
+    assert result.output == textwrap.dedent("""\
         swh:1:cnt:d81cc0710eb6cf9efd5b920a8453e1e07157b6cd restricted
         swh:1:cnt:36fade77193cb6d2bd826161a0979d64c28ab4fa decision-pending
-        """
-    )
+        """)
 
 
 def test_status_request_not_found(mocked_masking_admin):
@@ -555,16 +547,14 @@ def test_object_state(mocked_masking_admin, masked_content, masked_content2):
         obj={"masking_admin": mocked_masking_admin},
     )
     assert_result(result)
-    assert result.output == textwrap.dedent(
-        """\
+    assert result.output == textwrap.dedent("""\
         masked  swh:1:cnt:d81cc0710eb6cf9efd5b920a8453e1e07157b6cd
                 request-02: visible
                 request-01: restricted
         masked  swh:1:cnt:36fade77193cb6d2bd826161a0979d64c28ab4fa
                 request-01: decision-pending
 
-        """
-    )
+        """)
 
 
 def test_object_state_bad_swhid():

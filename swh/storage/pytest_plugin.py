@@ -302,7 +302,7 @@ def swh_storage_cassandra_keyspace(
     from swh.storage.cassandra import create_keyspace
     from swh.storage.cassandra.cql import CqlRunner
 
-    (hosts, port) = swh_storage_cassandra_cluster
+    hosts, port = swh_storage_cassandra_cluster
     keyspace = "test" + os.urandom(10).hex()
 
     cql_runner = CqlRunner(
@@ -328,7 +328,7 @@ def swh_storage_cassandra_backend_config(
     cassandra_auth_provider_config,
 ):
 
-    (hosts, port) = swh_storage_cassandra_cluster
+    hosts, port = swh_storage_cassandra_cluster
 
     keyspace = swh_storage_cassandra_keyspace
 

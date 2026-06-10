@@ -415,8 +415,8 @@ class TestCassandraStorage(_TestStorage):
         def get_timings():
             timings = {}
             for call in mock_statsd.mock_calls:
-                (_name, args, kwargs) = call
-                (metric_name, value) = args
+                _name, args, kwargs = call
+                metric_name, value = args
                 if metric_name == "swh_storage_content_add_suboperations_total":
                     suboperation = kwargs["tags"]["suboperation"]
                     assert (
@@ -777,14 +777,14 @@ def test_allow_overwrite(
 
     # Get two test objects
     if object_type == "directory":
-        (obj1, obj2, *_) = StorageData.directories
+        obj1, obj2, *_ = StorageData.directories
     elif object_type == "snapshot":
         # StorageData.snapshots[1] is the empty snapshot, which is the corner case
         # that makes this test succeed for the wrong reasons
         obj1 = StorageData.snapshot
         obj2 = StorageData.complete_snapshot
     else:
-        (obj1, obj2, *_) = getattr(StorageData, (object_type + "s"))
+        obj1, obj2, *_ = getattr(StorageData, (object_type + "s"))
 
     # Let's make both objects have the same hash, but different content
     obj1 = attr.evolve(obj1, id=obj2.id)
