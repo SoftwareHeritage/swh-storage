@@ -1,13 +1,16 @@
-# Copyright (C) 2018-2020  The Software Heritage developers
+# Copyright (C) 2018-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
+
+import random
 
 from hypothesis import HealthCheck, given, settings
 import pytest
 
 from swh.model.hypothesis_strategies import branch_names, snapshot_targets, snapshots
 from swh.model.model import (
+    SHA1_SIZE,
     OriginVisit,
     OriginVisitStatus,
     Snapshot,
@@ -58,6 +61,85 @@ def test_snapshot_large(swh_storage, branch_name, snapshot_target):  # noqa
 
     returned_snapshot = snapshot_get_all_branches(swh_storage, snapshot.id)
     assert snapshot == returned_snapshot
+
+
+def random_sha1():
+    return bytes(random.randint(0, 255) for _ in range(SHA1_SIZE))
+
+
+@pytest.mark.parametrize("target_type", ["revision", "release"])
+def test_snapshot_get_all_branches_target_types_filter(swh_storage, target_type):
+    nb_branches = 10000
+    snapshot = Snapshot(
+        branches={
+            (b"branch_%05d" % i): SnapshotBranch(
+                target_type=(
+                    SnapshotTargetType.REVISION
+                    if i % 2 == 0
+                    else SnapshotTargetType.RELEASE
+                ),
+                target=random_sha1(),
+            )
+            for i in range(nb_branches)
+        },
+    )
+
+    swh_storage.snapshot_add([snapshot])
+
+    returned_snapshot = snapshot_get_all_branches(
+        swh_storage, snapshot.id, target_types=[target_type]
+    )
+    assert len(returned_snapshot.branches) == nb_branches / 2
+    assert all(
+        branch.target_type.value == target_type
+        for branch in returned_snapshot.branches.values()
+    )
+
+
+@pytest.mark.parametrize("branch_name_substring", [b"foo", b"bar"])
+def test_snapshot_get_all_branches_include_filter(swh_storage, branch_name_substring):
+    nb_branches = 10000
+    snapshot = Snapshot(
+        branches={
+            (b"branch_%s_%05d" % (b"foo" if i % 2 == 0 else b"bar", i)): SnapshotBranch(
+                target_type=SnapshotTargetType.RELEASE,
+                target=random_sha1(),
+            )
+            for i in range(nb_branches)
+        },
+    )
+
+    swh_storage.snapshot_add([snapshot])
+
+    returned_snapshot = snapshot_get_all_branches(
+        swh_storage, snapshot.id, branch_name_include_substring=branch_name_substring
+    )
+    assert len(returned_snapshot.branches) == nb_branches / 2
+    assert all(branch_name_substring in branch for branch in returned_snapshot.branches)
+
+
+@pytest.mark.parametrize("exclude_prefix", [b"foo", b"bar"])
+def test_snapshot_get_all_branches_exclude_prefix_filter(swh_storage, exclude_prefix):
+    nb_branches = 10000
+    snapshot = Snapshot(
+        branches={
+            (b"%s_%05d" % (b"foo" if i % 2 == 0 else b"bar", i)): SnapshotBranch(
+                target_type=SnapshotTargetType.RELEASE,
+                target=random_sha1(),
+            )
+            for i in range(nb_branches)
+        },
+    )
+
+    swh_storage.snapshot_add([snapshot])
+
+    returned_snapshot = snapshot_get_all_branches(
+        swh_storage, snapshot.id, branch_name_exclude_prefix=exclude_prefix
+    )
+    assert len(returned_snapshot.branches) == nb_branches / 2
+    assert all(
+        not branch.startswith(exclude_prefix) for branch in returned_snapshot.branches
+    )
 
 
 def test_snapshot_get_latest_none(swh_storage, sample_data):
