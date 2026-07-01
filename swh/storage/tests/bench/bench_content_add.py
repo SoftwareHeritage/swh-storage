@@ -113,12 +113,24 @@ def run_bench(
     samples: List[Sample] = []
     storage = _build_storage(hosts=hosts, keyspace=keyspace, port=port)
     for batch_size in batch_sizes:
-        for i in range(iterations):
-            # Fresh seed per round so each iteration hits new keys.
-            contents = _generate_contents(
-                batch_size, seed=hash((label, batch_size, i)) & 0xFFFFFFFF
+        # iterations + 1 rounds: round 0 is a warmup (discarded below) that
+        # primes the connection pool and prepared-statement cache, so its
+        # one-off latency does not land in p95 — the number the README calls
+        # out as the telling one for sizing.
+        for i in range(iterations + 1):
+            # Reproducible per-round seed: distinct per (label, batch_size,
+            # round) so each run writes fresh keys, yet stable across
+            # processes (unlike hash(), which is PYTHONHASHSEED-salted).
+            seed = int.from_bytes(
+                hashlib.blake2b(
+                    f"{label}:{batch_size}:{i}".encode(), digest_size=8
+                ).digest(),
+                "little",
             )
+            contents = _generate_contents(batch_size, seed=seed)
             wall = _run_one(storage, contents)
+            if i == 0:
+                continue  # discard warmup round
             samples.append(Sample(label, batch_size, wall))
     return samples
 

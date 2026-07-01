@@ -17,15 +17,18 @@ samples across runs.
 
 ### Prerequisites
 
-A running Cassandra cluster with `swh_storage`'s schema applied to a
-throw-away keyspace (the script does not clean up after itself).
+A running Cassandra cluster with `swh-storage`'s schema applied to a
+**throw-away keyspace** — the script writes real rows and does **not**
+clean up after itself, so never point it at a production keyspace.
+
+Connection parameters come from the `--hosts` / `--keyspace` / `--port`
+flags, or from the matching environment variables (exported below,
+then picked up as defaults):
 
 ```bash
-# In one shell — bring up Cassandra + schema (example via the test
-# fixture; adapt to your cluster).
-SWH_CASSANDRA_HOSTS=127.0.0.1 \
-SWH_CASSANDRA_KEYSPACE=swh_storage_bench \
-SWH_CASSANDRA_PORT=9042
+export SWH_CASSANDRA_HOSTS=127.0.0.1
+export SWH_CASSANDRA_KEYSPACE=swh_storage_bench
+export SWH_CASSANDRA_PORT=9042
 ```
 
 ### Run
@@ -71,10 +74,18 @@ cluster details when sharing results.
 
 ### Notes
 
-- The harness uses synthetic 1024-byte `Content` payloads with
-  deterministic hashes (per-iteration seed). It writes the full 5-row
-  per-content Cassandra surface (4 indexes + main) and does not touch
-  objstorage.
+- The harness uses synthetic 1024-byte `Content` payloads with a
+  reproducible per-round seed (stable across processes, distinct per
+  `label`/batch/round so each run writes fresh keys). It writes the
+  full 5-row per-content Cassandra surface (4 indexes + main) and does
+  not touch objstorage.
+- The first round of each batch size is a discarded warmup, so
+  connection-pool and prepared-statement priming does not skew the
+  reported percentiles.
+- Wall time — not CPU time — is the metric here: the `content_add`
+  write path is I/O-bound on Cassandra round-trips, so client-observed
+  wall time is what governs ingestion throughput; CPU time would
+  understate the cost of the network waits we care about.
 - Per-batch wall time under concurrent insertion is dominated by the
   slowest in-flight request, not the average. p95 is the more telling
   number for production sizing.
