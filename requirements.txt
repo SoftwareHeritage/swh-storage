@@ -1,4 +1,3 @@
-backports.entry_points_selectable
 cassandra-driver >= 3.29.3
 click != 8.2.1
 deprecated
@@ -9,4 +8,3 @@ psycopg
 psycopg_pool >= 3.1
 redis != 8.0.0  # https://github.com/redis/redis-py/issues/4086
 tenacity >= 8.4.2
-typing-extensions
