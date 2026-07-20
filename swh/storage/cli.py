@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2020  The Software Heritage developers
+# Copyright (C) 2015-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -6,12 +6,11 @@
 # WARNING: do not import unnecessary things here to keep cli startup time under
 # control
 import logging
-import os
 from typing import IO, Callable, Dict, Optional, Tuple, Union, cast
 
 import click
 
-from swh.core.cli import CONTEXT_SETTINGS
+from swh.core.cli import CONTEXT_SETTINGS, setup_config
 from swh.core.cli import swh as swh_cli_group
 
 try:
@@ -45,24 +44,10 @@ except ImportError:
 @click.pass_context
 def storage(ctx, config_file, check_config):
     """Software Heritage Storage tools."""
-    from swh.core import config
-
-    if not config_file:
-        config_file = os.environ.get("SWH_CONFIG_FILENAME")
-
-    if config_file:
-        if not os.path.exists(config_file):
-            raise ValueError("%s does not exist" % config_file)
-        conf = config.read(config_file)
-    else:
-        conf = {}
-
-    if "storage" not in conf:
-        ctx.fail("You must have a storage configured in your config file.")
-
-    ctx.ensure_object(dict)
-    ctx.obj["config"] = conf
+    setup_config(ctx, config_file)
     ctx.obj["check_config"] = check_config
+    if "storage" not in ctx.obj["config"]:
+        ctx.fail("You must have a storage configured in your config file.")
 
 
 @storage.group(name="cassandra", context_settings=CONTEXT_SETTINGS)

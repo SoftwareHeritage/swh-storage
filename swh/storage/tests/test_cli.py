@@ -1,4 +1,4 @@
-# Copyright (C) 2020-2025  The Software Heritage developers
+# Copyright (C) 2020-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -45,12 +45,13 @@ def invoke(*args, env=None, input=None, journal_config=None, local_config=None):
     if journal_config:
         config["journal_client"] = journal_config.copy()
         config["journal_client"]["cls"] = "kafka"
-
+    if not env:
+        env = {}
     runner = CliRunner()
     with tempfile.NamedTemporaryFile("a", suffix=".yml") as config_fd:
         yaml.dump(config, config_fd)
         config_fd.seek(0)
-        args = ["-C" + config_fd.name] + list(args)
+        env["SWH_CONFIG_FILENAME"] = config_fd.name
         ret = runner.invoke(
             cli,
             args,
