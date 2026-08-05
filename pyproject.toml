@@ -16,16 +16,6 @@ classifiers = [
 ]
 dynamic = ["version", "dependencies", "optional-dependencies"]
 
-[tool.setuptools.packages.find]
-include = ["swh.*"]
-
-[tool.setuptools.dynamic]
-dependencies = { file = ["requirements.txt", "requirements-swh.txt"] }
-
-[tool.setuptools.dynamic.optional-dependencies]
-testing = { file = ["requirements-test.txt", "requirements-pytest.txt"] }
-pytest = { file = ["requirements-pytest.txt"] }
-journal = { file = ["requirements-swh-journal.txt"] }
 
 [project.entry-points."swh.storage.classes"]
 "remote" = "swh.storage.api.client:RemoteStorage"
@@ -49,6 +39,7 @@ journal = { file = ["requirements-swh-journal.txt"] }
 "swh.storage.proxies.masking" = "swh.storage.proxies.masking.cli"
 "swh.storage.proxies.blocking" = "swh.storage.proxies.blocking.cli"
 
+
 [project.urls]
 "Homepage" = "https://gitlab.softwareheritage.org/swh/devel/swh-storage"
 "Bug Reports" = "https://gitlab.softwareheritage.org/swh/devel/swh-storage/-/issues"
@@ -57,11 +48,23 @@ journal = { file = ["requirements-swh-journal.txt"] }
 "Source" = "https://gitlab.softwareheritage.org/swh/devel/swh-storage.git"
 
 [build-system]
-requires = ["setuptools", "setuptools-scm"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling", "hatch-requirements-txt", "hatch-vcs"]
+build-backend = "hatchling.build"
 
-[tool.setuptools_scm]
-fallback_version = "0.0.1"
+[tool.hatch.metadata.hooks.requirements_txt]
+files = ["requirements.txt", "requirements-swh.txt"]
+
+[tool.hatch.metadata.hooks.requirements_txt.optional-dependencies]
+testing = ["requirements-test.txt", "requirements-pytest.txt"]
+pytest = ["requirements-pytest.txt"]
+journal = ["requirements-swh-journal.txt"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["swh"]
+
+[tool.hatch.version]
+source = "vcs"
+fallback-version = "0.0.1"
 
 [tool.black]
 target-version = ['py311', 'py312', 'py313']
