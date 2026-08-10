@@ -1,4 +1,4 @@
-# Copyright (C) 2020 The Software Heritage developers
+# Copyright (C) 2020-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -6,27 +6,21 @@
 from unittest.mock import call
 
 import attr
-import psycopg2
+import psycopg
 import pytest
 
 from swh.core.api import TransientRemoteException
+from swh.objstorage.interface import objid_from_dict
 from swh.storage.exc import HashCollision, StorageArgumentException
+from swh.storage.proxies.retry import RETRY_MAX_ATTEMPTS
 from swh.storage.utils import now
 
 
 @pytest.fixture
-def storage_retry_sleep_mocks(mocker, swh_storage):
+def storage_retry_sleep_mock(mocker):
     """In test context, we don't want to wait, make test faster by mocking
-    the sleep function from retryable storage methods"""
-    mocks = {}
-    for method_name in dir(
-        swh_storage
-    ):  # swh_storage is an instance of RetryingProxyStorage
-        if "_add" in method_name or "_update" in method_name:
-            method = getattr(swh_storage, method_name)
-            mocks[method_name] = mocker.patch.object(method.retry, "sleep")
-
-    return mocks
+    the sleep function used by retryable storage methods"""
+    return mocker.patch("time.sleep")
 
 
 @pytest.fixture
@@ -36,7 +30,7 @@ def fake_hash_collision(sample_data):
 
 @pytest.fixture
 def swh_storage_backend_config():
-    yield {
+    return {
         "cls": "pipeline",
         "steps": [
             {"cls": "retry"},
@@ -48,7 +42,7 @@ def swh_storage_backend_config():
 def test_retrying_proxy_storage_content_add(swh_storage, sample_data):
     """Standard content_add works as before"""
     sample_content = sample_data.content
-    content = swh_storage.content_get_data(sample_content.sha1)
+    content = swh_storage.content_get_data(objid_from_dict(sample_content.to_dict()))
     assert content is None
 
     s = swh_storage.content_add([sample_content])
@@ -57,32 +51,32 @@ def test_retrying_proxy_storage_content_add(swh_storage, sample_data):
         "content:add:bytes": sample_content.length,
     }
 
-    content = swh_storage.content_get_data(sample_content.sha1)
+    content = swh_storage.content_get_data(objid_from_dict(sample_content.to_dict()))
     assert content == sample_content.data
 
 
 def test_retrying_proxy_storage_content_add_with_retry(
-    storage_retry_sleep_mocks,
+    storage_retry_sleep_mock,
     swh_storage,
     sample_data,
     mocker,
     fake_hash_collision,
 ):
-    """Multiple retries for hash collision and psycopg2 error but finally ok"""
+    """Multiple retries for hash collision and psycopg error but finally ok"""
     mock_memory = mocker.patch("swh.storage.in_memory.InMemoryStorage.content_add")
     mock_memory.side_effect = [
         # first try goes ko
         fake_hash_collision,
         # second try goes ko
-        psycopg2.IntegrityError("content already inserted"),
+        psycopg.IntegrityError("content already inserted"),
         # ok then!
         {"content:add": 1},
     ]
 
     sample_content = sample_data.content
 
-    sleep = storage_retry_sleep_mocks["content_add"]
-    content = swh_storage.content_get_data(sample_content.sha1)
+    sleep = storage_retry_sleep_mock
+    content = swh_storage.content_get_data(objid_from_dict(sample_content.to_dict()))
     assert content is None
 
     s = swh_storage.content_add([sample_content])
@@ -97,48 +91,42 @@ def test_retrying_proxy_storage_content_add_with_retry(
     )
 
     assert len(sleep.mock_calls) == 2
-    (_, args1, _) = sleep.mock_calls[0]
-    (_, args2, _) = sleep.mock_calls[1]
+    _, args1, _ = sleep.mock_calls[0]
+    _, args2, _ = sleep.mock_calls[1]
     assert 0 < args1[0] < 1
     assert 0 < args2[0] < 2
 
 
 def test_retrying_proxy_storage_content_add_with_retry_of_transient(
-    storage_retry_sleep_mocks,
+    storage_retry_sleep_mock,
     swh_storage,
     sample_data,
     mocker,
 ):
-    """Multiple retries for hash collision and psycopg2 error but finally ok
+    """Multiple retries for hash collision and psycopg error but finally ok
     after many attempts"""
     mock_memory = mocker.patch("swh.storage.in_memory.InMemoryStorage.content_add")
-    mock_memory.side_effect = [
-        TransientRemoteException("temporary failure"),
-        TransientRemoteException("temporary failure"),
-        # ok then!
-        {"content:add": 1},
-    ]
+    transient_exc = TransientRemoteException("temporary failure")
+    # transient are retried up to twice the number of max attempts
+    max_attempts = RETRY_MAX_ATTEMPTS * 2
+    content_add_side_effect = [transient_exc] * (max_attempts - 1)
+    content_add_side_effect.append({"content:add": 1})  # ok then!
+    mock_memory.side_effect = content_add_side_effect
 
     sample_content = sample_data.content
 
-    content = swh_storage.content_get_data(sample_content.sha1)
+    content = swh_storage.content_get_data(objid_from_dict(sample_content.to_dict()))
     assert content is None
 
-    sleep = storage_retry_sleep_mocks["content_add"]
+    sleep = storage_retry_sleep_mock
     s = swh_storage.content_add([sample_content])
     assert s == {"content:add": 1}
 
-    mock_memory.assert_has_calls(
-        [
-            call([sample_content]),
-            call([sample_content]),
-            call([sample_content]),
-        ]
-    )
+    mock_memory.assert_has_calls([call([sample_content])] * max_attempts)
 
-    assert len(sleep.mock_calls) == 2
-    (_, args1, _) = sleep.mock_calls[0]
-    (_, args2, _) = sleep.mock_calls[1]
+    assert len(sleep.mock_calls) == (max_attempts - 1)
+    _, args1, _ = sleep.mock_calls[0]
+    _, args2, _ = sleep.mock_calls[1]
     assert 10 < args1[0] < 11
     assert 10 < args2[0] < 12
 
@@ -152,7 +140,7 @@ def test_retrying_proxy_swh_storage_content_add_failure(
 
     sample_content = sample_data.content
 
-    content = swh_storage.content_get_data(sample_content.sha1)
+    content = swh_storage.content_get_data(objid_from_dict(sample_content.to_dict()))
     assert content is None
 
     with pytest.raises(StorageArgumentException, match="Refuse to add"):
@@ -181,9 +169,9 @@ def test_retrying_proxy_storage_content_add_metadata(swh_storage, sample_data):
 
 
 def test_retrying_proxy_storage_content_add_metadata_with_retry(
-    storage_retry_sleep_mocks, swh_storage, sample_data, mocker, fake_hash_collision
+    storage_retry_sleep_mock, swh_storage, sample_data, mocker, fake_hash_collision
 ):
-    """Multiple retries for hash collision and psycopg2 error but finally ok"""
+    """Multiple retries for hash collision and psycopg error but finally ok"""
     mock_memory = mocker.patch(
         "swh.storage.in_memory.InMemoryStorage.content_add_metadata"
     )
@@ -191,7 +179,7 @@ def test_retrying_proxy_storage_content_add_metadata_with_retry(
         # first try goes ko
         fake_hash_collision,
         # second try goes ko
-        psycopg2.IntegrityError("content_metadata already inserted"),
+        psycopg.IntegrityError("content_metadata already inserted"),
         # ok then!
         {"content:add": 1},
     ]
@@ -238,7 +226,7 @@ def test_retrying_proxy_swh_storage_keyboardinterrupt(swh_storage, sample_data, 
 
     sample_content = sample_data.content
 
-    content = swh_storage.content_get_data(sample_content.sha1)
+    content = swh_storage.content_get_data(objid_from_dict(sample_content.to_dict()))
     assert content is None
 
     with pytest.raises(KeyboardInterrupt):

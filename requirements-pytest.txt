@@ -1,0 +1,9 @@
+# Requirements for swh.storage.pytest_plugin
+cassandra-driver >= 3.29.3
+
+pytest >= 8.1
+pytest-postgresql
+pytest-shared-session-scope
+pytest-xdist
+
+swh.core[db]

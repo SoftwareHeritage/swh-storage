@@ -28,7 +28,7 @@ from swh.model.model import (
     RevisionType,
     Snapshot,
     SnapshotBranch,
-    TargetType,
+    SnapshotTargetType,
     Timestamp,
     TimestampWithTimezone,
 )
@@ -117,7 +117,7 @@ def test_debian_origins_from_row():
             # ...
             b"releases/unstable/main/4:19.12.1-1": SnapshotBranch(
                 target=b"\x00\x00\x03l1\x1e\xf3:(\x1b\x05h\x8fn\xad\xcf\xc0\x94:\xee",
-                target_type=TargetType.REVISION,
+                target_type=SnapshotTargetType.REVISION,
             ),
         },
     )
@@ -226,7 +226,7 @@ def test_debian_origins_from_row__no_result():
         snapshot,
         branches={
             b"foo": SnapshotBranch(
-                target_type=TargetType.REVISION,
+                target_type=SnapshotTargetType.REVISION,
                 target=revision_id,
             )
         },
@@ -315,7 +315,7 @@ def test_debian_origins_from_row__check_revisions():
                 id=b"42" * 10,
                 branches={
                     b"foo": SnapshotBranch(
-                        target_type=TargetType.REVISION, target=revision_id
+                        target_type=SnapshotTargetType.REVISION, target=revision_id
                     )
                 },
             )

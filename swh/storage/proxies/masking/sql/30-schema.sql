@@ -1,7 +1,4 @@
 
-create type masked_state as enum ('visible', 'decision_pending', 'restricted');
-comment on type masked_state is 'The degree to which an object is masked';
-
 create table if not exists masking_request (
   id uuid primary key default uuid_generate_v4(),
   slug text not null,
@@ -41,3 +38,16 @@ comment on column masked_object.object_id is 'The object_id part of the object''
 comment on column masked_object.object_type is 'The object_type part of the object''s SWHID';
 comment on column masked_object.request is 'Reference to the affecting request';
 comment on column masked_object.state is 'The degree to which the object is masked as a result of the request';
+
+
+
+-- Used only by the patching proxy, not the masking proxy
+
+create table if not exists display_name (
+  original_email bytea not null primary key,
+  display_name bytea not null
+);
+
+comment on table display_name is 'Map from revision/release email to current full name';
+comment on column display_name.original_email is 'Email on revision/release objects to match before applying the display name';
+comment on column display_name.display_name is 'Full name, usually of the form `Name <email>, used for display queries';

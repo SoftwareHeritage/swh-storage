@@ -1,15 +1,19 @@
-# Copyright (C) 2019-2020 The Software Heritage developers
+# Copyright (C) 2019-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 from collections import Counter
+import datetime
 from functools import partial
 import logging
+import traceback
 from typing import Any, Callable
 from typing import Counter as CounterT
 from typing import Dict, List, Optional, Tuple, TypeVar, Union, cast
 from uuid import uuid4
+
+import yaml
 
 try:
     from systemd.daemon import notify
@@ -28,6 +32,7 @@ from swh.model.model import (
     HashableObject,
     MetadataAuthority,
     MetadataFetcher,
+    ModelObjectType,
     Origin,
     OriginVisit,
     OriginVisitStatus,
@@ -47,36 +52,40 @@ GRAPH_OPERATIONS_METRIC = "swh_graph_replayer_operations_total"
 GRAPH_DURATION_METRIC = "swh_graph_replayer_duration_seconds"
 
 
-OBJECT_CONVERTERS: Dict[str, Callable[[Dict], BaseModel]] = {
-    "origin": Origin.from_dict,
-    "origin_visit": OriginVisit.from_dict,
-    "origin_visit_status": OriginVisitStatus.from_dict,
-    "snapshot": Snapshot.from_dict,
-    "revision": Revision.from_dict,
-    "release": Release.from_dict,
-    "directory": Directory.from_dict,
-    "content": Content.from_dict,
-    "skipped_content": SkippedContent.from_dict,
-    "metadata_authority": MetadataAuthority.from_dict,
-    "metadata_fetcher": MetadataFetcher.from_dict,
-    "raw_extrinsic_metadata": RawExtrinsicMetadata.from_dict,
-    "extid": ExtID.from_dict,
+OBJECT_CONVERTERS: Dict[ModelObjectType, Callable[[Dict], BaseModel]] = {
+    Origin.object_type: Origin.from_dict,
+    OriginVisit.object_type: OriginVisit.from_dict,
+    OriginVisitStatus.object_type: OriginVisitStatus.from_dict,
+    Snapshot.object_type: Snapshot.from_dict,
+    Revision.object_type: Revision.from_dict,
+    Release.object_type: Release.from_dict,
+    Directory.object_type: Directory.from_dict,
+    Content.object_type: Content.from_dict,
+    SkippedContent.object_type: SkippedContent.from_dict,
+    MetadataAuthority.object_type: MetadataAuthority.from_dict,
+    MetadataFetcher.object_type: MetadataFetcher.from_dict,
+    RawExtrinsicMetadata.object_type: RawExtrinsicMetadata.from_dict,
+    ExtID.object_type: ExtID.from_dict,
 }
 # Deprecated, for BW compat only.
 object_converter_fn = OBJECT_CONVERTERS
 
 
 OBJECT_FIXERS = {
-    # drop the metadata field from the revision (if any); this field is
+    # drop the metadata field from the revision or visit status (if any); this field is
     # about to be dropped from the data model (in favor of
     # raw_extrinsic_metadata) and there can be bogus values in the existing
     # journal (metadata with \0000 in it)
-    "revision": partial(remove_keys, keys=("metadata",)),
+    Revision.object_type: partial(remove_keys, keys=("metadata",)),
+    OriginVisitStatus.object_type: partial(remove_keys, keys=("metadata",)),
 }
 
 
-class ModelObjectDeserializer:
+def now():
+    return datetime.datetime.now(datetime.UTC)
 
+
+class ModelObjectDeserializer:
     """A swh.journal object deserializer that checks object validity and reports
     invalid objects
 
@@ -126,15 +135,16 @@ class ModelObjectDeserializer:
 
     def convert(self, object_type: str, msg: bytes) -> Optional[BaseModel]:
         dict_repr = kafka_to_value(msg)
-        if object_type in OBJECT_FIXERS:
-            dict_repr = OBJECT_FIXERS[object_type](dict_repr)
+        obj_type = ModelObjectType(object_type)
+        if obj_type in OBJECT_FIXERS:
+            dict_repr = OBJECT_FIXERS[obj_type](dict_repr)
         try:
-            obj = OBJECT_CONVERTERS[object_type](dict_repr)
+            obj = OBJECT_CONVERTERS[obj_type](dict_repr)
         except ValueError as exc:
             # we do not catch AttributeTypeError here since these are (most
             # likely) a clue of something very wrong is occurring, so better crash
             error_msg = f"Unable to create model object {object_type}: {repr(exc)}"
-            self.report_failure(msg, (object_type, dict_repr))
+            self.report_failure(msg, (object_type, dict_repr), exc)
             if self.raise_on_error:
                 raise StorageArgumentException(error_msg)
             return None
@@ -149,11 +159,11 @@ class ModelObjectDeserializer:
                     )
                     if (
                         self.known_mismatched_hashes is None
-                        or (object_type, obj.id, cid)
+                        or (obj_type.value, obj.id, cid)
                         not in self.known_mismatched_hashes
                     ):
                         logger.error(error_msg)
-                        self.report_failure(msg, obj)
+                        self.report_failure(msg, obj, None)
                         if self.raise_on_error:
                             raise StorageArgumentException(error_msg)
                         return None
@@ -164,7 +174,10 @@ class ModelObjectDeserializer:
         return obj
 
     def report_failure(
-        self, msg: bytes, obj: Union[BaseModel, Tuple[str, Dict[str, Any]]]
+        self,
+        msg: bytes,
+        obj: Union[BaseModel, Tuple[str, Dict[str, Any]]],
+        exc: BaseException | None,
     ):
         if self.reporter:
             oid: str
@@ -176,16 +189,20 @@ class ModelObjectDeserializer:
                     oid = f"{object_type}:{uid.hex()}"
                 else:
                     oid = f"{object_type}:uuid:{uuid4()}"
-            elif hasattr(obj, "swhid"):
-                swhid = obj.swhid()
-                oid = str(swhid)
-            elif isinstance(obj, HashableObject):
-                uid = obj.compute_hash()
-                oid = f"{obj.object_type}:{uid.hex()}"  # type: ignore[attr-defined]
             else:
-                oid = f"{obj.object_type}:uuid:{uuid4()}"  # type: ignore[attr-defined]
+                dict_repr = obj.to_dict()
+                if isinstance(obj, HashableObject):
+                    oid = f"{obj.object_type}:{obj.id.hex()}"
+                else:
+                    oid = f"{obj.object_type}:uuid:{uuid4()}"
 
-            self.reporter(oid, msg)
+            key = f"{now().isoformat()}/{oid}"
+            value = {
+                "kafka_message": msg,
+                "obj": dict_repr,
+                "exc": traceback.format_exception(exc) if exc is not None else None,
+            }
+            self.reporter(key, yaml.dump(value).encode())
 
 
 def process_replay_objects(
@@ -252,23 +269,27 @@ def _insert_objects(
     object_type: str, objects: List[BaseModel], storage: StorageInterface
 ) -> None:
     """Insert objects of type object_type in the storage."""
-    if object_type not in OBJECT_CONVERTERS:
+    obj_type = ModelObjectType(object_type)
+    if obj_type not in OBJECT_CONVERTERS:
         logger.warning("Received a series of %s, this should not happen", object_type)
         return
 
     method = getattr(storage, f"{object_type}_add")
-    if object_type == "skipped_content":
+    if obj_type == SkippedContent.object_type:
         method = partial(collision_aware_content_add, content_add_fn=method)
-    elif object_type == "content":
+    elif obj_type == Content.object_type:
         method = partial(
             collision_aware_content_add, content_add_fn=storage.content_add_metadata
         )
-    elif object_type in ("origin_visit", "origin_visit_status"):
+    elif obj_type in (
+        OriginVisit.object_type,
+        OriginVisitStatus.object_type,
+    ):
         origins: List[Origin] = []
         for obj in cast(List[Union[OriginVisit, OriginVisitStatus]], objects):
             origins.append(Origin(url=obj.origin))
         storage.origin_add(origins)
-    elif object_type == "raw_extrinsic_metadata":
+    elif obj_type == RawExtrinsicMetadata.object_type:
         emds = cast(List[RawExtrinsicMetadata], objects)
         authorities = {emd.authority for emd in emds}
         fetchers = {emd.fetcher for emd in emds}

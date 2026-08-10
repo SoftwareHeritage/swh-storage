@@ -1,19 +1,20 @@
-# Copyright (C) 2015-2022  The Software Heritage developers
+# Copyright (C) 2015-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 from uuid import uuid4
 
-import psycopg2.errors
+import psycopg.errors
 import pytest
 
 from swh.core.api import RemoteException, TransientRemoteException
+from swh.model.model import Origin
 from swh.model.swhids import ExtendedSWHID
-import swh.storage
 from swh.storage import get_storage
 import swh.storage.api.server as server
-from swh.storage.exc import MaskedObjectException
+from swh.storage.exc import BlockedOriginException, MaskedObjectException, QueryTimeout
+from swh.storage.proxies.blocking.db import BlockingState, BlockingStatus
 from swh.storage.proxies.masking.db import MaskedState, MaskedStatus
 from swh.storage.tests.storage_tests import (
     TestStorageGeneratedData as _TestStorageGeneratedData,
@@ -26,10 +27,8 @@ from swh.storage.tests.storage_tests import TestStorage as _TestStorage
 
 
 @pytest.fixture
-def app_server():
-    server.storage = swh.storage.get_storage(
-        cls="memory", journal_writer={"cls": "memory"}
-    )
+def app_server(swh_storage_backend):
+    server.storage = swh_storage_backend
     yield server
 
 
@@ -71,8 +70,8 @@ def swh_storage(swh_rpc_client, app_server):
 
 
 @pytest.fixture
-def swh_storage_backend(app_server, swh_storage):
-    return app_server.storage
+def swh_storage_backend_config():
+    return {"cls": "memory", "journal_writer": {"cls": "memory"}}
 
 
 class TestStorageApi(_TestStorage):
@@ -115,7 +114,21 @@ class TestStorageApi(_TestStorage):
         mocker.patch.object(
             app_server.storage._cql_runner,
             "revision_get",
-            side_effect=psycopg2.errors.AdminShutdown("cluster is shutting down"),
+            side_effect=psycopg.errors.AdminShutdown("cluster is shutting down"),
+        )
+        with pytest.raises(RemoteException) as excinfo:
+            swh_storage.revision_get(["\x01" * 20])
+        assert isinstance(excinfo.value, TransientRemoteException)
+
+    def test_query_timeout_exception(self, app_server, swh_storage, mocker):
+        """Checks the client re-raises as a :exc:`TransientRemoteException`
+        rather than the base :exc:`RemoteException`; so the retrying proxy
+        retries for longer."""
+        assert swh_storage.revision_get(["\x01" * 20]) == [None]
+        mocker.patch.object(
+            app_server.storage._cql_runner,
+            "revision_get",
+            side_effect=QueryTimeout("operation timeout"),
         )
         with pytest.raises(RemoteException) as excinfo:
             swh_storage.revision_get(["\x01" * 20])
@@ -129,7 +142,7 @@ class TestStorageApi(_TestStorage):
         mocker.patch.object(
             app_server.storage._cql_runner,
             "revision_get",
-            side_effect=psycopg2.errors.QueryCanceled("too big!"),
+            side_effect=psycopg.errors.QueryCanceled("too big!"),
         )
         with pytest.raises(RemoteException) as excinfo:
             swh_storage.revision_get(["\x01" * 20])
@@ -151,6 +164,23 @@ class TestStorageApi(_TestStorage):
         with pytest.raises(MaskedObjectException) as e:
             swh_storage.revision_get(["\x01" * 20])
         assert e.value.masked == masked
+
+    def test_blocked_origin_exception(self, app_server, swh_storage, mocker):
+        """Checks the client re-raises masking proxy exceptions"""
+        assert swh_storage.origin_get(["https://example.com"]) == [None]
+        blocked = {
+            "https://example.com": BlockingStatus(
+                BlockingState.DECISION_PENDING, request=uuid4()
+            )
+        }
+        mocker.patch.object(
+            app_server.storage._cql_runner,
+            "origin_add_one",
+            side_effect=BlockedOriginException(blocked),
+        )
+        with pytest.raises(BlockedOriginException) as e:
+            swh_storage.origin_add([Origin(url="https://example.com")])
+        assert e.value.blocked == blocked
 
 
 class TestStorageApiGeneratedData(_TestStorageGeneratedData):

@@ -61,11 +61,6 @@ Or, using :py:func:`swh.core.api.classes.stream_results` for convenience:
    for visit in visits:
         print(visit)
 
-Database schema
----------------
-
-* :ref:`sql-storage`
-
 
 Archive copies
 --------------
@@ -87,6 +82,9 @@ Reference Documentation
 .. toctree::
    :maxdepth: 2
 
+   db-schema
+   cassandra-migrations
+   replayer
    cli
 
 .. only:: standalone_package_doc

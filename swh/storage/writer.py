@@ -1,11 +1,9 @@
-# Copyright (C) 2020 The Software Heritage developers
+# Copyright (C) 2020-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import Any, Dict, Iterable
-
-from attr import evolve
+from typing import Any, Dict, Iterable, Optional
 
 from swh.model.model import (
     Content,
@@ -13,6 +11,7 @@ from swh.model.model import (
     ExtID,
     MetadataAuthority,
     MetadataFetcher,
+    ModelObjectType,
     Origin,
     OriginVisit,
     OriginVisitStatus,
@@ -24,7 +23,8 @@ from swh.model.model import (
 )
 
 try:
-    from swh.journal.writer import get_journal_writer
+    from swh.journal.writer import JournalWriterInterface, get_journal_writer
+    from swh.journal.writer.interface import ValueProtocol
 except ImportError:
     get_journal_writer = None  # type: ignore
     # mypy limitation, see https://github.com/python/mypy/issues/1153
@@ -33,8 +33,12 @@ except ImportError:
 def model_object_dict_sanitizer(
     object_type: str, object_dict: Dict[str, Any]
 ) -> Dict[str, str]:
+    if object_type == "hash_colliding_content":
+        # Keep the data, and avoid copying the dict
+        return object_dict
+
     object_dict = object_dict.copy()
-    if object_type == "content":
+    if ModelObjectType(object_type) == Content.object_type:
         object_dict.pop("data", None)
     return object_dict
 
@@ -45,7 +49,8 @@ class JournalWriter:
 
     """
 
-    def __init__(self, journal_writer):
+    def __init__(self, journal_writer: Optional[Dict[str, Any]]):
+        self.journal: Optional["JournalWriterInterface"] = None
         if journal_writer:
             if get_journal_writer is None:
                 raise EnvironmentError(
@@ -55,25 +60,31 @@ class JournalWriter:
             self.journal = get_journal_writer(
                 value_sanitizer=model_object_dict_sanitizer, **journal_writer
             )
-        else:
-            self.journal = None
 
-    def write_addition(self, object_type, value) -> None:
+    def write_addition(self, object_type: str, object_: "ValueProtocol") -> None:
         if self.journal:
-            self.journal.write_addition(object_type, value)
+            self.journal.write_addition(object_type, object_)
 
-    def write_additions(self, object_type, values) -> None:
+    def write_additions(
+        self, object_type: str, objects: Iterable["ValueProtocol"]
+    ) -> None:
         if self.journal:
-            self.journal.write_additions(object_type, values)
+            self.journal.write_additions(object_type, objects)
 
     def content_add(self, contents: Iterable[Content]) -> None:
         """Add contents to the journal. Drop the data field if provided."""
-        contents = [evolve(item, data=None) for item in contents]
+        contents = [item.evolve(data=None, get_data=None) for item in contents]
         self.write_additions("content", contents)
 
     def content_update(self, contents: Iterable[Dict[str, Any]]) -> None:
         if self.journal:
             raise NotImplementedError("content_update is not supported by the journal.")
+
+    def hash_colliding_content_add(self, contents: Iterable[Content]) -> None:
+        for content in contents:
+            if content.data is None:
+                raise ValueError("Hash Colliding contents require data")
+        self.write_additions("hash_colliding_content", contents)
 
     def content_add_metadata(self, contents: Iterable[Content]) -> None:
         self.content_add(contents)
@@ -117,3 +128,8 @@ class JournalWriter:
 
     def extid_add(self, extids: Iterable[ExtID]) -> None:
         self.write_additions("extid", extids)
+
+    def flush(self) -> None:
+        """Ensure journal writes are flushed"""
+        if self.journal:
+            self.journal.flush()

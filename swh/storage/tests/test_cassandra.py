@@ -1,4 +1,4 @@
-# Copyright (C) 2018-2023  The Software Heritage developers
+# Copyright (C) 2018-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -7,10 +7,13 @@ import dataclasses
 import datetime
 import itertools
 import re
-from typing import Any, Dict, Union
+import time
+from typing import Any, Dict, List, Union
+from unittest.mock import patch
 
 import attr
 from cassandra.cluster import NoHostAvailable
+from cassandra.util import Date
 import pytest
 
 from swh.core.api.classes import stream_results
@@ -28,18 +31,22 @@ from swh.storage.cassandra.cql import BATCH_INSERT_MAX_SIZE
 import swh.storage.cassandra.model
 from swh.storage.cassandra.model import BaseRow, ContentRow, ExtIDRow
 from swh.storage.cassandra.schema import CREATE_TABLES_QUERIES, HASH_ALGORITHMS, TABLES
-from swh.storage.cassandra.storage import DIRECTORY_ENTRIES_INSERT_ALGOS
+from swh.storage.cassandra.storage import (
+    DIRECTORY_ENTRIES_INSERT_ALGOS,
+    CassandraStorage,
+)
 from swh.storage.tests.storage_data import StorageData
 from swh.storage.tests.storage_tests import (
     TestStorageGeneratedData as _TestStorageGeneratedData,
 )
 from swh.storage.tests.storage_tests import TestStorage as _TestStorage
+from swh.storage.tests.storage_tests import TestStorageDeletion as _TestStorageDeletion
 from swh.storage.utils import now, remove_keys
 
 
 @pytest.fixture
 def swh_storage_backend_config(swh_storage_cassandra_backend_config):
-    return swh_storage_cassandra_backend_config
+    yield swh_storage_cassandra_backend_config
 
 
 def _python_type_to_cql_type_re(ty: type) -> str:
@@ -59,6 +66,10 @@ def _python_type_to_cql_type_re(ty: type) -> str:
         return "boolean"
     elif ty is dict:
         return "frozen<list <list<blob>> >"
+    elif ty == set[str]:
+        return "frozen<set<(ascii|text)>>"
+    elif ty is Date:
+        return "date"
     elif getattr(ty, "__origin__", None) is Union:
         if len(ty.__args__) == 2 and type(None) in ty.__args__:  # type: ignore
             (inner_type,) = [
@@ -88,26 +99,14 @@ def test_schema_matches_model():
 
     del models["object_count"]  # https://forge.softwareheritage.org/D6150
 
-    statements = {}  # {table_name: statement}
-    for statement in CREATE_TABLES_QUERIES:
-        statement = re.sub(" +", " ", statement.strip())  # normalize whitespace
-        if statement.startswith(
-            (
-                "CREATE TYPE ",
-                "CREATE OR REPLACE FUNCTION",
-                "CREATE OR REPLACE AGGREGATE",
-                "-- Secondary table",
-            )
-        ):
-            continue
-        prefix = "CREATE TABLE IF NOT EXISTS "
-        assert statement.startswith(prefix)
-        table_name = statement[len(prefix) :].split(" ", 1)[0]
-        assert (
-            table_name not in statements
-        ), f"Duplicate statement for table {table_name}"
-
-        statements[table_name] = statement
+    statements = {
+        table_name: re.sub(
+            " +", " ", CREATE_TABLES_QUERIES[table_name].strip()
+        )  # normalize whitespace
+        for table_name in TABLES
+        if table_name in CREATE_TABLES_QUERIES
+        and not table_name.startswith(("content_by_", "skipped_content_by_"))
+    }
 
     assert set(models) - set(statements) == set(), "Missing statements"
     assert set(statements) - set(models) == set(), "Missing models"
@@ -125,17 +124,27 @@ def test_schema_matches_model():
         partition_key = ", ".join(model.PARTITION_KEY)
         clustering_key = "".join(", " + col for col in model.CLUSTERING_KEY)
         expected_lines.append(rf" PRIMARY KEY \(\({partition_key}\){clustering_key}\)")
-
-        if table_name == "origin_visit_status":
-            # we need to special-case this one
-            expected_lines.append(r"\)")
-            expected_lines.append(r"WITH CLUSTERING ORDER BY \(visit DESC, date DESC\)")
-            expected_lines.append(r";")
-        else:
-            expected_lines.append(r"\);")
+        expected_lines.append(r"\) WITH")
 
         statement = statements[table_name]
         actual_lines = statement.split("\n")
+
+        if table_name == "origin_visit_status":
+            # we need to special-case this one
+            expected_lines.append(r" CLUSTERING ORDER BY \(visit DESC, date DESC\)")
+            expected_lines.append(r" AND comment = '.*'")
+            # remove the metadata field, it's about to leave but the column
+            # still exists in the table for now
+            actual_lines = [line for line in actual_lines if line != " metadata text,"]
+        else:
+            if table_name == "revision":
+                # remove the metadata field, it's about to leave but the column
+                # still exists in the table for now
+                actual_lines = [
+                    line for line in actual_lines if line != " metadata text,"
+                ]
+            expected_lines.append(r" comment = '.*'")
+        expected_lines.append(r" {table_options};")
 
         mismatches.extend(
             (table_name, expected_line, actual_line)
@@ -202,15 +211,15 @@ class TestCassandraStorage(_TestStorage):
         are filtered-out when reading the main table.
         This test checks the content methods do filter out these collision.
         """
-        called = 0
+        cgtfsa_called = 0
 
         cont, cont2 = sample_data.contents[:2]
 
         # always return a token
         def mock_cgtfsa(algo, hashes):
-            nonlocal called
-            called += 1
-            assert algo in ("sha1", "sha1_git")
+            nonlocal cgtfsa_called
+            cgtfsa_called += 1
+            assert algo in HASH_ALGORITHMS
             return [123456]
 
         mocker.patch.object(
@@ -220,9 +229,11 @@ class TestCassandraStorage(_TestStorage):
         )
 
         # For all tokens, always return cont
+        cgft_called = 0
+
         def mock_cgft(tokens):
-            nonlocal called
-            called += 1
+            nonlocal cgft_called
+            cgft_called += 1
             return [
                 ContentRow(
                     length=10,
@@ -238,7 +249,8 @@ class TestCassandraStorage(_TestStorage):
 
         actual_result = swh_storage.content_add([cont2])
 
-        assert called == 4
+        assert (cgtfsa_called, cgft_called) == (4, 4)
+
         assert actual_result == {
             "content:add": 1,
             "content:add:bytes": cont2.length,
@@ -252,15 +264,15 @@ class TestCassandraStorage(_TestStorage):
         are filtered-out when reading the main table.
         This test checks the content methods do filter out these collisions.
         """
-        called = 0
+        cgtfsa_called = 0
 
         cont, cont2 = [attr.evolve(c, ctime=now()) for c in sample_data.contents[:2]]
 
         # always return a token
         def mock_cgtfsa(algo, hashes):
-            nonlocal called
-            called += 1
-            assert algo in ("sha1", "sha1_git")
+            nonlocal cgtfsa_called
+            cgtfsa_called += 1
+            assert algo in HASH_ALGORITHMS
             return [123456]
 
         mocker.patch.object(
@@ -272,9 +284,11 @@ class TestCassandraStorage(_TestStorage):
         # For all tokens, always return cont and cont2
         cols = list(set(cont.to_dict()) - {"data"})
 
+        cgft_called = 0
+
         def mock_cgft(tokens):
-            nonlocal called
-            called += 1
+            nonlocal cgft_called
+            cgft_called += 1
             return [
                 ContentRow(
                     **{col: getattr(cont, col) for col in cols},
@@ -287,10 +301,10 @@ class TestCassandraStorage(_TestStorage):
         )
 
         actual_result = swh_storage.content_get([cont.sha1])
-        assert called == 2
+        assert (cgtfsa_called, cgft_called) == (1, 1)
 
         # dropping extra column not returned
-        expected_cont = attr.evolve(cont, data=None)
+        expected_cont = cont.evolve(data=None)
 
         # but cont2 should be filtered out
         assert actual_result == [expected_cont]
@@ -301,14 +315,14 @@ class TestCassandraStorage(_TestStorage):
         are filtered-out when reading the main table.
         This test checks the content methods do filter out these collisions.
         """
-        called = 0
+        cgtfsa_called = 0
 
         cont, cont2 = [attr.evolve(c, ctime=now()) for c in sample_data.contents[:2]]
 
         # always return a token
         def mock_cgtfsa(algo, hashes):
-            nonlocal called
-            called += 1
+            nonlocal cgtfsa_called
+            cgtfsa_called += 1
             assert algo in ("sha1", "sha1_git")
             return [123456]
 
@@ -321,9 +335,11 @@ class TestCassandraStorage(_TestStorage):
         # For all tokens, always return cont and cont2
         cols = list(set(cont.to_dict()) - {"data"})
 
+        cgft_called = 0
+
         def mock_cgft(tokens):
-            nonlocal called
-            called += 1
+            nonlocal cgft_called
+            cgft_called += 1
             return [
                 ContentRow(**{col: getattr(cont, col) for col in cols})
                 for cont in [cont, cont2]
@@ -337,13 +353,16 @@ class TestCassandraStorage(_TestStorage):
 
         actual_result = swh_storage.content_find({"sha1": cont.sha1})
 
-        assert called == 2
+        assert cgtfsa_called, cgft_called == (1, 1)
 
         # but cont2 should be filtered out
         assert actual_result == [expected_content]
 
     def test_content_get_partition_murmur3_collision(
-        self, swh_storage, mocker, sample_data
+        self,
+        swh_storage: CassandraStorage,
+        mocker,
+        sample_data,
     ):
         """The Murmur3 token is used as link from index tables to the main table; and
         non-matching contents with colliding murmur3-hash are filtered-out when reading
@@ -391,6 +410,68 @@ class TestCassandraStorage(_TestStorage):
         # as we duplicated the returned results, dropping duplicate should yield
         # the original length
         assert len(set(actual_results)) == len(sample_data.contents)
+
+    def test_content_add_metrics(self, swh_storage, sample_data):
+        def get_timings():
+            timings = {}
+            for call in mock_statsd.mock_calls:
+                _name, args, kwargs = call
+                metric_name, value = args
+                if metric_name == "swh_storage_content_add_suboperations_total":
+                    suboperation = kwargs["tags"]["suboperation"]
+                    assert (
+                        suboperation not in timings
+                    ), f"Duplicate timing for suboperation {suboperation}"
+                    timings[suboperation] = value
+
+            for suboperation, value in timings.items():
+                assert value > 0.0, (
+                    f"swh_storage_content_add_suboperations_total with "
+                    f"suboperation={suboperation} has nonpositive timing {value}"
+                )
+
+                assert value < insertion_time * 1000, (
+                    f"swh_storage_content_add_suboperations_total with "
+                    f"suboperation={suboperation} has excessively long timing {value} ms"
+                )
+
+            mock_statsd.reset_mock()
+            return timings
+
+        with patch("swh.storage.metrics.statsd.increment") as mock_statsd:
+            insertion_start_time = time.monotonic()
+            swh_storage.content_add([sample_data.content])
+            insertion_time = time.monotonic() - insertion_start_time
+
+        timings = get_timings()
+
+        assert set(timings) == {
+            "get_from_hashes",
+            "add_to_objstorage",
+            "add_to_journal",
+            "add_to_index_table",
+            "add_to_main_table",
+        }
+
+        value = sum(timings.values())
+        assert value < insertion_time * 1000, (
+            f"swh_storage_content_add_suboperations_total excessively "
+            f"long cumulated timing {value}"
+        )
+
+        # same content again, does not need to be inserted
+        with patch("swh.storage.metrics.statsd.increment") as mock_statsd:
+            insertion_start_time = time.monotonic()
+            swh_storage.content_add([sample_data.content])
+            insertion_time = time.monotonic() - insertion_start_time
+
+        timings = get_timings()
+
+        assert set(timings) == {
+            "get_from_hashes",
+            "add_to_objstorage",
+            "add_to_journal",
+        }
 
     @pytest.mark.skip("content_update is not yet implemented for Cassandra")
     def test_content_update(self):
@@ -504,7 +585,7 @@ class TestCassandraStorage(_TestStorage):
         # However, because they are inserted simultaneously, the backend may crash
         # before the last handful of entries; so we allow them to be missing
         # without failing the test (which would make it flaky).
-        entry_rows = swh_storage._cql_runner.directory_entry_get([directory.id])
+        entry_rows = swh_storage._cql_runner.directory_entry_get(directory.id)
         assert (
             {entry.name for entry in entries[0:-100]}
             <= {row.name for row in entry_rows}
@@ -517,7 +598,7 @@ class TestCassandraStorage(_TestStorage):
         assert list(swh_storage.directory_ls(directory.id)) == []
         assert swh_storage.directory_get_entries(directory.id) is None
 
-    def test_directory_add_raw_manifest__different_entries__allow_overwrite(
+    def test_directory_add_raw_manifest_different_entries_allow_overwrite(
         self, swh_storage
     ):
         """This test demonstrates a shortcoming of the Cassandra storage backend's
@@ -546,7 +627,7 @@ class TestCassandraStorage(_TestStorage):
         swh_storage._allow_overwrite = True
 
         # Run the other test, but skip its last assertion
-        dir_id = self.test_directory_add_raw_manifest__different_entries(
+        dir_id = self._directory_add_raw_manifest_different_entries_test(
             swh_storage, check_ls=False
         )
         assert [entry["name"] for entry in swh_storage.directory_ls(dir_id)] == [
@@ -619,70 +700,6 @@ class TestCassandraStorage(_TestStorage):
     def test_origin_count(self):
         pass
 
-    def test_object_delete(self, swh_storage, sample_data):
-        # For our sanity checks
-        affected_tables = set(TABLES) - {
-            "raw_extrinsic_metadata",
-            "metadata_authority",
-            "metadata_fetcher",
-            "extid",
-            "extid_by_target",
-            "object_references",
-        }
-        # XXX: Not ideal…
-        cql_runner = getattr(swh_storage, "_cql_runner")
-        execute_query = getattr(cql_runner, "_execute_with_retries")
-
-        swh_storage.content_add(sample_data.contents)
-        swh_storage.skipped_content_add(sample_data.skipped_contents)
-        swh_storage.directory_add(sample_data.directories)
-        swh_storage.revision_add(sample_data.revisions)
-        swh_storage.release_add(sample_data.releases)
-        swh_storage.snapshot_add(sample_data.snapshots)
-        swh_storage.origin_add(sample_data.origins)
-        swh_storage.origin_visit_add(sample_data.origin_visits)
-        swh_storage.origin_visit_status_add(sample_data.origin_visit_statuses)
-        swhids = (
-            [content.swhid().to_extended() for content in sample_data.contents]
-            + [
-                skipped_content.swhid().to_extended()
-                for skipped_content in sample_data.skipped_contents
-            ]
-            + [directory.swhid().to_extended() for directory in sample_data.directories]
-            + [revision.swhid().to_extended() for revision in sample_data.revisions]
-            + [release.swhid().to_extended() for release in sample_data.releases]
-            + [snapshot.swhid().to_extended() for snapshot in sample_data.snapshots]
-            + [origin.swhid() for origin in sample_data.origins]
-        )
-
-        # Do we have something in every affected tables?
-        for table in affected_tables:
-            row = execute_query(
-                f"SELECT COUNT(*) AS count FROM {cql_runner.keyspace}.{table}", []
-            ).one()
-            assert row["count"] >= 1, f"nothing in table {table}"
-
-        result = swh_storage.object_delete(swhids)
-        assert result == {
-            "content:delete": 3,
-            "content:delete:bytes": 0,
-            "skipped_content:delete": 2,
-            "directory:delete": 7,
-            "revision:delete": 8,
-            "release:delete": 3,
-            "snapshot:delete": 3,
-            "origin:delete": 7,
-            "origin_visit:delete": 3,
-            "origin_visit_status:delete": 3,
-        }
-
-        # Have we cleaned every affected tables?
-        for table in affected_tables:
-            row = execute_query(
-                f"SELECT COUNT(*) AS count FROM {cql_runner.keyspace}.{table}", []
-            ).one()
-            assert row["count"] == 0, f"something in table {table}"
-
 
 @pytest.mark.cassandra
 class TestCassandraStorageGeneratedData(_TestStorageGeneratedData):
@@ -701,6 +718,31 @@ class TestCassandraStorageGeneratedData(_TestStorageGeneratedData):
     @pytest.mark.skip("Not supported by Cassandra")
     def test_origin_count_with_visit_with_visits_no_snapshot(self):
         pass
+
+
+class TestStorageDeletion(_TestStorageDeletion):
+    def _affected_tables(self) -> List[str]:
+        return list(
+            set(TABLES)
+            - {
+                "migration",
+                "metadata_authority",
+                "metadata_fetcher",
+                "extid",
+                "extid_by_target",
+                "object_references",
+                "object_references_table",
+            }
+        )
+
+    def _count_from_table(self, swh_storage_backend, table: str) -> int:
+        # XXX: Not ideal…
+        cql_runner = getattr(swh_storage_backend, "_cql_runner")
+        execute_query = getattr(cql_runner, "execute_with_retries")
+        row = execute_query(
+            f"SELECT COUNT(*) AS count FROM {cql_runner.keyspace}.{table}", []
+        ).one()
+        return row["count"]
 
 
 @pytest.mark.cassandra
@@ -735,14 +777,14 @@ def test_allow_overwrite(
 
     # Get two test objects
     if object_type == "directory":
-        (obj1, obj2, *_) = StorageData.directories
+        obj1, obj2, *_ = StorageData.directories
     elif object_type == "snapshot":
         # StorageData.snapshots[1] is the empty snapshot, which is the corner case
         # that makes this test succeed for the wrong reasons
         obj1 = StorageData.snapshot
         obj2 = StorageData.complete_snapshot
     else:
-        (obj1, obj2, *_) = getattr(StorageData, (object_type + "s"))
+        obj1, obj2, *_ = getattr(StorageData, (object_type + "s"))
 
     # Let's make both objects have the same hash, but different content
     obj1 = attr.evolve(obj1, id=obj2.id)

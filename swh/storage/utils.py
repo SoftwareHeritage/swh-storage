@@ -4,7 +4,6 @@
 # See top-level LICENSE file for more information
 
 from datetime import datetime, timezone
-import re
 from typing import Callable, Dict, Optional, Tuple, TypeVar
 
 from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes, hash_to_hex
@@ -68,28 +67,6 @@ def get_partition_bounds_bytes(
     start = (partition_size * i).to_bytes(nb_bytes, "big")
     end = None if i == n - 1 else (partition_size * (i + 1)).to_bytes(nb_bytes, "big")
     return (start, end)
-
-
-def extract_collision_hash(error_message: str) -> Optional[Tuple[str, bytes]]:
-    """Utilities to extract the hash information from a hash collision error.
-
-    Hash collision error message are of the form:
-    'Key (<hash-type>)=(<double-escaped-hash) already exists.'
-
-    for example:
-    'Key (sha1)=(\\x34973274ccef6ab4dfaaf86599792fa9c3fe4689) already exists.'
-
-    Return:
-        A formatted string
-
-    """
-    pattern = r"\w* \((?P<type>[^)]+)\)=\(\\x(?P<id>[a-f0-9]+)\) \w*"
-    result = re.match(pattern, error_message)
-    if result:
-        hash_type = result.group("type")
-        hash_id = result.group("id")
-        return hash_type, hash_to_bytes(hash_id)
-    return None
 
 
 def content_hex_hashes(content: Dict[str, bytes]) -> Dict[str, str]:

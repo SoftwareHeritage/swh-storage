@@ -1,4 +1,4 @@
-# Copyright (C) 2020 The Software Heritage developers
+# Copyright (C) 2020  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -8,7 +8,7 @@ from typing import Dict, Iterable, List
 
 from swh.model.hashutil import MultiHash, hash_to_bytes, hash_to_hex
 from swh.model.model import Content, Directory, Release, Revision, Snapshot
-from swh.storage import get_storage
+from swh.storage import StorageSpec, get_storage
 from swh.storage.exc import StorageArgumentException
 from swh.storage.interface import StorageInterface
 
@@ -28,7 +28,7 @@ class ValidatingProxyStorage:
 
     """
 
-    def __init__(self, storage):
+    def __init__(self, storage: StorageSpec) -> None:
         self.storage: StorageInterface = get_storage(**storage)
 
     def __getattr__(self, key):

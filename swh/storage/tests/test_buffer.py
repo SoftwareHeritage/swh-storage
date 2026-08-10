@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2021 The Software Heritage developers
+# Copyright (C) 2019-2021  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -7,12 +7,16 @@ from collections import Counter
 from typing import Optional
 from unittest.mock import Mock
 
+import attr
+import pytest
+
 from swh.storage import get_storage
 from swh.storage.proxies.buffer import (
     BufferingProxyStorage,
     estimate_release_size,
     estimate_revision_size,
 )
+from swh.storage.utils import now
 
 
 def get_storage_with_buffer_config(**buffer_config) -> BufferingProxyStorage:
@@ -93,6 +97,33 @@ def test_buffering_proxy_storage_content_deduplicate(sample_data) -> None:
     assert s == {
         "content:add": 1 + 1,
         "content:add:bytes": contents[0].length + contents[1].length,
+    }
+
+    missing_contents = storage.content_missing([c.to_dict() for c in contents])
+    assert list(missing_contents) == []
+
+    s = storage.flush()
+    assert s == {}
+
+
+def test_buffering_proxy_storage_content_metadata_deduplicate(sample_data) -> None:
+    contents = [attr.evolve(cnt, ctime=now()) for cnt in sample_data.contents[:2]]
+
+    storage = get_storage_with_buffer_config(
+        min_batch_size={
+            "content_metadata": 2,
+        }
+    )
+
+    s = storage.content_add_metadata([contents[0], contents[0]])
+    assert s == {}
+
+    s = storage.content_add_metadata([contents[0]])
+    assert s == {}
+
+    s = storage.content_add_metadata([contents[1]])
+    assert s == {
+        "content:add": 1 + 1,
     }
 
     missing_contents = storage.content_missing([c.to_dict() for c in contents])
@@ -717,8 +748,7 @@ def test_buffering_proxy_storage_clear(sample_data) -> None:
     assert len(storage._objects["raw_extrinsic_metadata"]) == len(metadata)
 
     # clear current buffer from all object types
-    s = storage.clear_buffers()
-    assert s is None
+    storage.clear_buffers()
 
     assert len(storage._objects["content"]) == 0
     assert len(storage._objects["skipped_content"]) == 0
@@ -831,3 +861,25 @@ def test_buffer_empty_batches() -> None:
     storage.flush()
     methods_called = {c[0] for c in mocked_storage.method_calls}
     assert methods_called == {"flush", "clear_buffers"}
+
+
+def test_buffer_warning_when_flush_is_missing_flush_ok(sample_data) -> None:
+    storage = get_storage_with_buffer_config()
+    storage.content_add(sample_data.contents)
+    # storage.flush() is intentionally missing
+
+    with pytest.warns(UserWarning, match="during shutdown. A call"):
+        del storage
+
+
+def test_buffer_warning_when_flush_is_missing_flush_fails(mocker, sample_data) -> None:
+    storage = get_storage_with_buffer_config()
+    storage.content_add(sample_data.contents)
+    # storage.flush() is intentionally missing
+
+    # Make underlying flush() on the underlying storage crash
+    # to test if we get the right warning.
+    mocker.patch.object(storage.storage, "flush", side_effect=RuntimeError("KO"))
+
+    with pytest.warns(UserWarning, match="They are now probably lost"):
+        del storage

@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2021 The Software Heritage developers
+# Copyright (C) 2019-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
+import swh.core.config
 from swh.core.pytest_plugin import RPCTestAdapter
 from swh.storage import get_storage
 from swh.storage.api import client, server
@@ -34,7 +35,7 @@ STORAGES = [
 
 
 @pytest.mark.parametrize("cls,real_class,args", STORAGES)
-@patch("swh.storage.postgresql.storage.psycopg2.pool")
+@patch("swh.storage.postgresql.storage.psycopg_pool")
 def test_get_storage(mock_pool, cls, real_class, args):
     """Instantiating an existing storage should be ok"""
     mock_pool.ThreadedConnectionPool.return_value = None
@@ -44,7 +45,7 @@ def test_get_storage(mock_pool, cls, real_class, args):
 
 
 @pytest.mark.parametrize("cls,real_class,args", STORAGES)
-@patch("swh.storage.postgresql.storage.psycopg2.pool")
+@patch("swh.storage.postgresql.storage.psycopg_pool")
 def test_get_storage_legacy_args(mock_pool, cls, real_class, args):
     """Instantiating an existing storage should be ok even with the legacy
     explicit 'args' keys
@@ -131,14 +132,13 @@ def test_get_storage_check_config(cls, real_class, kwargs, monkeypatch):
     check_backend_check_config(monkeypatch, dict(cls=cls, **kwargs))
 
 
-@patch("swh.storage.postgresql.storage.psycopg2.pool")
-@pytest.mark.parametrize("clazz", ["local", "postgresql"])
-def test_get_storage_local_check_config(mock_pool, monkeypatch, clazz):
+@patch("swh.storage.postgresql.storage.psycopg_pool")
+def test_get_storage_local_check_config(mock_pool, monkeypatch):
     """Instantiating a local storage with check_config should be ok"""
     mock_pool.ThreadedConnectionPool.return_value = None
     check_backend_check_config(
         monkeypatch,
-        {"cls": clazz, "db": "postgresql://db", "objstorage": {"cls": "memory"}},
+        {"cls": "postgresql", "db": "postgresql://db", "objstorage": {"cls": "memory"}},
         backend_storage_cls=DbStorage,
     )
 
@@ -171,27 +171,35 @@ def test_get_storage_pipeline_check_config(monkeypatch):
 def test_get_storage_remote_check_config(monkeypatch):
     """Test that the check_config option works as intended for a remote storage"""
 
-    monkeypatch.setattr(
-        server, "storage", get_storage(cls="memory", journal_writer={"cls": "memory"})
-    )
-    test_client = server.app.test_client()
+    swh.core.config.get_swh_backend_module.cache_clear()
+    swh.core.config.get_swh_backend_from_fullmodule.cache_clear()
+    try:
+        monkeypatch.setattr(
+            server,
+            "storage",
+            get_storage(cls="memory", journal_writer={"cls": "memory"}),
+        )
+        test_client = server.app.test_client()
 
-    class MockedRemoteStorage(client.RemoteStorage):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self.session.adapters.clear()
-            self.session.mount("mock://", RPCTestAdapter(test_client))
+        class MockedRemoteStorage(client.RemoteStorage):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.session.adapters.clear()
+                self.session.mount("mock://", RPCTestAdapter(test_client))
 
-    monkeypatch.setattr(client, "RemoteStorage", MockedRemoteStorage)
+        monkeypatch.setattr(client, "RemoteStorage", MockedRemoteStorage)
 
-    config = {
-        "cls": "remote",
-        "url": "mock://example.com",
-    }
-    check_backend_check_config(
-        monkeypatch,
-        config,
-    )
+        config = {
+            "cls": "remote",
+            "url": "mock://example.com",
+        }
+        check_backend_check_config(
+            monkeypatch,
+            config,
+        )
+    finally:
+        swh.core.config.get_swh_backend_module.cache_clear()
+        swh.core.config.get_swh_backend_from_fullmodule.cache_clear()
 
 
 def check_backend_check_config(

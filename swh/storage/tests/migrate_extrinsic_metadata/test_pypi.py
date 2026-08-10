@@ -23,7 +23,7 @@ from swh.model.model import (
     RawExtrinsicMetadata,
     Snapshot,
     SnapshotBranch,
-    TargetType,
+    SnapshotTargetType,
 )
 from swh.model.swhids import CoreSWHID, ExtendedObjectType, ExtendedSWHID
 from swh.storage import get_storage
@@ -177,7 +177,7 @@ def test_pypi_origin_from_project_name(mocker):
                 id=snapshot_id,
                 branches={
                     b"foo": SnapshotBranch(
-                        target_type=TargetType.REVISION,
+                        target_type=SnapshotTargetType.REVISION,
                         target=revision_id,
                     )
                 },
@@ -666,7 +666,7 @@ def test_pypi_good_origin():
                 id=snapshot_id,
                 branches={
                     b"foo": SnapshotBranch(
-                        target_type=TargetType.REVISION,
+                        target_type=SnapshotTargetType.REVISION,
                         target=revision_id,
                     )
                 },

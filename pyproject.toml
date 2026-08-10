@@ -1,12 +1,12 @@
 [project]
 name = "swh.storage"
 authors = [
-    {name="Software Heritage developers", email="swh-devel@inria.fr"},
+    { name = "Software Heritage developers", email = "swh-devel@inria.fr" },
 ]
 
 description = "Software Heritage storage manager"
-readme = {file = "README.rst", content-type = "text/x-rst"}
-requires-python = ">=3.7"
+readme = { file = "README.rst", content-type = "text/x-rst" }
+requires-python = ">=3.11"
 classifiers = [
     "Programming Language :: Python :: 3",
     "Intended Audience :: Developers",
@@ -16,15 +16,6 @@ classifiers = [
 ]
 dynamic = ["version", "dependencies", "optional-dependencies"]
 
-[tool.setuptools.packages.find]
-include = ["swh.*"]
-
-[tool.setuptools.dynamic]
-dependencies = {file = ["requirements.txt", "requirements-swh.txt"]}
-
-[tool.setuptools.dynamic.optional-dependencies]
-testing = {file = ["requirements-test.txt", "requirements-swh-journal.txt"]}
-journal = {file = ["requirements-swh-journal.txt"]}
 
 [project.entry-points."swh.storage.classes"]
 "remote" = "swh.storage.api.client:RemoteStorage"
@@ -35,18 +26,20 @@ journal = {file = ["requirements-swh-journal.txt"]}
 "local" = "swh.storage.postgresql.storage:Storage"
 # proxy storages
 "buffer" = "swh.storage.proxies.buffer:BufferingProxyStorage"
-"counter" = "swh.storage.proxies.counter:CountingProxyStorage"
 "filter" = "swh.storage.proxies.filter:FilteringProxyStorage"
 "overlay" = "swh.storage.proxies.overlay:OverlayProxyStorage"
 "retry" = "swh.storage.proxies.retry:RetryingProxyStorage"
 "tenacious" = "swh.storage.proxies.tenacious:TenaciousProxyStorage"
 "validate" = "swh.storage.proxies.validate:ValidatingProxyStorage"
 "record_references" = "swh.storage.proxies.record_references:RecordReferencesProxyStorage"
-"masking" = "swh.storage.proxies.masking:MaskingProxyStorage"
+"masking" = "swh.storage.proxies.masking.cls:MaskingProxyStorage"
+"blocking" = "swh.storage.proxies.blocking.cls:BlockingProxyStorage"
 
 [project.entry-points."swh.cli.subcommands"]
 "swh.storage" = "swh.storage.cli"
 "swh.storage.proxies.masking" = "swh.storage.proxies.masking.cli"
+"swh.storage.proxies.blocking" = "swh.storage.proxies.blocking.cli"
+
 
 [project.urls]
 "Homepage" = "https://gitlab.softwareheritage.org/swh/devel/swh-storage"
@@ -56,14 +49,26 @@ journal = {file = ["requirements-swh-journal.txt"]}
 "Source" = "https://gitlab.softwareheritage.org/swh/devel/swh-storage.git"
 
 [build-system]
-requires = ["setuptools", "setuptools-scm"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling", "hatch-requirements-txt", "hatch-vcs"]
+build-backend = "hatchling.build"
 
-[tool.setuptools_scm]
-fallback_version = "0.0.1"
+[tool.hatch.metadata.hooks.requirements_txt]
+files = ["requirements.txt", "requirements-swh.txt"]
+
+[tool.hatch.metadata.hooks.requirements_txt.optional-dependencies]
+testing = ["requirements-test.txt", "requirements-pytest.txt"]
+pytest = ["requirements-pytest.txt"]
+journal = ["requirements-swh-journal.txt"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["swh"]
+
+[tool.hatch.version]
+source = "vcs"
+fallback-version = "0.0.1"
 
 [tool.black]
-target-version = ['py37']
+target-version = ['py311', 'py312', 'py313']
 
 [tool.isort]
 multi_line_output = 3
@@ -74,3 +79,42 @@ ensure_newline_before_comments = true
 line_length = 88
 force_sort_within_sections = true
 known_first_party = ['swh']
+
+[tool.mypy]
+namespace_packages = true
+warn_unused_ignores = true
+explicit_package_bases = true
+# ^ Needed for mypy to detect py.typed from swh packages installed
+# in editable mode
+
+plugins = []
+
+# 3rd party libraries without stubs (yet)
+[[tool.mypy.overrides]]
+module = [
+    "cassandra.*",
+    "pytest_cov.*",
+    "systemd.*",
+    "pytest_shared_session_scope.*",
+]
+ignore_missing_imports = true
+
+[tool.flake8]
+select = ["C", "E", "F", "W", "B950"]
+ignore = [
+    "E203", # whitespaces before ':' <https://github.com/psf/black/issues/315>
+    "E231", # missing whitespace after ','
+    "E501", # line too long, use B950 warning from flake8-bugbear instead
+    "W503", # line break before binary operator <https://github.com/psf/black/issues/52>
+]
+max-line-length = 88
+extend-exclude = ["build/"]
+
+[tool.pytest.ini_options]
+norecursedirs = "build docs .*"
+consider_namespace_packages = true
+markers = [
+    "cassandra: execute tests using a cassandra database (which are slow)",
+    "property_based: execute tests generating data with hypothesis (potentially long run time)",
+    "network: execute tests using a socket between two threads",
+]

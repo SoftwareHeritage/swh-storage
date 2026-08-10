@@ -1,13 +1,13 @@
-# Copyright (C) 2015-2022  The Software Heritage developers
+# Copyright (C) 2015-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 from contextlib import contextmanager
-import datetime
 import queue
 import threading
 import time
+from typing import List
 from unittest.mock import Mock
 
 import attr
@@ -16,6 +16,7 @@ import pytest
 from swh.model import from_disk
 from swh.model.model import Directory, Person
 from swh.storage.tests.storage_tests import TestStorage as _TestStorage
+from swh.storage.tests.storage_tests import TestStorageDeletion as _TestStorageDeletion
 from swh.storage.tests.storage_tests import TestStorageGeneratedData  # noqa
 from swh.storage.utils import now
 
@@ -27,7 +28,6 @@ def db_transaction(storage):
             yield db, cur
 
 
-@pytest.mark.db
 def test_pgstorage_flavor(swh_storage):
     assert swh_storage.get_flavor() == "default"
 
@@ -40,9 +40,38 @@ class TestStorage(_TestStorage):
         pass
 
 
-@pytest.mark.db
-class TestLocalStorage:
-    """Test the local storage"""
+class TestStorageDeletion(_TestStorageDeletion):
+    def _affected_tables(self) -> List[str]:
+        return [
+            "origin",
+            "origin_visit",
+            "origin_visit_status",
+            "snapshot",
+            # `snapshot_branch` is left out, we leave stale data there by
+            # design.
+            "snapshot_branches",
+            "release",
+            "revision",
+            "revision_history",
+            "directory",
+            # `directory_entry_*` are left out on purpose.
+            # We leave stale data there by design.
+            "skipped_content",
+            "content",
+            # `metadata_authority` and `metadata_fetcher` are left out
+            # for the time being. Tracked as:
+            # https://gitlab.softwareheritage.org/swh/devel/swh-alter/-/issues/21
+            "raw_extrinsic_metadata",
+        ]
+
+    def _count_from_table(self, swh_storage_backend, table: str) -> int:
+        with db_transaction(swh_storage_backend) as (_, cur):
+            cur.execute(f"SELECT COUNT(*) FROM {table}")
+            return cur.fetchone()[0]
+
+
+class TestPostgresqlStorage:
+    """PostgreSQL-specific tests"""
 
     # This test is only relevant on the local storage, with an actual
     # objstorage raising an exception
@@ -60,7 +89,6 @@ class TestLocalStorage:
         assert missing == [content.sha1]
 
 
-@pytest.mark.db
 class TestStorageRaceConditions:
     @pytest.mark.xfail
     def test_content_add_race(self, swh_storage, sample_data):
@@ -151,7 +179,6 @@ class TestStorageRaceConditions:
             assert sorted(entries) == sorted(d.entries)
 
 
-@pytest.mark.db
 class TestPgStorage:
     """This class is dedicated for the rare case where the schema needs to
     be altered dynamically.
@@ -166,11 +193,9 @@ class TestPgStorage:
         swh_storage.journal_writer.journal = None  # TODO, not supported
 
         with db_transaction(swh_storage) as (_, cur):
-            cur.execute(
-                """alter table content
+            cur.execute("""alter table content
                            add column test text default null,
-                           add column test2 text default null"""
-            )
+                           add column test2 text default null""")
 
         swh_storage.content_add([content])
 
@@ -200,10 +225,8 @@ class TestPgStorage:
         )
 
         with db_transaction(swh_storage) as (_, cur):
-            cur.execute(
-                """alter table content drop column test,
-                                               drop column test2"""
-            )
+            cur.execute("""alter table content drop column test,
+                                               drop column test2""")
 
     def test_content_add_db(self, swh_storage, sample_data):
         content = sample_data.content
@@ -445,26 +468,6 @@ class TestPgStorage:
         )
         assert releases == [release, release2]
 
-    def test_object_references_create_and_list_partition(self, swh_storage):
-        with db_transaction(swh_storage) as (db, cur):
-            db.object_references_create_partition(year=2020, week=6, cur=cur)
-            partitions = db.object_references_list_partitions(cur=cur)
-
-        # We get a partition for this week initialized on schema creation
-        assert len(partitions) == 2
-        assert partitions[0].table_name == "object_references_2020w06"
-        assert partitions[0].year == 2020
-        assert partitions[0].week == 6
-        assert partitions[0].start == datetime.datetime.fromisoformat("2020-02-03")
-        assert partitions[0].end == datetime.datetime.fromisoformat("2020-02-10")
-        this_year, this_week = datetime.datetime.now().isocalendar()[0:2]
-        assert (
-            partitions[1].table_name
-            == f"object_references_{this_year:04d}w{this_week:02d}"
-        )
-        assert partitions[1].year == this_year
-        assert partitions[1].week == this_week
-
     def test_clear_buffers(self, swh_storage):
         """Calling clear buffers on real storage does nothing"""
         assert swh_storage.clear_buffers() is None
@@ -481,69 +484,3 @@ class TestPgStorage:
         swh_storage.current_version = -1
         assert swh_storage.check_config(check_write=True) is False
         assert swh_storage.check_config(check_write=False) is False
-
-    def test_object_delete(self, swh_storage, sample_data):
-        affected_tables = [
-            "origin",
-            "origin_visit",
-            "origin_visit_status",
-            "snapshot",
-            "snapshot_branch",
-            "snapshot_branches",
-            "release",
-            "revision",
-            "revision_history",
-            "directory",
-            # `directory_entry_*` are left out on purpose.
-            # We leave stale data there by design.
-            "skipped_content",
-            "content",
-        ]
-
-        swh_storage.content_add(sample_data.contents)
-        swh_storage.skipped_content_add(sample_data.skipped_contents)
-        swh_storage.directory_add(sample_data.directories)
-        swh_storage.revision_add(sample_data.git_revisions)
-        swh_storage.release_add(sample_data.releases)
-        swh_storage.snapshot_add(sample_data.snapshots)
-        swh_storage.origin_add(sample_data.origins)
-        swh_storage.origin_visit_add(sample_data.origin_visits)
-        swh_storage.origin_visit_status_add(sample_data.origin_visit_statuses)
-        swhids = (
-            [content.swhid().to_extended() for content in sample_data.contents]
-            + [
-                skipped_content.swhid().to_extended()
-                for skipped_content in sample_data.skipped_contents
-            ]
-            + [directory.swhid().to_extended() for directory in sample_data.directories]
-            + [revision.swhid().to_extended() for revision in sample_data.revisions]
-            + [release.swhid().to_extended() for release in sample_data.releases]
-            + [snapshot.swhid().to_extended() for snapshot in sample_data.snapshots]
-            + [origin.swhid() for origin in sample_data.origins]
-        )
-
-        # Ensure we properly loaded our data
-        with db_transaction(swh_storage) as (_, cur):
-            for table in affected_tables:
-                cur.execute(f"SELECT COUNT(*) FROM {table}")
-                assert cur.fetchone()[0] >= 1, f"{table} is not populated"
-
-        result = swh_storage.object_delete(swhids)
-        assert result == {
-            "content:delete": 3,
-            "content:delete:bytes": 0,
-            "skipped_content:delete": 2,
-            "directory:delete": 7,
-            "release:delete": 3,
-            "revision:delete": 4,
-            "snapshot:delete": 3,
-            "origin:delete": 7,
-            "origin_visit:delete": 3,
-            "origin_visit_status:delete": 3,
-        }
-
-        # Ensure we properly removed our data
-        with db_transaction(swh_storage) as (_, cur):
-            for table in affected_tables:
-                cur.execute(f"SELECT COUNT(*) FROM {table}")
-                assert cur.fetchone()[0] == 0, f"{table} is not empty"

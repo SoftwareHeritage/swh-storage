@@ -6,10 +6,12 @@ pytest-mock
 # the dep on swh.model in the main requirements-swh.txt file shadows this one
 # adding the [testing] extra.
 swh.core[testing] >= 3.0.0
-swh.model[testing] >= 0.0.50
+swh.model[testing]
+swh.journal[pytest] >= 2.0.0
 pytz
+pytest-postgresql
 pytest-redis
-pytest-xdist
+types-confluent-kafka
 types-python-dateutil
 types-pytz
 types-pyyaml

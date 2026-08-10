@@ -1,13 +1,12 @@
-# Copyright (C) 2019-2023 The Software Heritage developers
+# Copyright (C) 2019-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 from functools import partial
 import logging
-from typing import Dict, Iterable, Mapping, Sequence, Tuple, cast
-
-from typing_extensions import Literal
+from typing import Dict, Iterable, List, Literal, Mapping, Sequence, Tuple, cast
+import warnings
 
 from swh.core.utils import grouper
 from swh.model.model import (
@@ -27,6 +26,7 @@ logger = logging.getLogger(__name__)
 LObjectType = Literal[
     "raw_extrinsic_metadata",
     "content",
+    "content_metadata",
     "skipped_content",
     "directory",
     "revision",
@@ -39,6 +39,7 @@ LObjectType = Literal[
 OBJECT_TYPES: Tuple[LObjectType, ...] = (
     "raw_extrinsic_metadata",
     "content",
+    "content_metadata",
     "skipped_content",
     "directory",
     "revision",
@@ -49,6 +50,7 @@ OBJECT_TYPES: Tuple[LObjectType, ...] = (
 
 DEFAULT_BUFFER_THRESHOLDS: Dict[str, int] = {
     "content": 10000,
+    "content_metadata": 10000,
     "content_bytes": 100 * 1024 * 1024,
     "skipped_content": 10000,
     "directory": 25000,
@@ -92,7 +94,8 @@ def estimate_release_size(release: Release) -> int:
 
 
 class BufferingProxyStorage:
-    """
+    # only a string *literal* can be automatically assigned to __doc__!
+    __doc__ = """
     Storage implementation in charge of accumulating objects prior to
     discussing with the "main" storage.
     When the number of objects of any given type exceeds the configure threshold,
@@ -158,13 +161,40 @@ class BufferingProxyStorage:
         self._directory_entries: int = 0
         self._revision_parents: int = 0
 
+    def __del__(self):
+        if not hasattr(self, "_sizes"):
+            return
+
+        leftovers = False
+        for object_type in OBJECT_TYPES:
+            if self._sizes[object_type] != 0:
+                leftovers = True
+                break
+
+        if not leftovers:
+            return
+
+        # Attempts to flush nonetheless to minimize data loss
+        flush_failed = False
+        try:
+            self.flush()
+        except Exception:
+            flush_failed = True
+
+        warnings.warn(
+            "Some objects were still present in the memory of the buffering "
+            "proxy during shutdown. "
+            f"{'**They are now probably lost!** ' if flush_failed else ''}"
+            "A call to `storage.flush()` is probably missing."
+        )
+
     def __getattr__(self, key: str):
         if key.endswith("_add"):
             object_type = key.rsplit("_", 1)[0]
             if object_type in OBJECT_TYPES:
                 return partial(
                     self.object_add,
-                    object_type=object_type,
+                    object_type=cast(LObjectType, object_type),
                     keys=["id"],
                 )
         if key == "storage":
@@ -192,6 +222,17 @@ class BufferingProxyStorage:
             if self._sizes["content"] >= self._buffer_thresholds["content_bytes"]:
                 return self.flush(["raw_extrinsic_metadata", "content"])
 
+        return stats
+
+    def content_add_metadata(self, contents: Sequence[Content]) -> Dict[str, int]:
+        """Push content metadata (content without the payload) to write to the
+        storage in the buffer.
+        """
+        stats = self.object_add(
+            contents,
+            object_type="content_metadata",
+            keys=["sha1", "sha1_git", "sha256", "blake2s256"],
+        )
         return stats
 
     def skipped_content_add(self, contents: Sequence[SkippedContent]) -> Dict[str, int]:
@@ -335,8 +376,12 @@ class BufferingProxyStorage:
 
             batches = grouper(buffer_.values(), n=self._buffer_thresholds[object_type])
             for batch in batches:
-                add_fn = getattr(self.storage, "%s_add" % object_type)
-                stats = add_fn(list(batch))
+                objs = list(batch)
+                if object_type == "content_metadata":
+                    stats = self.storage.content_add_metadata(cast(List[Content], objs))
+                else:
+                    add_fn = getattr(self.storage, "%s_add" % object_type)
+                    stats = add_fn(objs)
                 update_summary(stats)
 
         # Flush underlying storage

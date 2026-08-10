@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2024  The Software Heritage developers
+# Copyright (C) 2019-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -10,6 +10,7 @@ import functools
 import importlib
 import itertools
 import logging
+import os
 import random
 from typing import (
     TYPE_CHECKING,
@@ -28,16 +29,30 @@ from typing import (
     cast,
 )
 
-from cassandra import ConsistencyLevel, CoordinationFailure, ReadTimeout, WriteTimeout
+from cassandra import (
+    ConsistencyLevel,
+    CoordinationFailure,
+    OperationTimedOut,
+    ReadTimeout,
+    WriteTimeout,
+)
 from cassandra.auth import AuthProvider
-from cassandra.cluster import EXEC_PROFILE_DEFAULT, Cluster, ExecutionProfile, ResultSet
-from cassandra.concurrent import execute_concurrent_with_args
+from cassandra.cluster import (
+    EXEC_PROFILE_DEFAULT,
+    Cluster,
+    ConnectionShutdown,
+    ExecutionProfile,
+    NoHostAvailable,
+    ResultSet,
+)
+from cassandra.concurrent import execute_concurrent, execute_concurrent_with_args
 from cassandra.policies import DCAwareRoundRobinPolicy, TokenAwarePolicy
 from cassandra.query import BoundStatement, PreparedStatement, dict_factory
+from cassandra.util import Date
 from mypy_extensions import NamedArg
 from tenacity import (
     retry,
-    retry_if_exception_type,
+    retry_if_exception,
     stop_after_attempt,
     wait_random_exponential,
 )
@@ -55,7 +70,7 @@ from swh.model.model import (
     TimestampWithTimezone,
 )
 from swh.model.swhids import CoreSWHID
-from swh.storage.exc import QueryTimeout
+from swh.storage.exc import NonRetryableException, QueryTimeout
 from swh.storage.interface import ListOrder, TotalHashDict
 
 from ..utils import remove_keys
@@ -70,8 +85,10 @@ from .model import (
     ExtIDRow,
     MetadataAuthorityRow,
     MetadataFetcherRow,
+    MigrationRow,
     ObjectCountRow,
     ObjectReferenceRow,
+    ObjectReferencesTableRow,
     OriginRow,
     OriginVisitRow,
     OriginVisitStatusRow,
@@ -85,7 +102,7 @@ from .model import (
     SnapshotRow,
     content_index_table_name,
 )
-from .schema import CREATE_TABLES_QUERIES, HASH_ALGORITHMS
+from .schema import CREATE_TABLES_QUERIES, HASH_ALGORITHMS, OBJECT_REFERENCES_TEMPLATE
 
 PARTITION_KEY_RESTRICTION_MAX_SIZE = 100
 """Maximum number of restrictions in a single query.
@@ -112,7 +129,7 @@ def _instantiate_auth_provider(configuration: Dict) -> AuthProvider:
             " in the auth_provider configuration section"
         )
 
-    (module_path, class_name) = cls.rsplit(".", 1)
+    module_path, class_name = cls.rsplit(".", 1)
     module = importlib.import_module(module_path, package=__package__)
     AuthProvider = getattr(module, class_name)
 
@@ -142,43 +159,73 @@ def get_execution_profiles(
 #   datacenter as the client (DCAwareRoundRobinPolicy)
 
 
-def create_keyspace(
-    hosts: List[str],
-    keyspace: str,
-    port: int = 9042,
-    *,
-    durable_writes=True,
-    auth_provider: Optional[Dict] = None,
-):
-    auth_provider_inst: Optional[AuthProvider] = None
-    if auth_provider:
-        auth_provider_inst = _instantiate_auth_provider(auth_provider)
-
-    cluster = Cluster(
-        hosts,
-        port=port,
-        execution_profiles=get_execution_profiles(),
-        auth_provider=auth_provider_inst,
-        connect_timeout=30,
-        control_connection_timeout=30,
-    )
-    session = cluster.connect()
+def create_keyspace(cql_runner: "CqlRunner", *, durable_writes=True) -> None:
     extra_params = ""
     if not durable_writes:
         extra_params = "AND durable_writes = false"
-    session.execute(
+    cql_runner.execute_with_retries(
         """CREATE KEYSPACE IF NOT EXISTS "%s"
                        WITH REPLICATION = {
                            'class' : 'SimpleStrategy',
                            'replication_factor' : 1
                        } %s;
-                    """
-        % (keyspace, extra_params)
+                    """ % (cql_runner.keyspace, extra_params),
+        [],
     )
-    session.execute('USE "%s"' % keyspace)
-    for query in CREATE_TABLES_QUERIES:
-        logger.debug("Running:\n%s", query)
-        session.execute(query)
+    cql_runner.execute_with_retries(f'USE "{cql_runner.keyspace}"', [])
+    for table_name in CREATE_TABLES_QUERIES:
+        create_table(cql_runner, table_name)
+
+
+def create_table(cql_runner: "CqlRunner", table_name: str) -> None:
+    query = CREATE_TABLES_QUERIES[table_name]
+    current_table_options = cql_runner.table_options.get(table_name, "")
+    if current_table_options.strip():
+        current_table_options = "AND " + current_table_options
+    query = query.format(table_options=current_table_options)
+    logger.debug("Running:\n%s", query)
+    cql_runner.execute_with_retries(query, [])
+
+
+def mark_all_migrations_completed(cql_runner: "CqlRunner") -> None:
+    from .migrations import MIGRATIONS, MigrationStatus
+
+    cql_runner.migration_add_concurrent(
+        [
+            MigrationRow(
+                id=migration.id,
+                dependencies=migration.dependencies,
+                min_read_version=migration.min_read_version,
+                status=MigrationStatus.COMPLETED.value,
+            )
+            for migration in MIGRATIONS
+        ]
+    )
+
+
+MAX_RETRIES = 3
+
+
+def is_retryable_cassandra_exception(exception):
+    running_parallel_tests = os.environ.get("PYTEST_XDIST_WORKER_COUNT")
+    if running_parallel_tests and isinstance(exception, NoHostAvailable):
+        # retry NoHostAvailable related to timeouts when running tests in parallel
+        if not exception.errors:
+            # could not connect to any host, retry
+            return True
+        # only one local cassandra node when running tests
+        inner_exc = next(iter(exception.errors.values()))
+        # a timeout occurred, retry
+        return isinstance(inner_exc, (OperationTimedOut, ConnectionShutdown))
+    return isinstance(exception, (CoordinationFailure, OperationTimedOut))
+
+
+def cassandra_retry():
+    return retry(
+        wait=wait_random_exponential(multiplier=1, max=10),
+        stop=stop_after_attempt(MAX_RETRIES),
+        retry=retry_if_exception(is_retryable_cassandra_exception),
+    )
 
 
 TRet = TypeVar("TRet")
@@ -196,6 +243,7 @@ def _prepared_statement(
 
     def decorator(f: Callable[..., TRet]):
         @functools.wraps(f)
+        @cassandra_retry()
         def newf(self: "CqlRunner", *args, **kwargs) -> TRet:
             if f.__name__ not in self._prepared_statements:
                 statement: PreparedStatement = self._session.prepare(
@@ -270,6 +318,7 @@ def _prepared_select_statements(
 
     def decorator(f: Callable[..., TRet]):
         @functools.wraps(f)
+        @cassandra_retry()
         def newf(self: "CqlRunner", *args, **kwargs) -> TRet:
             if f.__name__ not in self._prepared_statements:
                 self._prepared_statements[f.__name__] = {
@@ -348,26 +397,16 @@ class CqlRunner:
         port: int,
         consistency_level: str,
         auth_provider: Optional[Dict] = None,
+        table_options: Optional[Dict[str, str]] = None,
+        register_user_types: bool = True,
     ):
         auth_provider_impl: Optional[AuthProvider] = None
         if auth_provider:
             auth_provider_impl = _instantiate_auth_provider(auth_provider)
-
-        self._cluster = Cluster(
-            hosts,
-            port=port,
-            auth_provider=auth_provider_impl,
-            execution_profiles=get_execution_profiles(consistency_level),
-            connect_timeout=30,
-            control_connection_timeout=30,
-        )
+        self.table_options = table_options or {}
         self.keyspace = keyspace
-        self._session = self._cluster.connect()
-        self._cluster.register_user_type(
-            keyspace, "microtimestamp_with_timezone", TimestampWithTimezone
-        )
-        self._cluster.register_user_type(keyspace, "microtimestamp", Timestamp)
-        self._cluster.register_user_type(keyspace, "person", Person)
+
+        self._connect(hosts, port, auth_provider_impl, consistency_level)
 
         # directly a PreparedStatement for methods decorated with
         # @_prepared_statements (and its wrappers, _prepared_insert_statement,
@@ -377,40 +416,56 @@ class CqlRunner:
             str, Union[PreparedStatement, Dict[Any, PreparedStatement]]
         ] = {}
 
+        if register_user_types:
+            self.register_user_types()
+
+    def __del__(self):
+        if hasattr(self, "_cluster"):
+            self._cluster.shutdown()
+
+    @cassandra_retry()
+    def _connect(self, hosts, port, auth_provider_impl, consistency_level):
+        self._cluster = Cluster(
+            hosts,
+            port=port,
+            auth_provider=auth_provider_impl,
+            execution_profiles=get_execution_profiles(consistency_level),
+            connect_timeout=60,
+            control_connection_timeout=60,
+        )
+        self._session = self._cluster.connect()
+
+    def register_user_types(self):
+        self._cluster.register_user_type(
+            self.keyspace, "microtimestamp_with_timezone", TimestampWithTimezone
+        )
+        self._cluster.register_user_type(self.keyspace, "microtimestamp", Timestamp)
+        self._cluster.register_user_type(self.keyspace, "person", Person)
+
     ##########################
     # Common utility functions
     ##########################
 
-    MAX_RETRIES = 3
-
-    @retry(
-        wait=wait_random_exponential(multiplier=1, max=10),
-        stop=stop_after_attempt(MAX_RETRIES),
-        retry=retry_if_exception_type(CoordinationFailure),
-    )
+    @cassandra_retry()
     def _execute_with_retries_inner(
         self, statement, args: Optional[Sequence]
     ) -> ResultSet:
         return self._session.execute(statement, args, timeout=1000.0)
 
-    def _execute_with_retries(self, statement, args: Optional[Sequence]) -> ResultSet:
+    def execute_with_retries(self, statement, args: Optional[Sequence]) -> ResultSet:
         try:
             return self._execute_with_retries_inner(statement, args)
         except (ReadTimeout, WriteTimeout) as e:
             raise QueryTimeout(*e.args) from None
 
-    @retry(
-        wait=wait_random_exponential(multiplier=1, max=10),
-        stop=stop_after_attempt(MAX_RETRIES),
-        retry=retry_if_exception_type(CoordinationFailure),
-    )
+    @cassandra_retry()
     def _execute_many_with_retries_inner(
         self, statement, args_list: Sequence[Tuple]
     ) -> Iterable[Dict[str, Any]]:
         for res in execute_concurrent_with_args(self._session, statement, args_list):
             yield from res.result_or_exc
 
-    def _execute_many_with_retries(
+    def execute_many_with_retries(
         self, statement, args_list: Sequence[Tuple]
     ) -> Iterable[Dict[str, Any]]:
         try:
@@ -419,15 +474,36 @@ class CqlRunner:
             raise QueryTimeout(*e.args) from None
 
     def _add_one(self, statement, obj: "DataclassInstance") -> None:
-        self._execute_with_retries(statement, dataclasses.astuple(obj))
+        self.execute_with_retries(statement, dataclasses.astuple(obj))
 
     def _add_many(self, statement, objs: Sequence[BaseRow]) -> None:
         tables = {obj.TABLE for obj in objs}
         assert len(tables) == 1, f"Cannot insert to multiple tables: {tables}"
         rows = [dataclasses.astuple(cast("DataclassInstance", obj)) for obj in objs]
-        for _ in self._execute_many_with_retries(statement, rows):
+        for _ in self.execute_many_with_retries(statement, rows):
             # Need to consume the generator to actually run the INSERTs
             pass
+
+    @cassandra_retry()
+    def _execute_many_statements_with_retries_inner(
+        self,
+        statements_and_parameters: Sequence[Tuple[Any, Tuple]],
+    ) -> Iterable[Dict[str, Any]]:
+        for res in execute_concurrent(
+            self._session, statements_and_parameters, results_generator=True
+        ):
+            yield from res.result_or_exc
+
+    def execute_many_statements_with_retries(
+        self,
+        statements_and_parameters: Sequence[Tuple[Any, Tuple]],
+    ) -> Iterable[Dict[str, Any]]:
+        try:
+            return self._execute_many_statements_with_retries_inner(
+                statements_and_parameters
+            )
+        except (ReadTimeout, WriteTimeout) as e:
+            raise QueryTimeout(*e.args) from None
 
     _T = TypeVar("_T", bound=BaseRow)
 
@@ -436,11 +512,11 @@ class CqlRunner:
         "SELECT * FROM <table> WHERE token(<keys>) > ? LIMIT 1"
         and uses it to return a random row"""
         token = random.randint(TOKEN_BEGIN, TOKEN_END)
-        rows = self._execute_with_retries(statement, [token])
+        rows = self.execute_with_retries(statement, [token])
         if not rows:
             # There are no row with a greater token; wrap around to get
             # the row with the smallest token
-            rows = self._execute_with_retries(statement, [TOKEN_BEGIN])
+            rows = self.execute_with_retries(statement, [TOKEN_BEGIN])
         if rows:
             return row_class.from_dict(rows.one())
         else:
@@ -452,28 +528,53 @@ class CqlRunner:
         if not ids:
             return []
 
-        for row in self._execute_many_with_retries(statement, [(id_,) for id_ in ids]):
+        for row in self.execute_many_with_retries(statement, [(id_,) for id_ in ids]):
             found_ids.add(row["id"])
 
         return [id_ for id_ in ids if id_ not in found_ids]
 
     ##########################
-    # 'content' table
+    # 'migration' table
     ##########################
 
-    def _content_add_finalize(self, statement: BoundStatement) -> None:
-        """Returned currified by content_add_prepare, to be called when the
-        content row should be added to the primary table."""
-        self._execute_with_retries(statement, None)
+    @_prepared_insert_statement(MigrationRow)
+    def migration_add_one(self, migration: MigrationRow, *, statement) -> None:
+        self._add_one(statement, migration)
+
+    @_prepared_insert_statement(MigrationRow)
+    def migration_add_concurrent(
+        self, migrations: List[MigrationRow], *, statement
+    ) -> None:
+        if len(migrations) == 0:
+            # nothing to do
+            return
+        self._add_many(statement, migrations)
+
+    @_prepared_select_statement(MigrationRow, "WHERE id IN ?")
+    def migration_get(self, migration_ids, *, statement) -> Iterable[MigrationRow]:
+        return map(
+            MigrationRow.from_dict,
+            self.execute_with_retries(statement, [migration_ids]),
+        )
+
+    @_prepared_select_statement(MigrationRow)
+    def migration_list(self, *, statement) -> Iterable[MigrationRow]:
+        return map(
+            MigrationRow.from_dict,
+            self.execute_with_retries(statement, []),
+        )
+
+    ##########################
+    # 'content' table
+    ##########################
 
     @_prepared_insert_statement(ContentRow)
     def content_add_prepare(
         self, content: ContentRow, *, statement
-    ) -> Tuple[int, Callable[[], None]]:
-        """Prepares insertion of a Content to the main 'content' table.
-        Returns a token (to be used in secondary tables), and a function to be
-        called to perform the insertion in the main table."""
-        statement = statement.bind(dataclasses.astuple(content))
+    ) -> Tuple[int, BoundStatement]:
+        """Returns the token of a content on the main table, so it can be inserted in
+        an index table before inserting to the main table"""
+        bound_statement = statement.bind(dataclasses.astuple(content))
 
         # Type used for hashing keys (usually, it will be
         # cassandra.metadata.Murmur3Token)
@@ -483,14 +584,19 @@ class CqlRunner:
         # "SELECT token({', '.join(ContentRow.PARTITION_KEY)}) FROM content WHERE ..."
         # after the row is inserted; but we need the token to insert in the
         # index tables *before* inserting to the main 'content' table
-        token = token_class.from_key(statement.routing_key).value
+        token = token_class.from_key(bound_statement.routing_key).value
         assert TOKEN_BEGIN <= token <= TOKEN_END
 
-        # Function to be called after the indexes contain their respective
-        # row
-        finalizer = functools.partial(self._content_add_finalize, statement)
+        return (token, bound_statement)
 
-        return (token, finalizer)
+    def content_add_finalize(self, statements: List[BoundStatement]) -> None:
+        if not statements:
+            return
+        for _ in self.execute_many_statements_with_retries(
+            [(statement, ()) for statement in statements]
+        ):
+            # consume the generator
+            pass
 
     @_prepared_select_statement(
         ContentRow, f"WHERE {' AND '.join(map('%s = ?'.__mod__, HASH_ALGORITHMS))}"
@@ -499,7 +605,7 @@ class CqlRunner:
         self, content_hashes: TotalHashDict, *, statement
     ) -> Optional[ContentRow]:
         rows = list(
-            self._execute_with_retries(
+            self.execute_with_retries(
                 statement,
                 [cast(dict, content_hashes)[algo] for algo in HASH_ALGORITHMS],
             )
@@ -529,14 +635,14 @@ class CqlRunner:
                         "content_missing_from_all_hashes must not be called with "
                         "partial hashes."
                     )
-                if tuple(content[algo] for algo in HASH_ALGORITHMS) not in present:
+                if tuple(content.get(algo) for algo in HASH_ALGORITHMS) not in present:
                     yield content
 
     @_prepared_select_statement(ContentRow, "WHERE sha256 IN ?", HASH_ALGORITHMS)
     def _content_get_hashes_from_sha256(
         self, ids: List[bytes], *, statement
     ) -> Iterator[Tuple[bytes, bytes, bytes, bytes]]:
-        for row in self._execute_with_retries(statement, [ids]):
+        for row in self.execute_with_retries(statement, [ids]):
             yield tuple(row[algo] for algo in HASH_ALGORITHMS)
 
     @_prepared_select_statement(
@@ -545,7 +651,7 @@ class CqlRunner:
     def content_get_from_tokens(self, tokens, *, statement) -> Iterable[ContentRow]:
         return map(
             ContentRow.from_dict,
-            self._execute_many_with_retries(statement, [(token,) for token in tokens]),
+            self.execute_many_with_retries(statement, [(token,) for token in tokens]),
         )
 
     @_prepared_select_statement(
@@ -561,12 +667,12 @@ class CqlRunner:
         """Returns an iterable of (token, row)"""
         return (
             (row["tok"], ContentRow.from_dict(remove_keys(row, ("tok",))))
-            for row in self._execute_with_retries(statement, [start, end, limit])
+            for row in self.execute_with_retries(statement, [start, end, limit])
         )
 
     @_prepared_delete_statement(ContentRow)
     def content_delete(self, content_hashes: TotalHashDict, *, statement) -> None:
-        self._execute_with_retries(
+        self.execute_with_retries(
             statement,
             [cast(dict, content_hashes)[algo] for algo in ContentRow.PARTITION_KEY],
         )
@@ -575,20 +681,26 @@ class CqlRunner:
             query = f"""
                 DELETE FROM {self.keyspace}.{table} WHERE {algo} = %s
             """
-            self._execute_with_retries(query, [cast(dict, content_hashes)[algo]])
+            self.execute_with_retries(query, [cast(dict, content_hashes)[algo]])
 
     ##########################
     # 'content_by_*' tables
     ##########################
 
-    def content_index_add_one(self, algo: str, content: Content, token: int) -> None:
-        """Adds a row mapping content[algo] to the token of the Content in
-        the main 'content' table."""
+    def content_index_add_concurrent(
+        self, algo: str, contents: List[Tuple[int, Content]]
+    ) -> None:
+        """For each ``(token, content)`` in ``contents``, adds a row mapping content[algo] to
+        the token of the Content in the main 'content' table."""
         table = content_index_table_name(algo, skipped_content=False)
         query = f"""
             INSERT INTO {self.keyspace}.{table} ({algo}, target_token) VALUES (%s, %s)
         """
-        self._execute_with_retries(query, [content.get_hash(algo), token])
+        for _ in self.execute_many_with_retries(
+            query, [(content.get_hash(algo), token) for (token, content) in contents]
+        ):
+            # consume the generator
+            pass
 
     def content_get_tokens_from_single_algo(
         self, algo: str, hashes: List[bytes]
@@ -598,7 +710,7 @@ class CqlRunner:
         query = f"SELECT target_token FROM {self.keyspace}.{table} WHERE {algo} = %s"
         return (
             row["target_token"]
-            for row in self._execute_many_with_retries(
+            for row in self.execute_many_with_retries(
                 query, [(hash_,) for hash_ in hashes]
             )
         )
@@ -610,7 +722,7 @@ class CqlRunner:
     def _skipped_content_add_finalize(self, statement: BoundStatement) -> None:
         """Returned currified by skipped_content_add_prepare, to be called
         when the content row should be added to the primary table."""
-        self._execute_with_retries(statement, None)
+        self.execute_with_retries(statement, None)
 
     @_prepared_insert_statement(SkippedContentRow)
     def skipped_content_add_prepare(
@@ -654,7 +766,7 @@ class CqlRunner:
         self, content_hashes: Dict[str, bytes], *, statement
     ) -> Optional[SkippedContentRow]:
         rows = list(
-            self._execute_with_retries(
+            self.execute_with_retries(
                 statement,
                 [content_hashes[algo] or MAGIC_NULL_PK for algo in HASH_ALGORITHMS],
             )
@@ -673,14 +785,14 @@ class CqlRunner:
         self, token, *, statement
     ) -> Iterable[SkippedContentRow]:
         return map(
-            SkippedContentRow.from_dict, self._execute_with_retries(statement, [token])
+            SkippedContentRow.from_dict, self.execute_with_retries(statement, [token])
         )
 
     @_prepared_delete_statement(SkippedContentRow)
     def skipped_content_delete(
         self, skipped_content_hashes: TotalHashDict, *, statement
     ) -> None:
-        self._execute_with_retries(
+        self.execute_with_retries(
             statement,
             [cast(dict, skipped_content_hashes)[algo] for algo in HASH_ALGORITHMS],
         )
@@ -689,9 +801,7 @@ class CqlRunner:
             query = f"""
                 DELETE FROM {self.keyspace}.{table} WHERE {algo} = %s
             """
-            self._execute_with_retries(
-                query, [cast(dict, skipped_content_hashes)[algo]]
-            )
+            self.execute_with_retries(query, [cast(dict, skipped_content_hashes)[algo]])
 
     ##########################
     # 'skipped_content_by_*' tables
@@ -706,7 +816,7 @@ class CqlRunner:
             f"INSERT INTO {self.keyspace}.skipped_content_by_{algo} ({algo}, target_token) "
             f"VALUES (%s, %s)"
         )
-        self._execute_with_retries(
+        self.execute_with_retries(
             query, [content.get_hash(algo) or MAGIC_NULL_PK, token]
         )
 
@@ -717,7 +827,7 @@ class CqlRunner:
         table = content_index_table_name(algo, skipped_content=True)
         query = f"SELECT target_token FROM {self.keyspace}.{table} WHERE {algo} = %s"
         return (
-            row["target_token"] for row in self._execute_with_retries(query, [hash_])
+            row["target_token"] for row in self.execute_with_retries(query, [hash_])
         )
 
     ##########################
@@ -746,7 +856,7 @@ class CqlRunner:
         entries)"""
         return map(
             DirectoryRow.from_dict,
-            self._execute_with_retries(statement, [directory_ids]),
+            self.execute_with_retries(statement, [directory_ids]),
         )
 
     @_prepared_select_token_range_statement(DirectoryRow, "LIMIT ?")
@@ -756,12 +866,12 @@ class CqlRunner:
         """Returns an iterable of (token, row)"""
         return (
             (row["tok"], DirectoryRow.from_dict(remove_keys(row, ("tok",))))
-            for row in self._execute_with_retries(statement, [start, end, limit])
+            for row in self.execute_with_retries(statement, [start, end, limit])
         )
 
     @_prepared_delete_statement(DirectoryRow)
     def directory_delete(self, directory_id: bytes, *, statement) -> None:
-        self._execute_with_retries(statement, [directory_id])
+        self.execute_with_retries(statement, [directory_id])
 
     ##########################
     # 'directory_entry' table
@@ -799,11 +909,11 @@ class CqlRunner:
         ), "directory_entry_add_many must be called with entries for a single dir"
 
         for entry_group in grouper(entries, BATCH_INSERT_MAX_SIZE):
-            entry_group = list(entry_group)
-            if len(entry_group) == BATCH_INSERT_MAX_SIZE:
-                entry_group = list(map(dataclasses.astuple, entry_group))
-                self._execute_with_retries(
-                    statement, list(itertools.chain.from_iterable(entry_group))
+            entry_group_list = list(entry_group)
+            if len(entry_group_list) == BATCH_INSERT_MAX_SIZE:
+                entry_group_tuples = list(map(dataclasses.astuple, entry_group_list))
+                self.execute_with_retries(
+                    statement, list(itertools.chain.from_iterable(entry_group_tuples))
                 )
             else:
                 # Last group, with a smaller size than the BATCH we prepared.
@@ -812,15 +922,15 @@ class CqlRunner:
                 # statements is annoying (we can't use _insert_query() as they have
                 # a different format)
                 # Fall back to inserting concurrently.
-                self.directory_entry_add_concurrent(entry_group)
+                self.directory_entry_add_concurrent(entry_group_list)
 
-    @_prepared_select_statement(DirectoryEntryRow, "WHERE directory_id IN ?")
+    @_prepared_select_statement(DirectoryEntryRow, "WHERE directory_id = ?")
     def directory_entry_get(
-        self, directory_ids, *, statement
+        self, directory_id, *, statement
     ) -> Iterable[DirectoryEntryRow]:
         return map(
             DirectoryEntryRow.from_dict,
-            self._execute_with_retries(statement, [directory_ids]),
+            self.execute_with_retries(statement, [directory_id]),
         )
 
     @_prepared_select_statement(
@@ -831,12 +941,12 @@ class CqlRunner:
     ) -> Iterable[DirectoryEntryRow]:
         return map(
             DirectoryEntryRow.from_dict,
-            self._execute_with_retries(statement, [directory_id, from_, limit]),
+            self.execute_with_retries(statement, [directory_id, from_, limit]),
         )
 
     @_prepared_delete_statement(DirectoryEntryRow)
     def directory_entry_delete(self, directory_id: Sha1Git, *, statement) -> None:
-        self._execute_with_retries(statement, [directory_id])
+        self.execute_with_retries(statement, [directory_id])
 
     ##########################
     # 'revision' table
@@ -853,7 +963,7 @@ class CqlRunner:
     @_prepared_select_statement(RevisionRow, "WHERE id IN ?", ["id"])
     def revision_get_ids(self, revision_ids, *, statement) -> Iterable[Sha1Git]:
         return (
-            row["id"] for row in self._execute_with_retries(statement, [revision_ids])
+            row["id"] for row in self.execute_with_retries(statement, [revision_ids])
         )
 
     @_prepared_select_statement(RevisionRow, "WHERE id IN ?")
@@ -861,7 +971,7 @@ class CqlRunner:
         self, revision_ids: List[Sha1Git], *, statement
     ) -> Iterable[RevisionRow]:
         return map(
-            RevisionRow.from_dict, self._execute_with_retries(statement, [revision_ids])
+            RevisionRow.from_dict, self.execute_with_retries(statement, [revision_ids])
         )
 
     @_prepared_select_statement(RevisionRow, "WHERE token(id) > ? LIMIT 1")
@@ -875,12 +985,12 @@ class CqlRunner:
         """Returns an iterable of (token, row)"""
         return (
             (row["tok"], RevisionRow.from_dict(remove_keys(row, ("tok",))))
-            for row in self._execute_with_retries(statement, [start, end, limit])
+            for row in self.execute_with_retries(statement, [start, end, limit])
         )
 
     @_prepared_delete_statement(RevisionRow)
     def revision_delete(self, revision_id: Sha1Git, *, statement) -> None:
-        self._execute_with_retries(statement, [revision_id])
+        self.execute_with_retries(statement, [revision_id])
 
     ##########################
     # 'revision_parent' table
@@ -898,12 +1008,12 @@ class CqlRunner:
     ) -> Iterable[bytes]:
         return (
             row["parent_id"]
-            for row in self._execute_with_retries(statement, [revision_id])
+            for row in self.execute_with_retries(statement, [revision_id])
         )
 
     @_prepared_delete_statement(RevisionParentRow)
     def revision_parent_delete(self, revision_id: Sha1Git, *, statement) -> None:
-        self._execute_with_retries(statement, [revision_id])
+        self.execute_with_retries(statement, [revision_id])
 
     ##########################
     # 'release' table
@@ -922,7 +1032,7 @@ class CqlRunner:
         self, release_ids: List[Sha1Git], *, statement
     ) -> Iterable[ReleaseRow]:
         return map(
-            ReleaseRow.from_dict, self._execute_with_retries(statement, [release_ids])
+            ReleaseRow.from_dict, self.execute_with_retries(statement, [release_ids])
         )
 
     @_prepared_select_statement(ReleaseRow, "WHERE token(id) > ? LIMIT 1")
@@ -936,12 +1046,12 @@ class CqlRunner:
         """Returns an iterable of (token, row)"""
         return (
             (row["tok"], ReleaseRow.from_dict(remove_keys(row, ("tok",))))
-            for row in self._execute_with_retries(statement, [start, end, limit])
+            for row in self.execute_with_retries(statement, [start, end, limit])
         )
 
     @_prepared_delete_statement(ReleaseRow)
     def release_delete(self, release_id: Sha1Git, *, statement) -> None:
-        self._execute_with_retries(statement, [release_id])
+        self.execute_with_retries(statement, [release_id])
 
     ##########################
     # 'snapshot' table
@@ -966,12 +1076,12 @@ class CqlRunner:
         """Returns an iterable of (token, row)"""
         return (
             (row["tok"], SnapshotRow.from_dict(remove_keys(row, ("tok",))))
-            for row in self._execute_with_retries(statement, [start, end, limit])
+            for row in self.execute_with_retries(statement, [start, end, limit])
         )
 
     @_prepared_delete_statement(SnapshotRow)
     def snapshot_delete(self, snapshot_id: Sha1Git, *, statement) -> None:
-        self._execute_with_retries(statement, [snapshot_id])
+        self.execute_with_retries(statement, [snapshot_id])
 
     ##########################
     # 'snapshot_branch' table
@@ -981,27 +1091,24 @@ class CqlRunner:
     def snapshot_branch_add_one(self, branch: SnapshotBranchRow, *, statement) -> None:
         self._add_one(statement, branch)
 
-    @_prepared_statement(
-        f"""
-        SELECT ascii_bins_count(target_type) AS counts
+    @_prepared_statement(f"""
+        SELECT target_type
         FROM {{keyspace}}.{SnapshotBranchRow.TABLE}
         WHERE snapshot_id = ? AND name >= ?
-        """
-    )
+        """)
     def snapshot_count_branches_from_name(
         self, snapshot_id: Sha1Git, from_: bytes, *, statement
     ) -> Dict[Optional[str], int]:
-        row = self._execute_with_retries(statement, [snapshot_id, from_]).one()
-        (nb_none, counts) = row["counts"]
-        return {None: nb_none, **counts}
+        return Counter(
+            row["target_type"]
+            for row in self.execute_with_retries(statement, [snapshot_id, from_])
+        )
 
-    @_prepared_statement(
-        f"""
-        SELECT ascii_bins_count(target_type) AS counts
+    @_prepared_statement(f"""
+        SELECT target_type
         FROM {{keyspace}}.{SnapshotBranchRow.TABLE}
         WHERE snapshot_id = ? AND name < ?
-        """
-    )
+        """)
     def snapshot_count_branches_before_name(
         self,
         snapshot_id: Sha1Git,
@@ -1009,9 +1116,10 @@ class CqlRunner:
         *,
         statement,
     ) -> Dict[Optional[str], int]:
-        row = self._execute_with_retries(statement, [snapshot_id, before]).one()
-        (nb_none, counts) = row["counts"]
-        return {None: nb_none, **counts}
+        return Counter(
+            row["target_type"]
+            for row in self.execute_with_retries(statement, [snapshot_id, before])
+        )
 
     def snapshot_count_branches(
         self,
@@ -1047,7 +1155,7 @@ class CqlRunner:
     ) -> Iterable[SnapshotBranchRow]:
         return map(
             SnapshotBranchRow.from_dict,
-            self._execute_with_retries(statement, [snapshot_id, from_, limit]),
+            self.execute_with_retries(statement, [snapshot_id, from_, limit]),
         )
 
     @_prepared_select_statement(
@@ -1064,7 +1172,7 @@ class CqlRunner:
     ) -> Iterable[SnapshotBranchRow]:
         return map(
             SnapshotBranchRow.from_dict,
-            self._execute_with_retries(statement, [snapshot_id, from_, before, limit]),
+            self.execute_with_retries(statement, [snapshot_id, from_, before, limit]),
         )
 
     def snapshot_branch_get(
@@ -1096,7 +1204,7 @@ class CqlRunner:
 
     @_prepared_delete_statement(SnapshotBranchRow)
     def snapshot_branch_delete(self, snapshot_id: Sha1Git, *, statement) -> None:
-        self._execute_with_retries(statement, [snapshot_id])
+        self.execute_with_retries(statement, [snapshot_id])
 
     ##########################
     # 'origin' table
@@ -1108,7 +1216,7 @@ class CqlRunner:
 
     @_prepared_select_statement(OriginRow, "WHERE sha1 = ?")
     def origin_get_by_sha1(self, sha1: bytes, *, statement) -> Iterable[OriginRow]:
-        return map(OriginRow.from_dict, self._execute_with_retries(statement, [sha1]))
+        return map(OriginRow.from_dict, self.execute_with_retries(statement, [sha1]))
 
     def origin_get_by_url(self, url: str) -> Iterable[OriginRow]:
         return self.origin_get_by_sha1(hash_url(url))
@@ -1120,48 +1228,44 @@ class CqlRunner:
         """Returns an iterable of (token, origin)"""
         return (
             (row["tok"], OriginRow.from_dict(remove_keys(row, ("tok",))))
-            for row in self._execute_with_retries(
+            for row in self.execute_with_retries(
                 statement, [start_token, TOKEN_END, limit]
             )
         )
 
     @_prepared_select_statement(OriginRow)
     def origin_iter_all(self, *, statement) -> Iterable[OriginRow]:
-        return map(OriginRow.from_dict, self._execute_with_retries(statement, []))
+        return map(OriginRow.from_dict, self.execute_with_retries(statement, []))
 
-    @_prepared_statement(
-        f"""
+    @_prepared_statement(f"""
         UPDATE {{keyspace}}.{OriginRow.TABLE}
         SET next_visit_id=?
         WHERE sha1 = ? IF next_visit_id<?
-        """
-    )
+        """)
     def origin_bump_next_visit_id(
         self, origin_url: str, visit_id: int, *, statement
     ) -> None:
         origin_sha1 = hash_url(origin_url)
         next_id = visit_id + 1
-        self._execute_with_retries(statement, [next_id, origin_sha1, next_id])
+        self.execute_with_retries(statement, [next_id, origin_sha1, next_id])
 
     @_prepared_select_statement(OriginRow, "WHERE sha1 = ?", ["next_visit_id"])
     def _origin_get_next_visit_id(self, origin_sha1: bytes, *, statement) -> int:
-        rows = list(self._execute_with_retries(statement, [origin_sha1]))
+        rows = list(self.execute_with_retries(statement, [origin_sha1]))
         assert len(rows) == 1  # TODO: error handling
         return rows[0]["next_visit_id"]
 
-    @_prepared_statement(
-        f"""
+    @_prepared_statement(f"""
         UPDATE {{keyspace}}.{OriginRow.TABLE}
         SET next_visit_id=?
         WHERE sha1 = ? IF next_visit_id=?
-        """
-    )
+        """)
     def origin_generate_unique_visit_id(self, origin_url: str, *, statement) -> int:
         origin_sha1 = hash_url(origin_url)
         next_id = self._origin_get_next_visit_id(origin_sha1)
         while True:
             res = list(
-                self._execute_with_retries(
+                self.execute_with_retries(
                     statement, [next_id + 1, origin_sha1, next_id]
                 )
             )
@@ -1178,7 +1282,7 @@ class CqlRunner:
 
     @_prepared_delete_statement(OriginRow)
     def origin_delete(self, sha1: bytes, *, statement) -> None:
-        self._execute_with_retries(statement, [sha1])
+        self.execute_with_retries(statement, [sha1])
 
     ##########################
     # 'origin_visit' table
@@ -1214,9 +1318,7 @@ class CqlRunner:
         args.append(limit)
 
         statement = statements[(last_visit is not None, order)]
-        return map(
-            OriginVisitRow.from_dict, self._execute_with_retries(statement, args)
-        )
+        return map(OriginVisitRow.from_dict, self.execute_with_retries(statement, args))
 
     @_prepared_insert_statement(OriginVisitRow)
     def origin_visit_add_one(self, visit: OriginVisitRow, *, statement) -> None:
@@ -1227,7 +1329,7 @@ class CqlRunner:
         self, origin_url: str, visit_id: int, *, statement
     ) -> Optional[OriginVisitRow]:
         # TODO: error handling
-        rows = list(self._execute_with_retries(statement, [origin_url, visit_id]))
+        rows = list(self.execute_with_retries(statement, [origin_url, visit_id]))
         if rows:
             return OriginVisitRow.from_dict(rows[0])
         else:
@@ -1241,7 +1343,7 @@ class CqlRunner:
         visit id."""
         return map(
             OriginVisitRow.from_dict,
-            self._execute_with_retries(statement, [origin_url]),
+            self.execute_with_retries(statement, [origin_url]),
         )
 
     @_prepared_select_statement(OriginVisitRow, "WHERE token(origin) >= ?")
@@ -1249,7 +1351,7 @@ class CqlRunner:
         self, min_token: int, *, statement
     ) -> Iterable[OriginVisitRow]:
         return map(
-            OriginVisitRow.from_dict, self._execute_with_retries(statement, [min_token])
+            OriginVisitRow.from_dict, self.execute_with_retries(statement, [min_token])
         )
 
     @_prepared_select_statement(OriginVisitRow, "WHERE token(origin) < ?")
@@ -1257,7 +1359,7 @@ class CqlRunner:
         self, max_token: int, *, statement
     ) -> Iterable[OriginVisitRow]:
         return map(
-            OriginVisitRow.from_dict, self._execute_with_retries(statement, [max_token])
+            OriginVisitRow.from_dict, self.execute_with_retries(statement, [max_token])
         )
 
     def origin_visit_iter(self, start_token: int) -> Iterator[OriginVisitRow]:
@@ -1268,7 +1370,7 @@ class CqlRunner:
 
     @_prepared_delete_statement(OriginVisitRow)
     def origin_visit_delete(self, origin_url: str, *, statement) -> None:
-        self._execute_with_retries(statement, [origin_url])
+        self.execute_with_retries(statement, [origin_url])
 
     ##########################
     # 'origin_visit_status' table
@@ -1313,7 +1415,7 @@ class CqlRunner:
         statement = statements[(date_from is not None, order)]
 
         return map(
-            OriginVisitStatusRow.from_dict, self._execute_with_retries(statement, args)
+            OriginVisitStatusRow.from_dict, self.execute_with_retries(statement, args)
         )
 
     @_prepared_select_statement(
@@ -1331,7 +1433,7 @@ class CqlRunner:
         args = (origin_url, visit_from, visit_to)
 
         return map(
-            OriginVisitStatusRow.from_dict, self._execute_with_retries(statement, args)
+            OriginVisitStatusRow.from_dict, self.execute_with_retries(statement, args)
         )
 
     @_prepared_insert_statement(OriginVisitStatusRow)
@@ -1363,20 +1465,20 @@ class CqlRunner:
         """Return all origin visit statuses for a given visit"""
         return map(
             OriginVisitStatusRow.from_dict,
-            self._execute_with_retries(statement, [origin, visit]),
+            self.execute_with_retries(statement, [origin, visit]),
         )
 
     @_prepared_select_statement(OriginVisitStatusRow, "WHERE origin = ?", ["snapshot"])
     def origin_snapshot_get_all(self, origin: str, *, statement) -> Iterable[Sha1Git]:
         yield from {
             d["snapshot"]
-            for d in self._execute_with_retries(statement, [origin])
+            for d in self.execute_with_retries(statement, [origin])
             if d["snapshot"] is not None
         }
 
     @_prepared_delete_statement(OriginVisitStatusRow)
     def origin_visit_status_delete(self, origin_url: str, *, statement) -> None:
-        self._execute_with_retries(statement, [origin_url])
+        self.execute_with_retries(statement, [origin_url])
 
     #########################
     # 'raw_extrinsic_metadata_by_id' table
@@ -1392,8 +1494,12 @@ class CqlRunner:
     ) -> Iterable[RawExtrinsicMetadataByIdRow]:
         return map(
             RawExtrinsicMetadataByIdRow.from_dict,
-            self._execute_with_retries(statement, [ids]),
+            self.execute_with_retries(statement, [ids]),
         )
+
+    @_prepared_delete_statement(RawExtrinsicMetadataByIdRow)
+    def raw_extrinsic_metadata_by_id_delete(self, emd_id, *, statement):
+        self.execute_with_retries(statement, [emd_id])
 
     #########################
     # 'raw_extrinsic_metadata' table
@@ -1418,7 +1524,7 @@ class CqlRunner:
     ) -> Iterable[RawExtrinsicMetadataRow]:
         return map(
             RawExtrinsicMetadataRow.from_dict,
-            self._execute_with_retries(
+            self.execute_with_retries(
                 statement, [target, authority_url, after, authority_type]
             ),
         )
@@ -1444,7 +1550,7 @@ class CqlRunner:
     ) -> Iterable[RawExtrinsicMetadataRow]:
         return map(
             RawExtrinsicMetadataRow.from_dict,
-            self._execute_with_retries(
+            self.execute_with_retries(
                 statement,
                 [
                     target,
@@ -1467,7 +1573,7 @@ class CqlRunner:
     ) -> Iterable[RawExtrinsicMetadataRow]:
         return map(
             RawExtrinsicMetadataRow.from_dict,
-            self._execute_with_retries(
+            self.execute_with_retries(
                 statement, [target, authority_url, authority_type]
             ),
         )
@@ -1478,7 +1584,27 @@ class CqlRunner:
     ) -> Iterable[Tuple[str, str]]:
         return (
             (entry["authority_type"], entry["authority_url"])
-            for entry in self._execute_with_retries(statement, [target])
+            for entry in self.execute_with_retries(statement, [target])
+        )
+
+    @_prepared_statement("""DELETE FROM {keyspace}.raw_extrinsic_metadata
+            WHERE target = ?
+              AND authority_type = ?
+              AND authority_url = ?
+              AND discovery_date = ?
+              AND id = ?""")
+    def raw_extrinsic_metadata_delete(
+        self,
+        target,
+        authority_type,
+        authority_url,
+        discovery_date,
+        emd_id,
+        *,
+        statement,
+    ):
+        self.execute_with_retries(
+            statement, [target, authority_type, authority_url, discovery_date, emd_id]
         )
 
     ##########################
@@ -1493,7 +1619,7 @@ class CqlRunner:
     def metadata_authority_get(
         self, type, url, *, statement
     ) -> Optional[MetadataAuthorityRow]:
-        rows = list(self._execute_with_retries(statement, [type, url]))
+        rows = list(self.execute_with_retries(statement, [type, url]))
         if rows:
             return MetadataAuthorityRow.from_dict(rows[0])
         else:
@@ -1511,7 +1637,7 @@ class CqlRunner:
     def metadata_fetcher_get(
         self, name, version, *, statement
     ) -> Optional[MetadataFetcherRow]:
-        rows = list(self._execute_with_retries(statement, [name, version]))
+        rows = list(self.execute_with_retries(statement, [name, version]))
         if rows:
             return MetadataFetcherRow.from_dict(rows[0])
         else:
@@ -1523,7 +1649,7 @@ class CqlRunner:
     def _extid_add_finalize(self, statement: BoundStatement) -> None:
         """Returned currified by extid_add_prepare, to be called when the
         extid row should be added to the primary table."""
-        self._execute_with_retries(statement, None)
+        self.execute_with_retries(statement, None)
 
     @_prepared_insert_statement(ExtIDRow)
     def extid_add_prepare(
@@ -1555,7 +1681,7 @@ class CqlRunner:
         statement,
     ) -> Optional[ExtIDRow]:
         rows = list(
-            self._execute_with_retries(
+            self.execute_with_retries(
                 statement,
                 [
                     extid_type,
@@ -1579,7 +1705,7 @@ class CqlRunner:
     def extid_get_from_token(self, token: int, *, statement) -> Iterable[ExtIDRow]:
         return map(
             ExtIDRow.from_dict,
-            self._execute_with_retries(statement, [token]),
+            self.execute_with_retries(statement, [token]),
         )
 
     # Rows are partitioned by token(extid_type, extid), then ordered (aka. "clustered")
@@ -1595,7 +1721,7 @@ class CqlRunner:
     ) -> Iterable[ExtIDRow]:
         return map(
             ExtIDRow.from_dict,
-            self._execute_with_retries(statement, [token, extid_version]),
+            self.execute_with_retries(statement, [token, extid_version]),
         )
 
     @_prepared_select_statement(
@@ -1607,7 +1733,7 @@ class CqlRunner:
     ) -> Iterable[ExtIDRow]:
         return map(
             ExtIDRow.from_dict,
-            self._execute_with_retries(statement, [extid_type, extid]),
+            self.execute_with_retries(statement, [extid_type, extid]),
         )
 
     @_prepared_select_statement(
@@ -1619,7 +1745,7 @@ class CqlRunner:
     ) -> Iterable[ExtIDRow]:
         return map(
             ExtIDRow.from_dict,
-            self._execute_with_retries(statement, [extid_type, extid, extid_version]),
+            self.execute_with_retries(statement, [extid_type, extid, extid_version]),
         )
 
     def extid_get_from_target(
@@ -1658,6 +1784,26 @@ class CqlRunner:
                     ):
                         yield extid
 
+    @_prepared_statement("""DELETE FROM {keyspace}.extid
+            WHERE extid_type = ?
+              AND extid = ?
+              AND extid_version = ?
+              AND target_type = ?
+              AND target = ?""")
+    def extid_delete(
+        self,
+        extid_type: str,
+        extid: bytes,
+        extid_version: int,
+        target_type: str,
+        target: bytes,
+        *,
+        statement,
+    ) -> None:
+        self.execute_with_retries(
+            statement, [extid_type, extid, extid_version, target_type, target]
+        )
+
     ##########################
     # 'extid_by_target' table
     ##########################
@@ -1676,12 +1822,24 @@ class CqlRunner:
     ) -> Iterable[int]:
         return (
             row["target_token"]
-            for row in self._execute_with_retries(statement, [target_type, target])
+            for row in self.execute_with_retries(statement, [target_type, target])
         )
+
+    @_prepared_statement("""DELETE FROM {keyspace}.extid_by_target
+            WHERE target_type = ?
+              AND target = ?""")
+    def extid_delete_from_by_target_table(
+        self, target_type: str, target: bytes, *, statement
+    ) -> None:
+        self.execute_with_retries(statement, [target_type, target])
 
     ##########################
     # 'object_references' table
     ##########################
+
+    _object_reference_current_table_and_insert_statement: Optional[
+        Tuple[ObjectReferencesTableRow, PreparedStatement]
+    ] = None
 
     @_prepared_insert_statement(ObjectReferenceRow)
     def object_reference_add_concurrent(
@@ -1690,18 +1848,174 @@ class CqlRunner:
         if len(entries) == 0:
             # nothing to do
             return
+
+        # find which table we are currently supposed to insert to
+        today = datetime.date.today()
+        table_and_statement = self._object_reference_current_table_and_insert_statement
+        if table_and_statement is None:
+            refresh_table_cache = True
+        else:
+            table, statement = table_and_statement
+            refresh_table_cache = not (table.start <= Date(today) < table.end)
+
+        # Update cached value _object_reference_current_table_and_statement
+        # if we went out of its range
+        if refresh_table_cache:
+            columns = ObjectReferenceRow.cols()
+            try:
+                table = next(
+                    table
+                    for table in self.object_references_list_tables()
+                    if table.start.date() <= today < table.end.date()
+                )
+            except StopIteration:
+                raise NonRetryableException(
+                    "No 'object_references_*' table open for writing."
+                )
+            statement = self._session.prepare(
+                f"INSERT INTO {self.keyspace}.{table.name} ({', '.join(columns)}) "
+                f"VALUES ({', '.join('?' for _ in columns)})"
+            )
+            self._object_reference_current_table_and_insert_statement = (
+                table,
+                statement,
+            )
+
+        # actually add rows to the table
         self._add_many(statement, entries)
 
-    @_prepared_select_statement(
-        ObjectReferenceRow, "WHERE target_type = ? AND target = ? LIMIT ?"
-    )
     def object_reference_get(
-        self, target: Sha1Git, target_type: str, limit: int, *, statement
+        self,
+        target: Sha1Git,
+        target_type: str,
+        limit: int,
     ) -> Iterable[ObjectReferenceRow]:
-        return map(
+        cols = ", ".join(ObjectReferenceRow.cols())
+        table_names = [table.name for table in self.object_references_list_tables()]
+        table_names.append("object_references")  # legacy, unsharded table
+        statements_and_parameters = [
+            (
+                f"SELECT {cols} FROM {self.keyspace}.{table_name} "
+                f"WHERE target_type = %s AND target = %s LIMIT %s",
+                (target_type, target, limit),
+            )
+            for table_name in table_names
+        ]
+        rows = map(
             ObjectReferenceRow.from_dict,
-            self._execute_with_retries(statement, [target_type, target, limit]),
+            self.execute_many_statements_with_retries(statements_and_parameters),
         )
+        return itertools.islice(rows, limit)
+
+    ##########################
+    # 'object_references_*' tables management
+    ##########################
+
+    _object_references_tables_cache_expiry = datetime.datetime.min.replace(
+        tzinfo=datetime.timezone.utc
+    )
+    _object_references_tables_cache: List[ObjectReferencesTableRow] = []
+    """Sorted by start date"""
+
+    @_prepared_select_statement(
+        ObjectReferencesTableRow, "WHERE pk = 0"
+    )  # every row has pk=0
+    def object_references_list_tables(
+        self, *, statement
+    ) -> List[ObjectReferencesTableRow]:
+        """List existing tables of the object_references table, ordered from
+        oldest to the most recent.
+
+        Its result is cached per-:class:`CqlRunner` instance for an hour, to avoid
+        a round-trip on every object write."""
+        now = datetime.datetime.now(tz=datetime.timezone.utc)
+        if self._object_references_tables_cache_expiry < now:
+            rows = map(
+                ObjectReferencesTableRow.from_dict,
+                self.execute_with_retries(statement, []),
+            )
+            self._object_references_tables_cache = list(
+                sorted(rows, key=lambda row: row.start)
+            )
+            self._object_references_tables_cache_expiry = now + datetime.timedelta(
+                hours=1
+            )
+
+            # Clear object_reference_add_concurrent's cache
+            self._object_reference_current_table_and_insert_statement = None
+
+        return self._object_references_tables_cache
+
+    @_prepared_insert_statement(ObjectReferencesTableRow)
+    def object_references_create_table(
+        self,
+        date: Tuple[int, int],  # _prepared_insert_statement supports only one arg
+        *,
+        statement,
+    ) -> Tuple[datetime.date, datetime.date]:
+        """Create the table of the object_references table for the given ISO
+        ``year`` and ``week``."""
+        year, week = date
+
+        # This date is guaranteed to be in week 1 by the ISO standard
+        in_week1 = datetime.date(year=year, month=1, day=4)
+        monday_of_week1 = in_week1 + datetime.timedelta(days=-in_week1.weekday())
+
+        monday = monday_of_week1 + datetime.timedelta(weeks=week - 1)
+        next_monday = monday + datetime.timedelta(days=7)
+
+        name = f"object_references_{year:04d}w{week:02d}"
+
+        # We need to create the table before adding a row to object_references_table, because
+        # object writers may try writing to the new table as soon as we added that row, even
+        # if this process did not create it yet (or crashed in between).
+        # Conversely, creating the table is idempotent, so it is not an issue if this process
+        # crashes between creating the table and adding the row.
+        table_options = self.table_options.get("object_references_*", "")
+        if table_options.strip():
+            table_options = "AND " + table_options
+        self.execute_with_retries(
+            OBJECT_REFERENCES_TEMPLATE.format(
+                keyspace=self.keyspace,
+                name=name,
+                table_options=table_options,
+            ),
+            [],
+        )
+
+        row = ObjectReferencesTableRow(
+            pk=0,  # always the same value, puts everything in the same Cassandra partition
+            name=name,
+            year=year,
+            week=week,
+            start=Date(monday),  # datetime.date -> cassandra.util.Date
+            end=Date(next_monday),  # ditto
+        )
+        self.execute_with_retries(statement, dataclasses.astuple(row))
+
+        return (monday, next_monday)
+
+    def object_references_drop_table(self, year: int, week: int) -> None:
+        """Delete the table of the object_references table for the given ISO
+        ``year`` and ``week``."""
+        name = f"object_references_{year:04d}w{week:02d}"
+
+        # must delete the row first, so other writers don't try to write to it.
+        # Note that if we delete the last table, there is still a small chance
+        # writers have read this row before, and will write to the table later.
+        # Then they'll just crash and try again. This shouldn't happen in practice,
+        # because we only delete old tables.
+        self.execute_with_retries(
+            f"DELETE FROM {self.keyspace}.object_references_table WHERE pk = 0 AND name = %s",
+            [name],
+        )
+
+        # invalidate cache
+        self._object_references_tables_cache_expiry = datetime.datetime.min.replace(
+            tzinfo=datetime.timezone.utc
+        )
+
+        self.execute_with_retries(f"DROP TABLE {self.keyspace}.{name}", [])
 
     ##########################
     # Miscellaneous
@@ -1714,4 +2028,4 @@ class CqlRunner:
 
     @_prepared_statement("SELECT uuid() FROM {keyspace}.revision LIMIT 1;")
     def check_read(self, *, statement):
-        self._execute_with_retries(statement, [])
+        self.execute_with_retries(statement, [])

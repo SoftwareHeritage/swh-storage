@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2024  The Software Heritage developers
+# Copyright (C) 2015-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -9,6 +9,7 @@ from swh.core.api import RemoteException, RPCClient
 from swh.model.model import Content
 
 from ..exc import (
+    BlockedOriginException,
     HashCollision,
     MaskedObjectException,
     NonRetryableException,
@@ -28,6 +29,7 @@ class RemoteStorage(RPCClient):
     api_exception = StorageAPIError
     backend_class = StorageInterface
     reraise_exceptions = [
+        BlockedOriginException,
         MaskedObjectException,
         NonRetryableException,
         QueryTimeout,
@@ -55,14 +57,13 @@ class RemoteStorage(RPCClient):
                 raise
 
     def content_add(self, content: List[Content]) -> Dict[str, int]:
-        content = [c.with_data() if isinstance(c, Content) else c for c in content]
-        return self._post("content/add", {"content": content})
+        return self._post("content/add", {"content": [c.with_data() for c in content]})
 
     def reset(self):
         return self._post("reset", {})
 
     def stat_counters(self):
-        return self.get("stat/counters")
+        return self._get("stat/counters")
 
     def refresh_stat_counters(self):
-        return self.get("stat/refresh")
+        return self._get("stat/refresh")

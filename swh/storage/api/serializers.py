@@ -10,6 +10,7 @@ import uuid
 
 from swh.model import model, swhids
 from swh.storage import interface
+from swh.storage.proxies.blocking.db import BlockingState, BlockingStatus
 from swh.storage.proxies.masking.db import MaskedState, MaskedStatus
 
 
@@ -59,6 +60,19 @@ def _encode_masked_status(masked_status: MaskedStatus):
 
 def _decode_masked_status(d: Dict[str, Any]):
     return MaskedStatus(state=MaskedState[d["state"]], request=uuid.UUID(d["request"]))
+
+
+def _encode_blocking_status(blocking_status: BlockingStatus):
+    return {
+        "state": blocking_status.state.name,
+        "request": str(blocking_status.request),
+    }
+
+
+def _decode_blocking_status(d: Dict[str, Any]):
+    return BlockingStatus(
+        state=BlockingState[d["state"]], request=uuid.UUID(d["request"])
+    )
 
 
 def _decode_origin_visit_with_statuses(
@@ -123,6 +137,7 @@ ENCODERS: List[Tuple[type, str, Callable]] = [
         _encode_snapshot_branch_by_name_response,
     ),
     (MaskedStatus, "masked_status", _encode_masked_status),
+    (BlockingStatus, "blocking_status", _encode_blocking_status),
 ]
 
 
@@ -139,4 +154,5 @@ DECODERS: Dict[str, Callable] = {
     "object_reference": _decode_object_reference,
     "branch_by_name_response": _decode_snapshot_branch_by_name_response,
     "masked_status": _decode_masked_status,
+    "blocking_status": _decode_blocking_status,
 }

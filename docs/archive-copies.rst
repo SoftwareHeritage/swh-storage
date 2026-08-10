@@ -24,25 +24,34 @@ information.
 Ingested source code artifacts land directly on the **primary copy**, which is
 updated live and also used as reference for deduplication purposes. There,
 different parts of the Merkle DAG as stored using different backend
-technologies. The leaves of the graph, i.e., *content objects* (or "blobs"),
-are stored in a key-value object storage, using their SHA1 identifiers as keys
-(see :ref:`persistent identifiers <persistent-identifiers>`). SHA1 collision
-avoidance is enforced by the :mod:`swh.storage` module. The *rest of the graph*
-is stored in a Postgres database (see :ref:`SQL storage <sql-storage>`).
+technologies. The leaves of the graph, i.e., *content objects* (or "blobs"), are
+stored in a key-value object storage, using their SHA1 or SHA256 identifiers as
+keys (see :ref:`persistent identifiers <persistent-identifiers>` and our
+:ref:`object storage overview <objstorage-overview>`). As our objstorage
+instances use a single hash as primary key, when :mod:`swh.storage` detects
+contents with any colliding hashes, both contents are pushed into a dedicated
+:ref:`journal topic <journal-specs>` for further processing. The *rest of the
+graph* is stored in a Cassandra cluster (see :ref:`the cassandra schema
+<swh-storage-cassandra-schema>` and
+:class:`swh.storage.cassandra.storage.CassandraStorage`).
 
-At of 2022-09-27, the primary object storage contains about 12 billion
-blobs with a median size of 3 KB---yes, that is *a lot of very small
-files*---for a total compressed size of about 800 TB. The Postgres database
-takes about 8 TB (compressed), half of which is used by indexes. In terms of
-graph metrics, the Merkle DAG has about 26 B nodes and 370 B edges.
+At of 2025-09-25, the primary object storage contains about 26 billion blobs
+with a median size of 3 KB---yes, that is *a lot of very small files*---for a
+total compressed size of more than 2 petabytes. The main Cassandra cluster
+comprises 16 nodes each using 10 TB of compressed storage with a cluster-wide
+replication factor of 3 (that is, around 50 terabytes of data before
+replication). In terms of graph metrics, the Merkle DAG has about 50 billion
+nodes and 900 billion edges.
 
-The **secondary copy** is hosted on Microsoft Azure cloud, using its native
-blob storage for the object storage and a large virtual machine to run a
-Postgres instance there. The database is kept up-to-date w.r.t. the primary
-copy using Postgres WAL replication. The object storage is kept up-to-date
-using :mod:`swh.archiver`.
+**Secondary copies** of the object storage are hosted on Microsoft Azure and
+Amazon S3, using their native blob storages. The Microsoft Azure copy is
+maintained synchronously, the Amazon S3 copy is maintained asynchronously using
+:mod:`swh.objstorage.replayer`. A secondary copy of the graph storage, using the
+PostgreSQL backend, is maintained using a set of :mod:`swh.storage.replayer`
+instances for each object type. (see :ref:`SQL storage <sql-storage>`).
 
-Archive copies (as opposed to archive mirrors) are operated by the Software
-Heritage Team at Inria. The primary archived copy is geographically located at
-Rocquencourt, France; the secondary copy hosted in the Europe West region of
-the Azure cloud.
+Archive copies (as opposed to :ref:`archive mirrors <mirror>`) are operated by the Software
+Heritage Team at Inria. Both copies of the graph storage are located in
+Rocquencourt, France; The primary object storage ceph cluster is located in
+Saint-Aubin, France. The secondary copies of the object storage are located in
+the West Europe Azure region and in the us-east-1 AWS region.

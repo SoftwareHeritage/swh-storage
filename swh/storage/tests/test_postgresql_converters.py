@@ -203,9 +203,11 @@ def test_date(model_date, db_date):
     assert converters.date_to_db(model_date) == db_date
     assert (
         converters.db_to_date(
-            date=None
-            if db_date["timestamp"] is None
-            else datetime.datetime.fromisoformat(db_date["timestamp"]),
+            date=(
+                None
+                if db_date["timestamp"] is None
+                else datetime.datetime.fromisoformat(db_date["timestamp"])
+            ),
             offset_bytes=db_date["offset_bytes"],
         )
         == model_date
@@ -256,7 +258,6 @@ def test_db_to_revision(tested_func):
             "committer_fullname": b"comm-name <comm-email>",
             "committer_name": b"comm-name",
             "committer_email": b"comm-email",
-            "metadata": {},
             "synthetic": False,
             "extra_headers": (),
             "raw_manifest": None,
@@ -282,7 +283,6 @@ def test_db_to_revision(tested_func):
         type=RevisionType.GIT,
         directory=b"dir-sha1",
         message=b"commit message",
-        metadata={},
         synthetic=False,
         extra_headers=(),
         parents=(b"123", b"456"),
@@ -311,7 +311,6 @@ def test_db_to_revision_none(tested_func):
         "committer_fullname": None,
         "committer_name": None,
         "committer_email": None,
-        "metadata": None,
         "synthetic": None,
         "extra_headers": None,
         "raw_manifest": None,

@@ -1,4 +1,4 @@
-# Copyright (C) 2024 The Software Heritage developers
+# Copyright (C) 2024-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -6,8 +6,11 @@
 
 import pytest
 
-from swh.storage.proxies.masking import MaskingProxyStorage
+from swh.storage.proxies.blocking.cls import BlockingProxyStorage
 from swh.storage.tests.test_in_memory import TestInMemoryStorage as _TestStorage
+
+# This simply test that without any blocked URL defined in the blocking proxy,
+# all standard tests are OK
 
 
 @pytest.fixture
@@ -21,10 +24,14 @@ def swh_storage_backend_config():
 
 
 @pytest.fixture
-def swh_storage(masking_db_postgresql, swh_storage_backend):
-    return MaskingProxyStorage(
-        masking_db=masking_db_postgresql.info.dsn, storage=swh_storage_backend
+def swh_storage(blocking_db_postgresql, swh_storage_backend):
+    storage = BlockingProxyStorage(
+        db=blocking_db_postgresql.info.dsn, storage=swh_storage_backend
     )
+    try:
+        yield storage
+    finally:
+        storage._blocking_pool.close()
 
 
 class TestStorage(_TestStorage):

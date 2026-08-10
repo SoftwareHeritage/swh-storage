@@ -4,11 +4,6 @@ subgraph "logical_grouping" {
 	bgcolor = gray95;
 	color = gray;
 
-	subgraph cluster_meta {
-		label = <<b>schema versioning</b><br /> version: @@VERSION@@>;
-		dbversion;
-	}
-
 	subgraph cluster_content {
 		label = <<b>content</b>>;
 		content;
@@ -45,21 +40,26 @@ subgraph "logical_grouping" {
 	subgraph cluster_origins {
 		label = <<b>origins</b>>;
 		origin;
-		fetch_history;
 		origin_visit;
+		origin_visit_status;
 	}
 
 	subgraph cluster_metadata {
-                label = <<b>metadata</b>>;
-                metadata_provider;
-                origin_metadata;
-		tool;
+		label = <<b>metadata</b>>;
+		metadata_authority;
+		metadata_fetcher;
+		raw_extrinsic_metadata;
+	}
+
+	subgraph cluster_extid {
+		label = <<b>external identifiers</b>>;
+		extid;
 	}
 
 	subgraph cluster_statistics {
-                label = <<b>statistics</b>>;
-                object_counts;
-                object_counts_bucketed;
+		label = <<b>statistics</b>>;
+		object_counts;
+		object_counts_bucketed;
 	}
 
 	{
@@ -67,6 +67,7 @@ subgraph "logical_grouping" {
 
 		# "rtcolN" identifies the N-th row (1-based) in a table, as a source
 		# "ltcolN" identifies the N-th row (1-based) in a table, as a destination
+		"origin_visit_status":rtcol7 -> "snapshot":ltcol1;
 		"snapshot_branch":rtcol3 -> "release":ltcol1;
 		"snapshot_branch":rtcol3 -> "revision":ltcol1;
 		"snapshot_branch":rtcol3 -> "directory":ltcol1;

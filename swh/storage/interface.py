@@ -1,14 +1,26 @@
-# Copyright (C) 2015-2023  The Software Heritage developers
+# Copyright (C) 2015-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 import datetime
 from enum import Enum
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, TypeVar, Union
+from typing import (
+    Any,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Protocol,
+    Sequence,
+    Tuple,
+    TypedDict,
+    TypeVar,
+    Union,
+    runtime_checkable,
+)
 
 import attr
-from typing_extensions import Protocol, TypedDict, runtime_checkable
 
 from swh.core.api import remote_api_endpoint
 from swh.core.api.classes import PagedResult as CorePagedResult
@@ -32,7 +44,7 @@ from swh.model.model import (
     Snapshot,
     SnapshotBranch,
 )
-from swh.model.swhids import ExtendedSWHID, ObjectType
+from swh.model.swhids import CoreSWHID, ExtendedSWHID, ObjectType
 
 
 class ListOrder(Enum):
@@ -1331,7 +1343,7 @@ class StorageInterface(Protocol):
     ##########################
 
     @remote_api_endpoint("origin/get")
-    def origin_get(self, origins: List[str]) -> Iterable[Optional[Origin]]:
+    def origin_get(self, origins: List[str]) -> List[Optional[Origin]]:
         """Return origins.
 
         Args:
@@ -1704,7 +1716,7 @@ class StorageInterface(Protocol):
 
 
 class ObjectDeletionInterface(Protocol):
-    def object_delete(self, swhids: List[ExtendedSWHID]):
+    def object_delete(self, swhids: List[ExtendedSWHID]) -> Dict[str, int]:
         """Delete objects from the storage
 
         All skipped content objects matching the given SWHID will be removed,
@@ -1721,17 +1733,111 @@ class ObjectDeletionInterface(Protocol):
             swhids: list of SWHID of the objects to remove
 
         Returns:
+            dict: number of objects removed. Details of each key:
+
+            content:delete
+                Number of content objects removed
+
+            content:delete:bytes
+                Sum of the removed contents’ data length
+
+            skipped_content:delete
+                Number of skipped content objects removed
+
+            directory:delete
+                Number of directory objects removed
+
+            revision:delete
+                Number of revision objects removed
+
+            release:delete
+                Number of release objects removed
+
+            snapshot:delete
+                Number of snapshot objects removed
+
+            origin:delete
+                Number of origin objects removed
+
+            origin_visit:delete
+                Number of origin visit objects removed
+
+            origin_visit_status:delete
+                Number of origin visit status objects removed
+
+            ori_metadata:delete
+                Number of raw extrinsic metadata objects targeting
+                an origin that have been removed
+
+            snp_metadata:delete
+                Number of raw extrinsic metadata objects targeting
+                a snapshot that have been removed
+
+            rev_metadata:delete
+                Number of raw extrinsic metadata objects targeting
+                a revision that have been removed
+
+            rel_metadata:delete
+                Number of raw extrinsic metadata objects targeting
+                a release that have been removed
+
+            dir_metadata:delete
+                Number ef raw extrinsic metadata objects targeting
+                a directory that have been removed
+
+            cnt_metadata:delete
+                Number of raw extrinsic metadata objects targeting
+                a content that have been removed
+
+            emd_metadata:delete
+                Number of raw extrinsic metadata objects targeting
+                a raw extrinsic metadata object that have been removed"""
+        ...
+
+    def extid_delete_for_target(self, target_swhids: List[CoreSWHID]) -> Dict[str, int]:
+        """Delete ExtID objects from the storage
+
+        Args:
+            target_swhids: list of SWHIDs targeted by the ExtID objects to remove
+
+        Returns:
             Summary dict with the following keys and associated values:
 
-                content:delete: Number of content objects removed
-                content:delete:bytes: Sum of the removed contents’ data length
-                skipped_content:delete: Number of skipped content objects removed
-                directory:delete: Number of directory objects removed
-                revision:delete: Number of revision objects removed
-                release:delete: Number of release objects removed
-                snapshot:delete: Number of snapshot objects removed
-                origin:delete: Number of origin objects removed
-                origin_visit:delete: Number of origin visit objects removed
-                origin_visit_status:delete: Number of origin visit status objects removed
+                extid:delete: Number of ExtID objects removed
         """
+        ...
+
+
+@attr.s
+class ObjectReferencesPartition:
+    """Represents a subset of :class:`ObjectReference` rows inserted into the database
+    within a certain time range"""
+
+    table_name = attr.ib(type=str)
+    year = attr.ib(type=int)
+    """ISO year."""
+    week = attr.ib(type=int)
+    """ISO week."""
+    start = attr.ib(type=datetime.date)
+    end = attr.ib(type=datetime.date)
+
+
+@runtime_checkable
+class PartitionsManagementInterface(Protocol):
+    def object_references_create_partition(
+        self, year: int, week: int
+    ) -> Tuple[datetime.date, datetime.date]:
+        """Create the partition of the object_references table for the given ISO
+        ``year`` and ``week``."""
+        ...
+
+    def object_references_drop_partition(
+        self, partition: ObjectReferencesPartition
+    ) -> None:
+        """Delete the partition of the object_references table for the given partition."""
+        ...
+
+    def object_references_list_partitions(self) -> List[ObjectReferencesPartition]:
+        """List existing partitions of the object_references table, ordered from
+        oldest to the most recent."""
         ...

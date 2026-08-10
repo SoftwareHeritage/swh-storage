@@ -1,22 +1,23 @@
-# Copyright (C) 2015-2023  The Software Heritage developers
+# Copyright (C) 2015-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 from collections import defaultdict
+from contextlib import contextmanager
 import datetime
 from datetime import timedelta
 import inspect
 import itertools
 import math
 import random
-from typing import Any, ClassVar, Dict, Iterator, Optional
-from unittest.mock import MagicMock
+from typing import Any, ClassVar, Dict, Iterator, List, Optional
+from unittest.mock import MagicMock, patch
 
 import attr
 import cassandra
 from hypothesis import HealthCheck, given, settings, strategies
-import psycopg2.errors
+import psycopg.errors
 import pytest
 
 from swh.core.api import RemoteException
@@ -24,28 +25,32 @@ from swh.core.api.classes import stream_results
 from swh.model import from_disk, hypothesis_strategies
 from swh.model.hashutil import DEFAULT_ALGORITHMS, MultiHash, hash_to_bytes
 from swh.model.model import (
+    Directory,
+    DirectoryEntry,
+    ExtID,
     Origin,
     OriginVisit,
     OriginVisitStatus,
     Person,
     RawExtrinsicMetadata,
     Release,
+    ReleaseTargetType,
     Revision,
     RevisionType,
     SkippedContent,
     Snapshot,
     SnapshotBranch,
-    TargetType,
+    SnapshotTargetType,
     Timestamp,
     TimestampWithTimezone,
 )
-from swh.model.model import Content, Directory, DirectoryEntry, ExtID
-from swh.model.model import ObjectType as ModelObjectType
 from swh.model.swhids import CoreSWHID, ExtendedSWHID, ObjectType
+from swh.storage.algos.snapshot import snapshot_get_all_branches
 from swh.storage.cassandra.storage import CassandraStorage
 from swh.storage.common import origin_url_to_sha1 as sha1
 from swh.storage.exc import (
     HashCollision,
+    NonRetryableException,
     QueryTimeout,
     StorageArgumentException,
     UnknownMetadataAuthority,
@@ -61,12 +66,7 @@ from swh.storage.interface import (
     StorageInterface,
 )
 from swh.storage.postgresql.storage import Storage as PostgreSQLStorage
-from swh.storage.utils import (
-    content_hex_hashes,
-    now,
-    remove_keys,
-    round_to_milliseconds,
-)
+from swh.storage.utils import now, remove_keys, round_to_milliseconds
 
 # list of hypothesis disabled health checks in some of the tests in TestStorage
 disabled_health_checks = []
@@ -132,21 +132,18 @@ def filter_dict(d):
     return {k: v for k, v in d.items() if v is not None}
 
 
-class LazyContent(Content):
-    def with_data(self):
-        return Content.from_dict({**self.to_dict(), "data": b"42\n"})
+@contextmanager
+def db_transaction(storage):
+    with storage.db() as db:
+        with db.transaction() as cur:
+            yield db, cur
 
 
 class TestStorage:
     """Main class for Storage testing.
 
-    This class is used as-is to test local storage (see TestLocalStorage
-    below) and remote storage (see TestRemoteStorage in
-    test_remote_storage.py.
-
-    We need to have the two classes inherit from this base class
-    separately to avoid nosetests running the tests from the base
-    class twice.
+    This class is used as-is to test cassandra, in-memory, postgresql, and remote storages,
+    and proxies.
     """
 
     maxDiff: ClassVar[Optional[int]] = None
@@ -205,8 +202,7 @@ class TestStorage:
         }
 
         assert (
-            swh_storage.content_get_data({"sha1": first_content.sha1})
-            == first_content.data
+            swh_storage.content_get_data(first_content.hashes()) == first_content.data
         )
 
         expected_cont = attr.evolve(first_content, data=None)
@@ -239,7 +235,9 @@ class TestStorage:
 
         expected_contents = [attr.evolve(content, data=None) for content in contents]
         assert (
-            swh_storage.content_get([content.sha1 for content in contents])
+            swh_storage.content_get(
+                [content.sha256 for content in contents], algo="sha256"
+            )
             == expected_contents
         )
         journal_contents = [
@@ -247,10 +245,22 @@ class TestStorage:
             for (obj_type, obj) in swh_storage.journal_writer.journal.objects
             if obj_type == "content"
         ]
-        assert len(journal_contents) == len(contents)
+
+        # PostgreSQL storage lets duplicate entries through to the journal. In
+        # practice this is not a problem as entries are filtered before being
+        # sent to storage, and deduplicated by kafka afterwards.
+        journal_has_duplicate = len(journal_contents) - len(contents)
+        assert journal_has_duplicate in (0, 1)
+
+        if journal_has_duplicate:
+            assert journal_contents[0].evolve(ctime=None) == journal_contents[1].evolve(
+                ctime=None
+            )
+            # Drop first duplicate object
+            journal_contents[:1] = []
+
         for obj, cont in zip(journal_contents, expected_contents):
-            obj = attr.evolve(obj, ctime=None)
-            assert obj == cont
+            assert obj.evolve(ctime=None) == cont
 
     def test_content_add__legacy(self, swh_storage, sample_data):
         """content_add() with a single sha1 as param instead of a dict"""
@@ -289,7 +299,7 @@ class TestStorage:
 
     def test_content_add_from_lazy_content(self, swh_storage, sample_data):
         cont = sample_data.content
-        lazy_content = LazyContent.from_dict(cont.to_dict())
+        lazy_content = cont.evolve(data=None, get_data=lambda: cont.data)
 
         insertion_start_time = now()
 
@@ -306,7 +316,7 @@ class TestStorage:
         # the correct 'data' field ensures it has been 'called'
         assert swh_storage.content_get_data({"sha1": cont.sha1}) == cont.data
 
-        expected_cont = attr.evolve(lazy_content, data=None, ctime=None)
+        expected_cont = cont.evolve(data=None, ctime=None, get_data=None)
         contents = [
             obj
             for (obj_type, obj) in swh_storage.journal_writer.journal.objects
@@ -316,7 +326,7 @@ class TestStorage:
         for obj in contents:
             assert insertion_start_time <= obj.ctime
             assert obj.ctime <= insertion_end_time
-            assert attr.evolve(obj, ctime=None).to_dict() == expected_cont.to_dict()
+            assert obj.evolve(ctime=None).to_dict() == expected_cont.to_dict()
 
         if isinstance(swh_storage, InMemoryStorage) or not isinstance(
             swh_storage, CassandraStorage
@@ -420,32 +430,40 @@ class TestStorage:
         assert len(swh_storage.content_find(cont.to_dict())) == 1
         assert len(swh_storage.content_find(cont2.to_dict())) == 1
 
-    def test_content_add_collision(self, swh_storage, sample_data):
-        cont1 = sample_data.content
+    @pytest.mark.parametrize("colliding_hash", sorted(DEFAULT_ALGORITHMS))
+    def test_content_add_collision(
+        self, swh_storage_backend, swh_storage, sample_data, colliding_hash
+    ):
+        objstorage_primary_hash = swh_storage_backend.objstorage.primary_hash
+        contents = sample_data.colliding_contents[colliding_hash]
 
-        # create (corrupted) content with same sha1{,_git} but != sha256
-        sha256_array = bytearray(cont1.sha256)
-        sha256_array[0] += 1
-        cont1b = attr.evolve(cont1, sha256=bytes(sha256_array))
+        res = swh_storage.content_add(contents)
+        assert res["content:add"] == len(contents)
+        if colliding_hash == objstorage_primary_hash:
+            assert res["content:add:bytes"] == contents[0].length
+        else:
+            assert res["content:add:bytes"] == 2 * contents[0].length
 
-        with pytest.raises(HashCollision) as cm:
-            swh_storage.content_add([cont1, cont1b])
+        if isinstance(swh_storage_backend, PostgreSQLStorage):
+            # PostgreSQL doesn't detect collisions anymore
+            assert "content:add:collision" not in res
+        else:
+            assert res["content:add:collision"] == 2
 
-        exc = cm.value
-        actual_algo = exc.algo
-        assert actual_algo in ["sha1", "sha1_git"]
-        actual_id = exc.hash_id
-        assert actual_id == getattr(cont1, actual_algo).hex()
-        collisions = exc.args[2]
-        assert len(collisions) == 2
-        assert collisions == [
-            content_hex_hashes(cont1.hashes()),
-            content_hex_hashes(cont1b.hashes()),
-        ]
-        assert exc.colliding_content_hashes() == [
-            cont1.hashes(),
-            cont1b.hashes(),
-        ]
+        for content in contents:
+            # Insertion with data overrides ctime
+            expected = content.evolve(ctime=None, data=None)
+            assert (
+                swh_storage.content_find(content.hashes())[0].evolve(ctime=None)
+                == expected
+            )
+            if colliding_hash == objstorage_primary_hash:
+                # We can only retrieve the contents for the first object inserted
+                assert (
+                    swh_storage.content_get_data(content.hashes()) == contents[0].data
+                )
+            else:
+                assert swh_storage.content_get_data(content.hashes()) == content.data
 
     def test_content_add_duplicate(self, swh_storage, sample_data):
         cont = sample_data.content
@@ -500,10 +518,19 @@ class TestStorage:
             for (obj_type, obj) in swh_storage.journal_writer.journal.objects
             if obj_type == "content"
         ]
-        assert len(journal_contents) == len(contents)
+        # PostgreSQL storage lets duplicate entries through to the journal. In
+        # practice this is not a problem as entries are filtered before being
+        # sent to storage, and deduplicated by kafka afterwards.
+        journal_has_duplicate = len(journal_contents) - len(contents)
+        assert journal_has_duplicate in (0, 1)
+
+        if journal_has_duplicate:
+            assert journal_contents[0] == journal_contents[1]
+            # Drop first duplicate object
+            journal_contents[:1] = []
+
         for obj, cont in zip(journal_contents, contents):
-            obj = attr.evolve(obj, ctime=None)
-            assert obj == cont
+            assert obj.evolve(ctime=None) == cont
 
     def test_content_add_metadata_different_input(self, swh_storage, sample_data):
         contents = sample_data.contents[:2]
@@ -515,32 +542,18 @@ class TestStorage:
             "content:add": 2,
         }
 
-    def test_content_add_metadata_collision(self, swh_storage, sample_data):
-        cont1 = attr.evolve(sample_data.content, data=None, ctime=now())
+    @pytest.mark.parametrize("colliding_hash", sorted(DEFAULT_ALGORITHMS))
+    def test_content_add_metadata_collision(
+        self, swh_storage, sample_data, colliding_hash
+    ):
+        contents = sample_data.colliding_contents[colliding_hash]
 
-        # create (corrupted) content with same sha1{,_git} but != sha256
-        sha1_git_array = bytearray(cont1.sha256)
-        sha1_git_array[0] += 1
-        cont1b = attr.evolve(cont1, sha256=bytes(sha1_git_array))
+        res = swh_storage.content_add_metadata(contents)
+        assert res == {"content:add": len(contents)}
 
-        with pytest.raises(HashCollision) as cm:
-            swh_storage.content_add_metadata([cont1, cont1b])
-
-        exc = cm.value
-        actual_algo = exc.algo
-        assert actual_algo in ["sha1", "sha1_git", "blake2s256"]
-        actual_id = exc.hash_id
-        assert actual_id == getattr(cont1, actual_algo).hex()
-        collisions = exc.args[2]
-        assert len(collisions) == 2
-        assert collisions == [
-            content_hex_hashes(cont1.hashes()),
-            content_hex_hashes(cont1b.hashes()),
-        ]
-        assert exc.colliding_content_hashes() == [
-            cont1.hashes(),
-            cont1b.hashes(),
-        ]
+        for content in contents:
+            expected = content.evolve(data=None)
+            assert swh_storage.content_find(content.hashes())[0] == expected
 
     def test_content_add_objstorage_first(
         self, swh_storage, swh_storage_backend, sample_data
@@ -674,7 +687,7 @@ class TestStorage:
                 "sha256": duplicated.sha256,
             }
         )
-        assert set(results) == {skipped_content, duplicated}
+        assert set(results) == {skipped_content, duplicated}, results
 
     def test_skipped_content_find_with_duplicate_but_precise_search(
         self, swh_storage, sample_data
@@ -700,7 +713,7 @@ class TestStorage:
                 "sha256": duplicated.sha256,
             }
         )
-        assert len(results) == 2
+        assert len(results) == 2, results
 
         # Search with more precision should return only one
         results = swh_storage.skipped_content_find(
@@ -1107,12 +1120,9 @@ class TestStorage:
             ("directory", directory)
         ]
 
-    def test_directory_add_raw_manifest__different_entries(
+    def _directory_add_raw_manifest_different_entries_test(
         self, swh_storage, check_ls=True
     ):
-        """Add two directories with the same raw_manifest (and therefore, same id)
-        but different entries.
-        """
         dir1 = Directory(
             entries=(
                 DirectoryEntry(
@@ -1136,14 +1146,22 @@ class TestStorage:
 
         if check_ls:
             # This assertion is skipped when running from
-            # test_directory_add_raw_manifest__different_entries__allow_overwrite
+            # test_directory_add_raw_manifest_different_entries_allow_overwrite
             assert [entry["name"] for entry in swh_storage.directory_ls(dir1.id)] == (
                 [b"name1"]
             )
 
         # used in TestCassandraStorage by
-        # test_directory_add_raw_manifest__different_entries__allow_overwrite
+        # test_directory_add_raw_manifest_different_entries_allow_overwrite
         return dir1.id
+
+    def test_directory_add_raw_manifest_different_entries(
+        self, swh_storage, check_ls=True
+    ):
+        """Add two directories with the same raw_manifest (and therefore, same id)
+        but different entries.
+        """
+        self._directory_add_raw_manifest_different_entries_test(swh_storage, check_ls)
 
     def test_directory_get_id_partition(self, swh_storage, sample_data):
         directories = list(sample_data.directories) + [
@@ -1186,13 +1204,13 @@ class TestStorage:
         content, content2 = sample_data.contents[:2]
         swh_storage.content_add([content, content2])
         dir1, dir2, dir3 = sample_data.directories[:3]
+        dir4 = sample_data.directory7
 
-        dir_ids = [d.id for d in [dir1, dir2, dir3]]
+        dir_ids = [d.id for d in [dir1, dir2, dir3, dir4]]
         init_missing = set(swh_storage.directory_missing(dir_ids))
         assert init_missing == set(dir_ids)
 
-        actual_result = swh_storage.directory_add([dir1, dir2, dir3])
-        assert actual_result == {"directory:add": 3}
+        swh_storage.directory_add(sample_data.directories)
 
         # List directory containing one file
         actual_data = list(swh_storage.directory_ls(dir1.id, recursive=True))
@@ -1218,6 +1236,35 @@ class TestStorage:
 
         for data in actual_data:
             assert data in expected_data
+
+        actual_data = list(swh_storage.directory_ls(dir4.id, recursive=True))
+
+        # List directory containing three levels of sub-directories
+        expected_data = list(
+            itertools.chain(
+                transform_entries(swh_storage, dir4),
+                transform_entries(
+                    swh_storage, sample_data.directory5, prefix=b"subdir1/"
+                ),
+                transform_entries(
+                    swh_storage, sample_data.directory5, prefix=b"subdir2/"
+                ),
+                transform_entries(
+                    swh_storage, sample_data.directory4, prefix=b"subdir3/"
+                ),
+                transform_entries(
+                    swh_storage, sample_data.directory3, prefix=b"subdir3/subdir1/"
+                ),
+                transform_entries(
+                    swh_storage,
+                    sample_data.directory,
+                    prefix=b"subdir3/subdir1/subdir/",
+                ),
+            )
+        )
+
+        for data in actual_data:
+            assert data in expected_data, data
 
     def test_directory_ls_non_recursive(self, swh_storage, sample_data):
         # create consistent dataset regarding the directories we want to list
@@ -1519,6 +1566,57 @@ class TestStorage:
 
         assert swh_storage.revision_get([revision.id]) == [revision]
 
+    def test_revision_add_with_metadata(self, swh_storage, sample_data, caplog):
+        # This test will have to be removed when swh-model actually drops the
+        # metadata field. Using rev2 because the first is masked in
+        # test_proxy_masking, so the test would not pass.
+        revision = sample_data.revision2
+        revision_w_md = attr.evolve(revision, metadata={"foo": "bar"})
+
+        actual_result = swh_storage.revision_add([revision_w_md])
+        assert actual_result == {"revision:add": 1}
+
+        rev_from_storage = swh_storage.revision_get([revision_w_md.id])[0]
+        assert rev_from_storage.metadata is None
+        for record in caplog.records:
+            if (
+                record.getMessage()
+                == "Revision should not have a metadata field any more; it will be ignored"
+            ):
+                assert record.levelname == "WARNING"
+                break
+        else:
+            assert False, "Missing warning about metadata being ignored"
+
+    def test_revision_add_no_seconds_rounding(self, swh_storage, sample_data):
+        revision = sample_data.revision
+
+        # this edge case makes Python produce a timestamp which is offset
+        # by one when converted to a datetime object
+        tstz = TimestampWithTimezone(
+            timestamp=Timestamp(seconds=34359738368, microseconds=999997),
+            offset_bytes=b"+0000",
+        )
+
+        assert int(tstz.to_datetime().timestamp()) != tstz.timestamp.seconds
+
+        revision = attr.evolve(revision, committer_date=tstz)
+        revision = attr.evolve(revision, id=revision.compute_hash())
+        init_missing = swh_storage.revision_missing([revision.id])
+        assert list(init_missing) == [revision.id]
+
+        actual_result = swh_storage.revision_add([revision])
+        assert actual_result == {"revision:add": 1}
+
+        end_missing = swh_storage.revision_missing([revision.id])
+        assert list(end_missing) == []
+
+        assert list(swh_storage.journal_writer.journal.objects) == [
+            ("revision", revision)
+        ]
+
+        assert swh_storage.revision_get([revision.id]) == [revision]
+
     @settings(
         suppress_health_check=[HealthCheck.too_slow, HealthCheck.data_too_large]
         + disabled_health_checks,
@@ -1538,7 +1636,6 @@ class TestStorage:
             attr.evolve(
                 revision,
                 synthetic=False,
-                metadata=None,
                 author=(
                     None
                     if revision.author is None
@@ -1823,8 +1920,6 @@ class TestStorage:
             node = None
             if revision.extra_headers:
                 node = dict(revision.extra_headers).get(b"node")
-            if node is None and revision.metadata:
-                node = hash_to_bytes(revision.metadata.get("node"))
             return node
 
         swhids = [
@@ -2135,7 +2230,6 @@ class TestStorage:
             attr.evolve(
                 release,
                 synthetic=False,
-                metadata=None,
                 author=(
                     Person.from_fullname(release.author.fullname)
                     if release.author
@@ -2149,7 +2243,7 @@ class TestStorage:
         for release in releases:
             (rev,) = swh_storage.release_get([release.id])
             if rev.raw_manifest is None:
-                assert rev == release
+                assert rev == release, (rev, release, releases)
             else:
                 assert rev.raw_manifest == release.raw_manifest
                 # we can't compare the other fields, because they become non-intrinsic,
@@ -2242,7 +2336,7 @@ class TestStorage:
                 author=None,
                 date=None,
                 target=b"\x00" * 20,
-                target_type=ModelObjectType.REVISION,
+                target_type=ReleaseTargetType.REVISION,
                 synthetic=True,
             )
             for i in range(100)
@@ -2916,7 +3010,6 @@ class TestStorage:
             type=ov1.type,
             status="full",
             snapshot=sample_data.snapshot.id,
-            metadata={},
         )
 
         swh_storage.origin_visit_status_add([ovs2, ovs3])
@@ -3539,7 +3632,6 @@ class TestStorage:
             type=ov2.type,
             status="ongoing",
             snapshot=None,
-            metadata={"intrinsic": "something"},
         )
         stats = swh_storage.origin_visit_status_add([visit_status1, visit_status2])
         assert stats == {"origin_visit_status:add": 2}
@@ -3630,6 +3722,54 @@ class TestStorage:
 
         for obj in expected_objects:
             assert obj in actual_objects
+
+    def test_origin_visit_status_add_with_metadata(
+        self, swh_storage, sample_data, caplog
+    ):
+        # this test will have to be removed when swh-model actually drops the metadata field
+        origin = sample_data.origins[1]
+        swh_storage.origin_add([origin])
+
+        (ov,) = swh_storage.origin_visit_add(
+            [
+                OriginVisit(
+                    origin=origin.url,
+                    date=sample_data.date_visit1,
+                    type=sample_data.type_visit1,
+                ),
+            ]
+        )
+
+        ovs = OriginVisitStatus(
+            origin=ov.origin,
+            visit=ov.visit,
+            date=sample_data.date_visit1,
+            type=ov.type,
+            status="created",
+            snapshot=None,
+        )
+        ovs_w_md = attr.evolve(ovs, metadata={"foo": "bar"})
+
+        stats = swh_storage.origin_visit_status_add(
+            [
+                ovs_w_md,
+            ]
+        )
+        assert stats == {"origin_visit_status:add": 1}
+
+        ovs_from_storage = swh_storage.origin_visit_status_get(
+            origin=origin.url, visit=ov.visit
+        ).results[0]
+        assert ovs_from_storage.metadata is None
+        for record in caplog.records:
+            if record.getMessage() == (
+                "OriginVisitStatus should not have a metadata field any more; "
+                "it will be ignored"
+            ):
+                assert record.levelname == "WARNING"
+                break
+        else:
+            assert False, "Missing warning about metadata being ignored"
 
     def _setup_origin_visit_tests_data(self, swh_storage, sample_data):
         origin = sample_data.origin
@@ -3786,12 +3926,6 @@ class TestStorage:
         )
         swh_storage.origin_visit_add([visit2, visit3])
 
-        # when
-        visit1_metadata = {
-            "contents": 42,
-            "directories": 22,
-        }
-
         swh_storage.origin_visit_status_add(
             [
                 OriginVisitStatus(
@@ -3800,7 +3934,6 @@ class TestStorage:
                     date=now(),
                     status="full",
                     snapshot=snapshot.id,
-                    metadata=visit1_metadata,
                 )
             ]
         )
@@ -4134,7 +4267,7 @@ class TestStorage:
         origin = sample_data.origin
         swh_storage.origin_add([origin])
 
-        (date1, date2, date3, date4) = [
+        date1, date2, date3, date4 = [
             datetime.datetime(2021, 8, i, tzinfo=datetime.timezone.utc)
             for i in range(1, 5)
         ]
@@ -4278,7 +4411,6 @@ class TestStorage:
             type=ov2.type,
             status="full",
             snapshot=snapshot.id,
-            metadata={"something": "wicked"},
         )
 
         swh_storage.origin_visit_status_add([ovs1, ovs2, ovs3, ovs4])
@@ -4397,7 +4529,6 @@ class TestStorage:
                 "visit": ov1.visit,
                 "status": "created",
                 "snapshot": None,
-                "metadata": None,
             }
         )
         ovs2 = OriginVisitStatus.from_dict(
@@ -4407,7 +4538,6 @@ class TestStorage:
                 "type": ov1.type,
                 "visit": ov1.visit,
                 "status": "full",
-                "metadata": None,
                 "snapshot": empty_snapshot.id,
             }
         )
@@ -4585,19 +4715,19 @@ class TestStorage:
             branches={
                 b"\xaa\xff": SnapshotBranch(
                     target=sample_data.revision.id,
-                    target_type=TargetType.REVISION,
+                    target_type=SnapshotTargetType.REVISION,
                 ),
                 b"\xaa\xff\x00": SnapshotBranch(
                     target=sample_data.revision.id,
-                    target_type=TargetType.REVISION,
+                    target_type=SnapshotTargetType.REVISION,
                 ),
                 b"\xff\xff": SnapshotBranch(
                     target=sample_data.release.id,
-                    target_type=TargetType.RELEASE,
+                    target_type=SnapshotTargetType.RELEASE,
                 ),
                 b"\xff\xff\x00": SnapshotBranch(
                     target=sample_data.release.id,
-                    target_type=TargetType.RELEASE,
+                    target_type=SnapshotTargetType.RELEASE,
                 ),
                 b"dangling": None,
             },
@@ -4700,7 +4830,9 @@ class TestStorage:
             "branches": {
                 name: tgt
                 for name, tgt in branches.items()
-                if tgt and tgt.target_type in [TargetType.RELEASE, TargetType.REVISION]
+                if tgt
+                and tgt.target_type
+                in [SnapshotTargetType.RELEASE, SnapshotTargetType.REVISION]
             },
             "next_branch": None,
         }
@@ -4714,7 +4846,7 @@ class TestStorage:
             "branches": {
                 name: tgt
                 for name, tgt in branches.items()
-                if tgt and tgt.target_type == TargetType.ALIAS
+                if tgt and tgt.target_type == SnapshotTargetType.ALIAS
             },
             "next_branch": None,
         }
@@ -4829,36 +4961,36 @@ class TestStorage:
             branches={
                 b"refs/heads/master": SnapshotBranch(
                     target=sample_data.revision.id,
-                    target_type=TargetType.REVISION,
+                    target_type=SnapshotTargetType.REVISION,
                 ),
                 b"refs/heads/incoming": SnapshotBranch(
                     target=sample_data.revision.id,
-                    target_type=TargetType.REVISION,
+                    target_type=SnapshotTargetType.REVISION,
                 ),
                 b"refs/pull/1": SnapshotBranch(
                     target=sample_data.revision.id,
-                    target_type=TargetType.REVISION,
+                    target_type=SnapshotTargetType.REVISION,
                 ),
                 b"refs/pull/2": SnapshotBranch(
                     target=sample_data.revision.id,
-                    target_type=TargetType.REVISION,
+                    target_type=SnapshotTargetType.REVISION,
                 ),
                 b"dangling": None,
                 b"\xaa\xff": SnapshotBranch(
                     target=sample_data.revision.id,
-                    target_type=TargetType.REVISION,
+                    target_type=SnapshotTargetType.REVISION,
                 ),
                 b"\xaa\xff\x00": SnapshotBranch(
                     target=sample_data.revision.id,
-                    target_type=TargetType.REVISION,
+                    target_type=SnapshotTargetType.REVISION,
                 ),
                 b"\xff\xff": SnapshotBranch(
                     target=sample_data.revision.id,
-                    target_type=TargetType.REVISION,
+                    target_type=SnapshotTargetType.REVISION,
                 ),
                 b"\xff\xff\x00": SnapshotBranch(
                     target=sample_data.revision.id,
-                    target_type=TargetType.REVISION,
+                    target_type=SnapshotTargetType.REVISION,
                 ),
             },
         )
@@ -4900,19 +5032,19 @@ class TestStorage:
         for i in range(nb_branches_by_target_type):
             branches[f"branch/directory/bar{i}".encode()] = SnapshotBranch(
                 target=sample_data.directory.id,
-                target_type=TargetType.DIRECTORY,
+                target_type=SnapshotTargetType.DIRECTORY,
             )
             branches[f"branch/revision/bar{i}".encode()] = SnapshotBranch(
                 target=sample_data.revision.id,
-                target_type=TargetType.REVISION,
+                target_type=SnapshotTargetType.REVISION,
             )
             branches[f"branch/directory/{pattern}{i}".encode()] = SnapshotBranch(
                 target=sample_data.directory.id,
-                target_type=TargetType.DIRECTORY,
+                target_type=SnapshotTargetType.DIRECTORY,
             )
             branches[f"branch/revision/{pattern}{i}".encode()] = SnapshotBranch(
                 target=sample_data.revision.id,
-                target_type=TargetType.REVISION,
+                target_type=SnapshotTargetType.REVISION,
             )
 
         snapshot = Snapshot(branches=branches)
@@ -4921,8 +5053,8 @@ class TestStorage:
         branches_count = nb_branches_by_target_type // 2
 
         for target_type in (
-            TargetType.DIRECTORY,
-            TargetType.REVISION,
+            SnapshotTargetType.DIRECTORY,
+            SnapshotTargetType.REVISION,
         ):
             target_type_str = target_type.value
             partial_branches = swh_storage.snapshot_get_branches(
@@ -4967,7 +5099,7 @@ class TestStorage:
             branches={
                 b"refs/heads/master": SnapshotBranch(
                     target=sample_data.revision.id,
-                    target_type=TargetType.REVISION,
+                    target_type=SnapshotTargetType.REVISION,
                 ),
             },
         )
@@ -4987,16 +5119,16 @@ class TestStorage:
         for i in range(n):
             branches[f"refs/heads/head{i:02d}".encode()] = SnapshotBranch(
                 target=sample_data.revision.id,
-                target_type=TargetType.REVISION,
+                target_type=SnapshotTargetType.REVISION,
             )
             branches[f"refs/tags/tag{i:02d}".encode()] = SnapshotBranch(
                 target=sample_data.release.id,
-                target_type=TargetType.RELEASE,
+                target_type=SnapshotTargetType.RELEASE,
             )
         for i in range(n):
-            branches[f"refs/tags/tag{n+i:02d}".encode()] = SnapshotBranch(
+            branches[f"refs/tags/tag{n + i:02d}".encode()] = SnapshotBranch(
                 target=sample_data.release.id,
-                target_type=TargetType.RELEASE,
+                target_type=SnapshotTargetType.RELEASE,
             )
 
         snapshot = Snapshot(branches=branches)
@@ -5008,7 +5140,7 @@ class TestStorage:
 
         assert len(partial_branches["branches"]) == n
         assert all(
-            branch.target_type == TargetType.RELEASE
+            branch.target_type == SnapshotTargetType.RELEASE
             for branch in partial_branches["branches"].values()
         )
         assert partial_branches["next_branch"] == b"refs/tags/tag20"
@@ -5020,15 +5152,15 @@ class TestStorage:
             branches={
                 b"refs/pulls/pull0": SnapshotBranch(
                     target=sample_data.revision.id,
-                    target_type=TargetType.REVISION,
+                    target_type=SnapshotTargetType.REVISION,
                 ),
                 b"refs/tags/tag00": SnapshotBranch(
                     target=sample_data.release.id,
-                    target_type=TargetType.RELEASE,
+                    target_type=SnapshotTargetType.RELEASE,
                 ),
                 b"refs/tags/tag01": SnapshotBranch(
                     target=sample_data.release.id,
-                    target_type=TargetType.RELEASE,
+                    target_type=SnapshotTargetType.RELEASE,
                 ),
             }
         )
@@ -5100,7 +5232,7 @@ class TestStorage:
                 branches={
                     f"branch{i}".encode(): SnapshotBranch(
                         target=b"\x00" * 20,
-                        target_type=TargetType.REVISION,
+                        target_type=SnapshotTargetType.REVISION,
                     ),
                 },
             )
@@ -5226,11 +5358,11 @@ class TestStorage:
             branches={
                 b"HEAD1": SnapshotBranch(
                     target=b"HEAD2",
-                    target_type=TargetType.ALIAS,
+                    target_type=SnapshotTargetType.ALIAS,
                 ),
                 b"HEAD2": SnapshotBranch(
                     target=b"HEAD1",
-                    target_type=TargetType.ALIAS,
+                    target_type=SnapshotTargetType.ALIAS,
                 ),
             },
         )
@@ -5250,19 +5382,19 @@ class TestStorage:
             branches={
                 b"first": SnapshotBranch(
                     target=b"second",
-                    target_type=TargetType.ALIAS,
+                    target_type=SnapshotTargetType.ALIAS,
                 ),
                 b"second": SnapshotBranch(
                     target=b"third",
-                    target_type=TargetType.ALIAS,
+                    target_type=SnapshotTargetType.ALIAS,
                 ),
                 b"third": SnapshotBranch(
                     target=b"forth",
-                    target_type=TargetType.ALIAS,
+                    target_type=SnapshotTargetType.ALIAS,
                 ),
                 b"forth": SnapshotBranch(
                     target=b"revision",
-                    target_type=TargetType.ALIAS,
+                    target_type=SnapshotTargetType.ALIAS,
                 ),
             },
         )
@@ -6257,6 +6389,9 @@ class TestStorage:
             ]
         ) == {"object_reference:add": 1}
 
+        refs = swh_storage.object_find_recent_references(target_swhid=target, limit=10)
+        assert refs == [source]
+
     def test_object_references_add_twice(self, swh_storage):
         """Ensure adding the same reference twice does not crash"""
         source = ExtendedSWHID.from_string(f"swh:1:dir:{0:040x}")
@@ -6270,17 +6405,135 @@ class TestStorage:
             [ObjectReference(source=source, target=target)]
         ) == {"object_reference:add": 1}
 
+        refs = swh_storage.object_find_recent_references(target_swhid=target, limit=10)
+        assert refs == [source]
+
+    def test_object_references_create_and_list_partition(
+        self, swh_storage, swh_storage_backend
+    ):
+        swh_storage_backend.object_references_create_partition(year=2020, week=6)
+        partitions = swh_storage_backend.object_references_list_partitions()
+
+        # We get a partition for this week initialized by the pytest plugin when
+        # creating the swh_storage instance
+        assert len(partitions) == 2, partitions
+        assert partitions[0].table_name == "object_references_2020w06", partitions
+        assert partitions[0].year == 2020
+        assert partitions[0].week == 6
+        assert partitions[0].start == datetime.date.fromisoformat("2020-02-03")
+        assert partitions[0].end == datetime.date.fromisoformat("2020-02-10")
+        this_year, this_week = datetime.date.today().isocalendar()[0:2]
+        assert (
+            partitions[1].table_name
+            == f"object_references_{this_year:04d}w{this_week:02d}"
+        )
+        assert partitions[1].year == this_year
+        assert partitions[1].week == this_week
+
+    def test_object_references_add_to_missing_partition(
+        self, swh_storage, swh_storage_backend
+    ):
+        """Ensure adding the same reference twice does not crash"""
+        source = ExtendedSWHID.from_string(f"swh:1:dir:{0:040x}")
+        target = ExtendedSWHID.from_string(f"swh:1:cnt:{1:040x}")
+
+        partitions = swh_storage_backend.object_references_list_partitions()
+        assert len(partitions) == 1
+        swh_storage_backend.object_references_drop_partition(partitions[0])
+
+        # insert reference (while in the past)
+
+        with pytest.raises(NonRetryableException):
+            swh_storage.object_references_add(
+                [ObjectReference(source=source, target=target)]
+            )
+
+    def test_object_references_drop_partition(self, swh_storage, swh_storage_backend):
+        """Ensure adding the same reference twice does not crash"""
+        source1 = ExtendedSWHID.from_string(f"swh:1:dir:{0:040x}")
+        source2 = ExtendedSWHID.from_string(f"swh:1:dir:{1:040x}")
+        target = ExtendedSWHID.from_string(f"swh:1:cnt:{2:040x}")
+
+        swh_storage_backend.object_references_create_partition(year=2020, week=6)
+
+        # move time backward to 2020-02-06
+
+        if isinstance(swh_storage_backend, PostgreSQLStorage):
+
+            @contextmanager
+            def in_the_past():
+                with db_transaction(swh_storage_backend) as (db, cur):
+                    cur.execute("""
+                        ALTER TABLE object_references
+                            ALTER COLUMN insertion_date
+                            SET DEFAULT '2020-02-06'
+                        """)
+
+                try:
+                    yield
+                finally:
+                    with db_transaction(swh_storage_backend) as (db, cur):
+                        cur.execute("""
+                            ALTER TABLE object_references
+                                ALTER COLUMN insertion_date
+                                SET DEFAULT now()
+                            """)
+
+        elif isinstance(swh_storage_backend, CassandraStorage):
+
+            @contextmanager
+            def in_the_past():
+                with patch(
+                    "time.time",
+                    return_value=datetime.datetime.fromisoformat(
+                        "2020-02-06 10:10:10"
+                    ).timestamp(),
+                ):
+                    yield
+
+        else:
+            raise Exception(f"Unknown storage backend: {swh_storage_backend}")
+
+        # insert reference (while in the past)
+        with in_the_past():
+            assert swh_storage.object_references_add(
+                [ObjectReference(source=source1, target=target)]
+            ) == {"object_reference:add": 1}
+
+        # insert reference (today)
+        assert swh_storage.object_references_add(
+            [ObjectReference(source=source2, target=target)]
+        ) == {"object_reference:add": 1}
+
+        # check both are recorded
+        refs = swh_storage.object_find_recent_references(target_swhid=target, limit=10)
+        assert refs == [source1, source2]
+
+        # drop partition
+        partitions = swh_storage_backend.object_references_list_partitions()
+        assert len(partitions) == 2, partitions
+        assert partitions[0].table_name == "object_references_2020w06", partitions
+        assert partitions[0].year == 2020
+        assert partitions[0].week == 6
+        swh_storage_backend.object_references_drop_partition(partitions[0])
+        partitions = swh_storage_backend.object_references_list_partitions()
+        assert len(partitions) == 1, partitions
+
+        # check the old reference was dropped along with the partition
+        refs = swh_storage.object_find_recent_references(target_swhid=target, limit=10)
+        assert refs == [source2], refs
+
     def test_querytimeout(self, swh_storage, sample_data, mocker):
         origin_url = "https://example.org/"
 
         message = "too slow!"
         mocker.patch(
             "swh.storage.postgresql.db.Db.origin_visit_get_latest",
-            side_effect=psycopg2.errors.QueryCanceled(message),
+            side_effect=psycopg.errors.QueryCanceled(message),
         )
         mocker.patch(
             "swh.storage.postgresql.db.Db.revision_missing_from_list",
-            side_effect=psycopg2.errors.QueryCanceled(message),
+            side_effect=psycopg.errors.QueryCanceled(message),
         )
         mocker.patch(
             "swh.storage.cassandra.cql.CqlRunner._execute_with_retries_inner",
@@ -6291,13 +6544,166 @@ class TestStorage:
             side_effect=cassandra.ReadTimeout(message),
         )
 
-        # db_transaction on postgres, _execute_with_retries on cassandra
+        # db_transaction on postgres, execute_with_retries on cassandra
         with pytest.raises(QueryTimeout, match=message):
             swh_storage.origin_visit_get_latest(origin_url, require_snapshot=True)
 
         # db_transaction_generator on postgres, _execute_many_with_retries on cassandra
         with pytest.raises(QueryTimeout, match=message):
             list(swh_storage.revision_missing([b"\x00" * 20]))
+
+
+class TestStorageDeletion:
+    """Main class for Storage deletion testing.
+
+    This class is used as-is to test cassandra, in-memory, and postgresql storages.
+    """
+
+    def _affected_tables(self) -> List[str]:
+        """Returns the list of tables affected by deletion"""
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not implement _affected_tables"
+        )
+
+    def _count_from_table(self, swh_storage_backend, table: str) -> int:
+        """Returns the number of rows in the given table"""
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not implement _count_from_table"
+        )
+
+    def test_object_delete(self, swh_storage, swh_storage_backend, sample_data):
+        swh_storage.content_add(sample_data.contents)
+        swh_storage.skipped_content_add(sample_data.skipped_contents)
+        swh_storage.directory_add(sample_data.directories)
+        swh_storage.revision_add(sample_data.revisions)
+        swh_storage.release_add(sample_data.releases)
+        swh_storage.snapshot_add(sample_data.snapshots)
+        swh_storage.origin_add(sample_data.origins)
+        swh_storage.origin_visit_add(sample_data.origin_visits)
+        swh_storage.origin_visit_status_add(sample_data.origin_visit_statuses)
+        swh_storage.metadata_authority_add(sample_data.authorities)
+        swh_storage.metadata_fetcher_add(sample_data.fetchers)
+        swh_storage.raw_extrinsic_metadata_add(sample_data.content_metadata)
+        swh_storage.raw_extrinsic_metadata_add(sample_data.origin_metadata)
+        swhids = (
+            [content.swhid().to_extended() for content in sample_data.contents]
+            + [
+                skipped_content.swhid().to_extended()
+                for skipped_content in sample_data.skipped_contents
+            ]
+            + [directory.swhid().to_extended() for directory in sample_data.directories]
+            + [revision.swhid().to_extended() for revision in sample_data.revisions]
+            + [release.swhid().to_extended() for release in sample_data.releases]
+            + [snapshot.swhid().to_extended() for snapshot in sample_data.snapshots]
+            + [origin.swhid() for origin in sample_data.origins]
+            + [emd.swhid() for emd in sample_data.content_metadata]
+            + [emd.swhid() for emd in sample_data.origin_metadata]
+        )
+
+        # Ensure we properly loaded our data
+        for table in self._affected_tables():
+            assert (
+                self._count_from_table(swh_storage_backend, table) >= 1
+            ), f"{table} is not populated"
+
+        result = swh_storage.object_delete(swhids)
+        assert result == {
+            "content:delete": 3,
+            "content:delete:bytes": 0,
+            "skipped_content:delete": 2,
+            "directory:delete": 7,
+            "release:delete": 3,
+            "revision:delete": 8,
+            "snapshot:delete": 3,
+            "origin:delete": 7,
+            "origin_visit:delete": 3,
+            "origin_visit_status:delete": 3,
+            "cnt_metadata:delete": 3,
+            "ori_metadata:delete": 3,
+        }, result
+
+        # Ensure we properly removed our data
+        for table in self._affected_tables():
+            assert (
+                self._count_from_table(swh_storage_backend, table) == 0
+            ), f"something in table {table}"
+
+    def test_extid_delete_for_target(self, swh_storage, sample_data):
+        swh_storage.revision_add([sample_data.revision, sample_data.hg_revision])
+        swh_storage.directory_add([sample_data.directory, sample_data.directory2])
+        extid_for_same_target = ExtID(
+            target=CoreSWHID(
+                object_type=ObjectType.REVISION, object_id=sample_data.revision.id
+            ),
+            extid_type="drink_some",
+            extid=bytes.fromhex("c0ffee"),
+        )
+        result = swh_storage.extid_add(sample_data.extids + (extid_for_same_target,))
+        assert result == {"extid:add": 5}
+
+        result = swh_storage.extid_delete_for_target(
+            [sample_data.revision.swhid(), sample_data.directory2.swhid()]
+        )
+        assert result == {"extid:delete": 3}
+
+        extids = swh_storage.extid_get_from_target(
+            target_type=ObjectType.REVISION, ids=[sample_data.hg_revision.id]
+        )
+        assert extids == [sample_data.extid2]
+        extids = swh_storage.extid_get_from_target(
+            target_type=ObjectType.DIRECTORY, ids=[sample_data.directory.id]
+        )
+        assert extids == [sample_data.extid3]
+
+        result = swh_storage.extid_delete_for_target(
+            [sample_data.hg_revision.swhid(), sample_data.directory.swhid()]
+        )
+        assert result == {"extid:delete": 2}
+
+    def test_delete_snapshot_common_branches(self, swh_storage):
+        common_branches = {
+            b"branch1": {"target": bytes(20), "target_type": "revision"},
+            b"branch2": {"target": bytes(20), "target_type": "release"},
+        }
+
+        snapshot1 = Snapshot.from_dict(
+            {
+                "branches": {
+                    **common_branches,
+                }
+            }
+        )
+        snapshot2 = Snapshot.from_dict(
+            {
+                "branches": {
+                    **common_branches,
+                    b"branch3": {"target": bytes(20), "target_type": "content"},
+                }
+            }
+        )
+
+        swh_storage.snapshot_add([snapshot1, snapshot2])
+
+        assert snapshot1 == snapshot_get_all_branches(swh_storage, snapshot1.id)
+        assert snapshot2 == snapshot_get_all_branches(swh_storage, snapshot2.id)
+
+        result = swh_storage.object_delete([snapshot2.swhid().to_extended()])
+
+        assert result == {
+            "content:delete": 0,
+            "content:delete:bytes": 0,
+            "skipped_content:delete": 0,
+            "directory:delete": 0,
+            "release:delete": 0,
+            "revision:delete": 0,
+            "snapshot:delete": 1,
+            "origin:delete": 0,
+            "origin_visit:delete": 0,
+            "origin_visit_status:delete": 0,
+        }, result
+
+        assert snapshot1 == snapshot_get_all_branches(swh_storage, snapshot1.id)
+        assert snapshot_get_all_branches(swh_storage, snapshot2.id) is None
 
 
 class TestStorageGeneratedData:
@@ -6448,7 +6854,7 @@ class TestStorageGeneratedData:
         random.shuffle(objects)
 
         for obj_type, obj in objects:
-            if obj.object_type == "origin_visit":
+            if obj_type == OriginVisit.object_type:
                 swh_storage.origin_add([Origin(url=obj.origin)])
                 visit = OriginVisit(
                     origin=obj.origin,
@@ -6456,12 +6862,12 @@ class TestStorageGeneratedData:
                     type=obj.type,
                 )
                 swh_storage.origin_visit_add([visit])
-            elif obj.object_type == "raw_extrinsic_metadata":
+            elif obj_type == RawExtrinsicMetadata.object_type:
                 swh_storage.metadata_authority_add([obj.authority])
                 swh_storage.metadata_fetcher_add([obj.fetcher])
                 swh_storage.raw_extrinsic_metadata_add([obj])
             else:
-                method = getattr(swh_storage, obj_type + "_add")
+                method = getattr(swh_storage, f"{obj_type}_add")
                 try:
                     method([obj])
                 except HashCollision:

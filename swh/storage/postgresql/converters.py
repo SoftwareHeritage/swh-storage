@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2021  The Software Heritage developers
+# Copyright (C) 2015-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -118,7 +118,9 @@ def db_to_date(
     return TimestampWithTimezone(
         timestamp=Timestamp(
             # we use floor() instead of int() to round down, because of negative dates
-            seconds=math.floor(date.timestamp()),
+            # we also remove microseconds to avoid Python producing a timestamp offset
+            # by one for very particular edge case datetimes
+            seconds=math.floor(date.replace(microsecond=0).timestamp()),
             microseconds=date.microsecond,
         ),
         offset_bytes=offset_bytes,
@@ -185,7 +187,6 @@ def revision_to_db(revision: Revision) -> Dict[str, Any]:
         "type": revision.type.value,
         "directory": revision.directory,
         "message": revision.message,
-        "metadata": None if revision.metadata is None else dict(revision.metadata),
         "synthetic": revision.synthetic,
         "extra_headers": revision.extra_headers,
         "raw_manifest": revision.raw_manifest,
@@ -251,14 +252,7 @@ def db_to_revision(db_revision: Dict[str, Any]) -> Revision:
             if parent:
                 parents.append(parent)
 
-    metadata = db_revision["metadata"]
     extra_headers = db_revision["extra_headers"]
-    if not extra_headers:
-        if metadata and "extra_headers" in metadata:
-            extra_headers = db_to_git_headers(metadata.pop("extra_headers"))
-        else:
-            # For older versions of the database that were not migrated to schema v161
-            extra_headers = ()
 
     return Revision(
         id=db_revision["id"],
@@ -269,7 +263,6 @@ def db_to_revision(db_revision: Dict[str, Any]) -> Revision:
         type=RevisionType(db_revision["type"]),
         directory=db_revision["directory"],
         message=db_revision["message"],
-        metadata=metadata,
         synthetic=db_revision["synthetic"],
         extra_headers=extra_headers,
         parents=tuple(parents),

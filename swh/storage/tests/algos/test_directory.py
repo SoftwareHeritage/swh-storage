@@ -1,4 +1,4 @@
-# Copyright (C) 2023 The Software Heritage developers
+# Copyright (C) 2023-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -18,7 +18,13 @@ from swh.storage.algos.directory import (
 from ..storage_data import StorageData
 
 
-@pytest.mark.parametrize("directory_id", [d.id for d in StorageData.directories])
+@pytest.mark.parametrize(
+    "directory_id",
+    [
+        pytest.param(d.id, id=f"swh:dir:1:{d.id.hex()}")
+        for i, d in enumerate(StorageData.directories)
+    ],
+)
 def test_directory_small(swh_storage, directory_id):
     swh_storage.directory_add(StorageData.directories)
 
@@ -129,7 +135,7 @@ def test_directories_large(swh_storage):
         directory_get_many(swh_storage, [expected_directory.id, b"\x42" * 20])
     )
 
-    (returned_directory, none) = returned_directories
+    returned_directory, none = returned_directories
     assert none is None
 
     assert returned_directory.id == expected_directory.id
@@ -175,7 +181,7 @@ def test_directories_duplicate_entries(swh_storage, allow_duplicated_entries):
     with db.conn.cursor() as cur:
         cur.execute("select id, dir_entries, file_entries, raw_manifest from directory")
         (row,) = cur
-        (id_, (dir_entry,), (file_entry,), raw_manifest) = row
+        id_, (dir_entry,), (file_entry,), raw_manifest = row
         assert id_ == invalid_directory.id
         assert raw_manifest is None
         cur.execute("select id, name, target from directory_entry_dir")

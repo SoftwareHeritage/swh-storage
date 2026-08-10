@@ -1,16 +1,28 @@
-# Copyright (C) 2020-2024 The Software Heritage developers
+# Copyright (C) 2020-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 from collections import Counter
 from contextlib import contextmanager
+import functools
+import logging
+import random
 from unittest.mock import patch
 
 import attr
 import pytest
 
-from swh.model import model
+import swh.core.config
+from swh.model.model import (
+    Content,
+    Directory,
+    Origin,
+    Release,
+    Revision,
+    SkippedContent,
+    Snapshot,
+)
 from swh.model.tests.swh_model_data import TEST_OBJECTS
 from swh.storage import get_storage
 from swh.storage.in_memory import InMemoryStorage
@@ -144,9 +156,9 @@ testdata = [
     pytest.param(
         "content",
         "content_add",
-        list(TEST_OBJECTS["content"]),
-        attr.evolve(model.Content.from_data(data=b"too big"), length=1000),
-        attr.evolve(model.Content.from_data(data=b"to fail"), length=1000),
+        list(TEST_OBJECTS[Content.object_type]),
+        attr.evolve(Content.from_data(data=b"too big"), length=1000),
+        attr.evolve(Content.from_data(data=b"to fail"), length=1000),
         id="content",
     ),
     pytest.param(
@@ -154,23 +166,23 @@ testdata = [
         "content_add_metadata",
         [
             attr.evolve(cnt, ctime=now())
-            for cnt in TEST_OBJECTS["content"]
-            if isinstance(cnt, model.Content)  # to keep mypy happy
+            for cnt in TEST_OBJECTS[Content.object_type]
+            if isinstance(cnt, Content)  # to keep mypy happy
         ],
-        attr.evolve(model.Content.from_data(data=b"too big"), length=1000, ctime=now()),
-        attr.evolve(model.Content.from_data(data=b"to fail"), length=1000, ctime=now()),
+        attr.evolve(Content.from_data(data=b"too big"), length=1000, ctime=now()),
+        attr.evolve(Content.from_data(data=b"to fail"), length=1000, ctime=now()),
         id="content_metadata",
     ),
     pytest.param(
         "skipped_content",
         "skipped_content_add",
-        list(TEST_OBJECTS["skipped_content"]),
+        list(TEST_OBJECTS[SkippedContent.object_type]),
         attr.evolve(
-            model.SkippedContent.from_data(data=b"too big", reason="too big"),
+            SkippedContent.from_data(data=b"too big", reason="too big"),
             length=1000,
         ),
         attr.evolve(
-            model.SkippedContent.from_data(data=b"to fail", reason="to fail"),
+            SkippedContent.from_data(data=b"to fail", reason="to fail"),
             length=1000,
         ),
         id="skipped_content",
@@ -178,7 +190,7 @@ testdata = [
     pytest.param(
         "directory",
         "directory_add",
-        list(TEST_OBJECTS["directory"]),
+        list(TEST_OBJECTS[Directory.object_type]),
         data.directory,
         data.directory2,
         id="directory",
@@ -186,7 +198,7 @@ testdata = [
     pytest.param(
         "revision",
         "revision_add",
-        list(TEST_OBJECTS["revision"]),
+        list(TEST_OBJECTS[Revision.object_type]),
         data.revision,
         data.revision2,
         id="revision",
@@ -194,7 +206,7 @@ testdata = [
     pytest.param(
         "release",
         "release_add",
-        list(TEST_OBJECTS["release"]),
+        list(TEST_OBJECTS[Release.object_type]),
         data.release,
         data.release2,
         id="release",
@@ -202,7 +214,7 @@ testdata = [
     pytest.param(
         "snapshot",
         "snapshot_add",
-        list(TEST_OBJECTS["snapshot"]),
+        list(TEST_OBJECTS[Snapshot.object_type]),
         data.snapshot,
         data.complete_snapshot,
         id="snapshot",
@@ -210,7 +222,7 @@ testdata = [
     pytest.param(
         "origin",
         "origin_add",
-        list(TEST_OBJECTS["origin"]),
+        list(TEST_OBJECTS[Origin.object_type]),
         data.origin,
         data.origin2,
         id="origin",
@@ -266,7 +278,23 @@ class LimitedInMemoryStorage(InMemoryStorage):
         return add_func(objects)
 
 
-@patch("swh.storage.in_memory.InMemoryStorage", LimitedInMemoryStorage)
+def with_limited_inmemory_storage(f):
+    """Monkey-patches ``swh.storage.in_memory.InMemoryStorage`` to return
+    :class:`LimitedInMemoryStorage`."""
+
+    @functools.wraps(f)
+    def newf(*args, **kwargs):
+        try:
+            with patch("swh.storage.in_memory.InMemoryStorage", LimitedInMemoryStorage):
+                swh.core.config.get_swh_backend_module.cache_clear()
+                swh.core.config.get_swh_backend_from_fullmodule.cache_clear()
+                return f(*args, **kwargs)
+        finally:
+            swh.core.config.get_swh_backend_module.cache_clear()
+            swh.core.config.get_swh_backend_from_fullmodule.cache_clear()
+
+
+@with_limited_inmemory_storage
 @pytest.mark.parametrize("object_type, add_func_name, objects, bad1, bad2", testdata)
 def test_tenacious_proxy_storage(object_type, add_func_name, objects, bad1, bad2):
     storage = get_tenacious_storage()
@@ -374,7 +402,7 @@ def test_tenacious_proxy_storage(object_type, add_func_name, objects, bad1, bad2
     tenacious.reset()
 
 
-@patch("swh.storage.in_memory.InMemoryStorage", LimitedInMemoryStorage)
+@with_limited_inmemory_storage
 @pytest.mark.parametrize("object_type, add_func_name, objects, bad1, bad2", testdata)
 def test_tenacious_proxy_storage_rate_limit(
     object_type, add_func_name, objects, bad1, bad2
@@ -436,3 +464,41 @@ def test_tenacious_proxy_storage_rate_limit(
         assert s.get(f"{object_type}:add:errors", 0) == 2
         in_memory.reset()
         tenacious.reset()
+
+
+def test_tenacious_proxy_storage_handle_hashcollisions(
+    swh_storage_postgresql_backend_config,
+    caplog,
+):
+    # we cannot easily use the in-memory backend here (aka a Cassandra storage
+    # using an in-memory cql backend) because it won't give reliable stats
+    # results, due to its non-atomic nature.
+    storage_config = {
+        "cls": "pipeline",
+        "steps": [
+            {"cls": "tenacious"},
+            swh_storage_postgresql_backend_config,
+        ],
+    }
+    caplog.set_level(logging.INFO, "swh.storage.proxies.tenacious")
+
+    storage = get_storage(**storage_config)
+
+    contents = [
+        attr.evolve(cnt, ctime=now()) for cnt in TEST_OBJECTS[Content.object_type]
+    ]
+    bad_contents = [attr.evolve(cnt, sha256=b"\x00" * 32) for cnt in contents]
+    # only collide on the last 3 contents of the list
+    insert_contents = contents + bad_contents[:3]
+    random.shuffle(insert_contents)
+
+    s = storage.content_add_metadata(insert_contents)
+    assert s == {"content:add": len(insert_contents)}
+
+    s = storage.content_add_metadata(contents)
+    # All duplicates, no insertions
+    assert s == {"content:add": 0}
+
+    s = storage.content_add_metadata(bad_contents)
+    # Three contents were already inserted
+    assert s == {"content:add": 17}

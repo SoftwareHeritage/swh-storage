@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2022 The Software Heritage developers
+# Copyright (C) 2019-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -10,8 +10,23 @@ from unittest.mock import patch
 import attr
 import pytest
 
-from swh.journal.client import JournalClient
-from swh.model.model import Directory, DirectoryEntry
+from swh.journal.client import EofBehavior, JournalClient
+from swh.model.model import (
+    Content,
+    Directory,
+    DirectoryEntry,
+    ExtID,
+    MetadataAuthority,
+    MetadataFetcher,
+    Origin,
+    OriginVisit,
+    OriginVisitStatus,
+    RawExtrinsicMetadata,
+    Release,
+    Revision,
+    SkippedContent,
+    Snapshot,
+)
 from swh.model.tests.swh_model_data import TEST_OBJECTS
 from swh.storage import get_storage
 from swh.storage.backfill import (
@@ -60,7 +75,8 @@ def test_config_ko_unknown_object_type():
 
     error = (
         "Object type unknown-object-type is not supported. "
-        "The only possible values are %s" % (", ".join(sorted(PARTITION_KEY)))
+        "The only possible values are %s"
+        % (", ".join(sorted(pk.value for pk in PARTITION_KEY)))
     )
     assert e.value.args[0] == error
 
@@ -80,15 +96,12 @@ def test_compute_query_content():
         "ctime",
     ]
 
-    assert (
-        query
-        == """
+    assert query == """
 select sha1,sha1_git,sha256,blake2s256,length,status,ctime
 from content
 
 where (sha1) >= %s and (sha1) < %s
     """
-    )
 
 
 def test_compute_query_skipped_content():
@@ -107,15 +120,12 @@ def test_compute_query_skipped_content():
         "reason",
     ]
 
-    assert (
-        query
-        == """
+    assert query == """
 select sha1,sha1_git,sha256,blake2s256,length,ctime,status,reason
 from skipped_content
 
 
     """
-    )
 
 
 def test_compute_query_origin_visit():
@@ -130,15 +140,12 @@ def test_compute_query_origin_visit():
         "date",
     ]
 
-    assert (
-        query
-        == """
+    assert query == """
 select visit,type,origin.url as origin,date
 from origin_visit
 left join origin on origin_visit.origin=origin.id
 where (origin_visit.origin) >= %s and (origin_visit.origin) < %s
     """
-    )
 
 
 def test_compute_query_release():
@@ -162,15 +169,12 @@ def test_compute_query_release():
         "raw_manifest",
     ]
 
-    assert (
-        query
-        == """
+    assert query == """
 select release.id as id,date,date_offset_bytes,comment,release.name as name,synthetic,target,target_type,a.id as author_id,a.name as author_name,a.email as author_email,a.fullname as author_fullname,raw_manifest
 from release
 left join person a on release.author=a.id
 where (release.id) >= %s and (release.id) < %s
     """  # noqa
-    )
 
 
 @pytest.mark.parametrize("numbits", [2, 3, 8, 16])
@@ -222,16 +226,18 @@ def test_range_generators_skipped_content():
         ("0" * 40, "0" + "f" * 39),
         ("1" + "0" * 39, "1" + "f" * 39),
     ]:
-        assert _peek(RANGE_GENERATORS["skipped_content"](start, end)) == [(None, None)]
+        assert _peek(RANGE_GENERATORS[SkippedContent.object_type](start, end)) == [
+            (None, None)
+        ]
 
 
 @pytest.mark.parametrize(
     "type_",
     [
-        "content",
-        "directory",
-        "extid",
-        "revision",
+        Content.object_type,
+        Directory.object_type,
+        ExtID.object_type,
+        Revision.object_type,
     ],
 )
 def test_range_generators__long_bytes(type_):
@@ -260,8 +266,8 @@ def test_range_generators__long_bytes(type_):
 @pytest.mark.parametrize(
     "type_",
     [
-        "release",
-        "snapshot",
+        Release.object_type,
+        Snapshot.object_type,
     ],
 )
 def test_range_generators__short_bytes(type_):
@@ -290,9 +296,9 @@ def test_range_generators__short_bytes(type_):
 @pytest.mark.parametrize(
     "type_",
     [
-        "origin",
-        "origin_visit",
-        "origin_visit_status",
+        Origin.object_type,
+        OriginVisit.object_type,
+        OriginVisitStatus.object_type,
     ],
 )
 def test_range_generators__int(type_):
@@ -312,7 +318,7 @@ def test_range_generators__int(type_):
 
 
 def test_range_generators__remd():
-    type_ = "raw_extrinsic_metadata"
+    type_ = RawExtrinsicMetadata.object_type
 
     assert _peek(RANGE_GENERATORS[type_](None, None)) == [
         ("", "swh:1:cnt:"),
@@ -334,19 +340,19 @@ def test_range_generators__remd():
 
 
 MOCK_RANGE_GENERATORS = {
-    "content": lambda start, end: [(None, None)],
-    "skipped_content": lambda start, end: [(None, None)],
-    "directory": lambda start, end: [(None, None)],
-    "extid": lambda start, end: [(None, None)],
-    "metadata_authority": lambda start, end: [(None, None)],
-    "metadata_fetcher": lambda start, end: [(None, None)],
-    "revision": lambda start, end: [(None, None)],
-    "release": lambda start, end: [(None, None)],
-    "snapshot": lambda start, end: [(None, None)],
-    "origin": lambda start, end: [(None, 10000)],
-    "origin_visit": lambda start, end: [(None, 10000)],
-    "origin_visit_status": lambda start, end: [(None, 10000)],
-    "raw_extrinsic_metadata": lambda start, end: [(None, None)],
+    Content.object_type: lambda start, end: [(None, None)],
+    SkippedContent.object_type: lambda start, end: [(None, None)],
+    Directory.object_type: lambda start, end: [(None, None)],
+    ExtID.object_type: lambda start, end: [(None, None)],
+    MetadataAuthority.object_type: lambda start, end: [(None, None)],
+    MetadataFetcher.object_type: lambda start, end: [(None, None)],
+    Revision.object_type: lambda start, end: [(None, None)],
+    Release.object_type: lambda start, end: [(None, None)],
+    Snapshot.object_type: lambda start, end: [(None, None)],
+    Origin.object_type: lambda start, end: [(None, 10000)],
+    OriginVisit.object_type: lambda start, end: [(None, 10000)],
+    OriginVisitStatus.object_type: lambda start, end: [(None, 10000)],
+    RawExtrinsicMetadata.object_type: lambda start, end: [(None, None)],
 }
 
 
@@ -372,7 +378,7 @@ def test_backfiller(
     storage = get_storage(**swh_storage_backend_config)
     # fill the storage and the journal (under prefix1)
     for object_type, objects in TEST_OBJECTS.items():
-        method = getattr(storage, object_type + "_add")
+        method = getattr(storage, f"{object_type}_add")
         method(objects)
     storage.journal_writer.journal.flush()  # type: ignore[attr-defined]
 
@@ -405,7 +411,7 @@ def test_backfiller(
         brokers=kafka_server,
         group_id=f"{kafka_consumer_group}-1",
         prefix=prefix1,
-        stop_on_eof=True,
+        on_eof=EofBehavior.STOP,
         value_deserializer=deserializer.convert,
     )
 
@@ -418,7 +424,7 @@ def test_backfiller(
         brokers=kafka_server,
         group_id=f"{kafka_consumer_group}-2",
         prefix=prefix2,
-        stop_on_eof=True,
+        on_eof=EofBehavior.STOP,
         value_deserializer=deserializer.convert,
     )
     worker_fn2 = functools.partial(process_replay_objects, storage=sto2)
@@ -467,7 +473,7 @@ def test_backfiller__duplicate_directory_entries(
     with db.conn.cursor() as cur:
         cur.execute("select id, dir_entries, file_entries, raw_manifest from directory")
         (row,) = cur
-        (id_, (dir_entry,), (file_entry,), raw_manifest) = row
+        id_, (dir_entry,), (file_entry,), raw_manifest = row
         assert id_ == invalid_directory.id
         assert raw_manifest is None
         cur.execute("select id, name, target from directory_entry_dir")

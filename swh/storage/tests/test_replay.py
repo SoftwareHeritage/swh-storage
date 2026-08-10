@@ -1,4 +1,4 @@
-# Copyright (C) 2019-2020 The Software Heritage developers
+# Copyright (C) 2019-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -8,33 +8,43 @@ import datetime
 import functools
 import logging
 import re
-from typing import Any, Container, Dict, Optional, cast
+from typing import Any, Container, Dict, List, Optional, Tuple, cast
 
 import attr
 import pytest
+import yaml
 
-from swh.journal.client import JournalClient
+from swh.journal.client import EofBehavior, JournalClient
 from swh.journal.serializers import kafka_to_value, key_to_kafka, value_to_kafka
-from swh.model.hashutil import MultiHash, hash_to_bytes, hash_to_hex
-from swh.model.model import Revision, RevisionType
-from swh.model.tests.swh_model_data import (
-    COMMITTERS,
-    DATES,
-    DUPLICATE_CONTENTS,
-    REVISIONS,
+from swh.journal.writer import JournalWriterInterface
+from swh.model.hashutil import MultiHash, hash_to_bytes
+from swh.model.model import (
+    Directory,
+    OriginVisit,
+    OriginVisitStatus,
+    Release,
+    Revision,
+    RevisionType,
+    SkippedContent,
+    Snapshot,
 )
+from swh.model.tests.swh_model_data import COMMITTERS, DATES, REVISIONS
 from swh.model.tests.swh_model_data import TEST_OBJECTS as _TEST_OBJECTS
 from swh.storage import get_storage
 from swh.storage.cassandra.model import ContentRow, SkippedContentRow
 from swh.storage.exc import StorageArgumentException
 from swh.storage.in_memory import InMemoryStorage
+from swh.storage.interface import StorageInterface
 from swh.storage.replay import ModelObjectDeserializer, process_replay_objects
+from swh.storage.tests.storage_data import StorageData
 
 UTC = datetime.timezone.utc
 
 TEST_OBJECTS = _TEST_OBJECTS.copy()
-# add a revision with metadata to check this later is dropped while being replayed
-TEST_OBJECTS["revision"] = list(_TEST_OBJECTS["revision"]) + [
+# Add a revision with metadata to check this later is dropped while being replayed
+# TODO: replace this with a lower level struct (if still needed) since the
+# metadata field is about to be removed from the Revision object model
+TEST_OBJECTS[Revision.object_type] = list(_TEST_OBJECTS[Revision.object_type]) + [
     Revision(
         id=hash_to_bytes("51d9d94ab08d3f75512e3a9fd15132e0a7ca7928"),
         message=b"hello again",
@@ -54,7 +64,11 @@ WRONG_ID_REG = re.compile(
 )
 
 
-def nullify_ctime(obj):
+def now():
+    return datetime.datetime.now(datetime.UTC)
+
+
+def nullify_ctime(obj: Any) -> Any:
     if isinstance(obj, (ContentRow, SkippedContentRow)):
         return dataclasses.replace(obj, ctime=None)
     else:
@@ -62,9 +76,7 @@ def nullify_ctime(obj):
 
 
 @pytest.fixture()
-def replayer_storage_and_client(
-    kafka_prefix: str, kafka_consumer_group: str, kafka_server: str
-):
+def replayer_storage(kafka_prefix: str, kafka_server: str):
     journal_writer_config = {
         "cls": "kafka",
         "brokers": [kafka_server],
@@ -76,24 +88,32 @@ def replayer_storage_and_client(
         "cls": "memory",
         "journal_writer": journal_writer_config,
     }
-    storage = get_storage(**storage_config)
+    return get_storage(**storage_config)
+
+
+@pytest.fixture()
+def replayer_client(kafka_prefix: str, kafka_consumer_group: str, kafka_server: str):
     deserializer = ModelObjectDeserializer()
-    replayer = JournalClient(
+    return JournalClient(
         brokers=kafka_server,
         group_id=kafka_consumer_group,
         prefix=kafka_prefix,
-        stop_on_eof=True,
+        on_eof=EofBehavior.STOP,
         value_deserializer=deserializer.convert,
     )
 
-    yield storage, replayer
+
+@pytest.fixture()
+def replayer_storage_and_client(replayer_storage, replayer_client):
+    # for bw compat
+    return replayer_storage, replayer_client
 
 
 @pytest.mark.parametrize(
-    "buffered",
-    [pytest.param(True, id="buffered"), pytest.param(False, id="unbuffered")],
+    "tenacious",
+    [pytest.param(True, id="tenacious"), pytest.param(False, id="non-tenacious")],
 )
-def test_storage_replayer(replayer_storage_and_client, caplog, buffered):
+def test_storage_replayer(replayer_storage_and_client, caplog, tenacious):
     """Optimal replayer scenario.
 
     This:
@@ -108,15 +128,15 @@ def test_storage_replayer(replayer_storage_and_client, caplog, buffered):
     # Fill Kafka using a source storage
     nb_sent = 0
     for object_type, objects in TEST_OBJECTS.items():
-        method = getattr(src, object_type + "_add")
+        method = getattr(src, f"{object_type}_add")
         method(objects)
         nb_sent += len(objects)
     src.journal_writer.journal.flush()
 
     caplog.set_level(logging.ERROR, "swh.journal.replay")
 
-    if buffered:
-        proxied_dst = get_storage("buffer", storage={"cls": "memory"})
+    if tenacious:
+        proxied_dst = get_storage("tenacious", storage={"cls": "memory"})
         dst = proxied_dst.storage
     else:
         proxied_dst = dst = get_storage(cls="memory")
@@ -139,7 +159,9 @@ def test_storage_replayer(replayer_storage_and_client, caplog, buffered):
     assert collision == 0, "No collision should be detected"
 
 
-def test_storage_replay_with_collision(replayer_storage_and_client, caplog):
+def test_storage_replay_with_collision(
+    replayer_storage_and_client: Tuple[StorageInterface, JournalClient], caplog
+):
     """Another replayer scenario with collisions.
 
     This:
@@ -149,28 +171,31 @@ def test_storage_replay_with_collision(replayer_storage_and_client, caplog):
 
     """
     src, replayer = replayer_storage_and_client
+    journal: JournalWriterInterface = src.journal_writer.journal  # type: ignore
+    assert journal is not None
 
     # Fill Kafka using a source storage
     nb_sent = 0
     for object_type, objects in TEST_OBJECTS.items():
-        method = getattr(src, object_type + "_add")
+        method = getattr(src, f"{object_type}_add")
         method(objects)
         nb_sent += len(objects)
-    src.journal_writer.journal.flush()
+    journal.flush()
 
     # Create collision in input data
     # These should not be written in the destination
-    producer = src.journal_writer.journal.producer
-    prefix = src.journal_writer.journal._prefix
+    producer = journal.producer  # type: ignore
+    prefix = journal._prefix  # type: ignore
+    DUPLICATE_CONTENTS = StorageData().colliding_contents["sha1"]
     for content in DUPLICATE_CONTENTS:
         topic = f"{prefix}.content"
-        key = content.sha1
-        now = datetime.datetime.now(tz=UTC)
-        content = attr.evolve(content, ctime=now)
+        key = content.hashes()
+        value = content.to_dict()
+        value.pop("data", None)
         producer.produce(
             topic=topic,
             key=key_to_kafka(key),
-            value=value_to_kafka(content.to_dict()),
+            value=value_to_kafka(value),
         )
         nb_sent += 1
 
@@ -186,36 +211,22 @@ def test_storage_replay_with_collision(replayer_storage_and_client, caplog):
 
     # check the logs for the collision being properly detected
     nb_collisions = 0
-    actual_collision: Dict
     for record in caplog.records:
         logtext = record.getMessage()
         if "Collision detected:" in logtext:
             nb_collisions += 1
-            actual_collision = record.args["collision"]
 
-    assert nb_collisions == 1, "1 collision should be detected"
+    assert nb_collisions == 0, "No collision should be detected"
 
-    algo = "sha1"
-    assert actual_collision["algo"] == algo
-    expected_colliding_hash = hash_to_hex(DUPLICATE_CONTENTS[0].get_hash(algo))
-    assert actual_collision["hash"] == expected_colliding_hash
-
-    actual_colliding_hashes = actual_collision["objects"]
-    assert len(actual_colliding_hashes) == len(DUPLICATE_CONTENTS)
-    for content in DUPLICATE_CONTENTS:
-        expected_content_hashes = {
-            k: hash_to_hex(v) for k, v in content.hashes().items()
-        }
-        assert expected_content_hashes in actual_colliding_hashes
-
-    # all objects from the src should exists in the dst storage
+    # all objects from the src should exists in the dst storage, plus two more
     assert isinstance(src, InMemoryStorage)  # needed to help mypy
     assert isinstance(dst, InMemoryStorage)  # needed to help mypy
+
     check_replayed(src, dst, exclude=["contents"])
-    # but the dst has one content more (one of the 2 colliding ones)
+
     assert (
-        len(list(src._cql_runner._contents.iter_all()))
-        == len(list(dst._cql_runner._contents.iter_all())) - 1
+        len(list(dst._cql_runner._contents.iter_all()))
+        == len(list(src._cql_runner._contents.iter_all())) + 2
     )
 
 
@@ -288,10 +299,11 @@ def _check_replay_skipped_content(storage, replayer, topic):
     prefix = storage.journal_writer.journal._prefix
 
     for i, obj in enumerate(skipped_contents):
+        content = SkippedContent.from_dict(obj)
         producer.produce(
             topic=f"{prefix}.{topic}",
-            key=key_to_kafka({"sha1": obj["sha1"]}),
-            value=value_to_kafka(obj),
+            key=key_to_kafka(content.unique_key()),
+            value=value_to_kafka(content.to_dict()),
         )
     producer.flush()
 
@@ -362,13 +374,17 @@ def test_storage_replay_anonymized(
     # Fill the src storage
     nb_sent = 0
     for obj_type, objs in TEST_OBJECTS.items():
-        if obj_type in ("origin_visit", "origin_visit_status"):
+        if obj_type in (
+            OriginVisit.object_type,
+            OriginVisitStatus.object_type,
+        ):
             # these are unrelated with what we want to test here
             continue
-        method = getattr(storage, obj_type + "_add")
+        method = getattr(storage, f"{obj_type}_add")
         method(objs)
         nb_sent += len(objs)
-    storage.journal_writer.journal.flush()  # type: ignore[attr-defined]
+    journal: JournalWriterInterface = storage.journal_writer.journal  # type: ignore
+    journal.flush()
 
     # Fill a destination storage from Kafka, potentially using privileged topics
     dst_storage = get_storage(cls="memory")
@@ -415,7 +431,7 @@ def test_storage_replayer_with_validation_ok(
     # Fill Kafka using a source storage
     nb_sent = 0
     for object_type, objects in TEST_OBJECTS.items():
-        method = getattr(src, object_type + "_add")
+        method = getattr(src, f"{object_type}_add")
         method(objects)
         nb_sent += len(objects)
     src.journal_writer.journal.flush()
@@ -460,13 +476,18 @@ def test_storage_replayer_with_validation_nok(
     # Fill Kafka using a source storage
     nb_sent = 0
     for object_type, objects in TEST_OBJECTS.items():
-        method = getattr(src, object_type + "_add")
+        method = getattr(src, f"{object_type}_add")
         method(objects)
         nb_sent += len(objects)
 
     # insert invalid objects
-    for object_type in ("revision", "directory", "release", "snapshot"):
-        method = getattr(src, object_type + "_add")
+    for object_type in (
+        Revision.object_type,
+        Directory.object_type,
+        Release.object_type,
+        Snapshot.object_type,
+    ):
+        method = getattr(src, f"{object_type}_add")
         method([attr.evolve(TEST_OBJECTS[object_type][0], id=b"\x00" * 20)])
         nb_sent += 1
     # also add an object that won't even be possible to instantiate; this needs
@@ -475,7 +496,7 @@ def test_storage_replayer_with_validation_nok(
     # we use directory[1] because it actually have some entries
     dict_repr = {
         # copy each dir entry twice
-        "entries": TEST_OBJECTS["directory"][1].to_dict()["entries"] * 2,
+        "entries": TEST_OBJECTS[Directory.object_type][1].to_dict()["entries"] * 2,
         "id": b"\x01" * 20,
     }
     topic = f"{src.journal_writer.journal._prefix}.directory"
@@ -485,7 +506,7 @@ def test_storage_replayer_with_validation_nok(
     src.journal_writer.journal.flush()
 
     # Fill the destination storage from Kafka
-    dst = get_storage(cls="memory")
+    dst = get_storage(cls="tenacious", storage={"cls": "memory"})
     worker_fn = functools.partial(process_replay_objects, storage=dst)
     nb_inserted = replayer.process(worker_fn)
     assert nb_sent == nb_inserted
@@ -497,17 +518,23 @@ def test_storage_replayer_with_validation_nok(
         if WRONG_ID_REG.match(logtext):
             invalid += 1
     assert invalid == 4, "Invalid objects should be detected"
-    assert set(redisdb.keys()) == {
-        f"swh:1:{typ}:{'0'*40}".encode() for typ in ("rel", "rev", "snp", "dir")
-    } | {b"directory:" + b"01" * 20}
+    keys = validate_keys(redisdb.keys())
+
+    assert {k for ts, k in keys} == {
+        f"{typ}:{'0' * 40}" for typ in ("release", "revision", "snapshot", "directory")
+    } | {"directory:" + "01" * 20}
 
     for key in redisdb.keys():
         # check the stored value looks right
         rawvalue = redisdb.get(key)
-        value = kafka_to_value(rawvalue)
+        error_struct = yaml.load(rawvalue, Loader=yaml.Loader)
+        assert "kafka_message" in error_struct
+        value = kafka_to_value(error_struct["kafka_message"])
         assert isinstance(value, dict)
         assert "id" in value
         assert value["id"] in (b"\x00" * 20, b"\x01" * 20)
+        assert "obj" in error_struct
+        assert "exc" in error_struct
 
     # check that invalid objects did not reach the dst storage
     for attr_ in (
@@ -521,22 +548,25 @@ def test_storage_replayer_with_validation_nok(
 
     # check that valid objects did reach the dst storage
     # revisions
-    expected = [attr.evolve(rev, metadata=None) for rev in TEST_OBJECTS["revision"]]
-    result = dst.revision_get([obj.id for obj in TEST_OBJECTS["revision"]])
+    expected = [
+        attr.evolve(rev, metadata=None) for rev in TEST_OBJECTS[Revision.object_type]
+    ]
+    result = dst.revision_get([obj.id for obj in TEST_OBJECTS[Revision.object_type]])
     assert result == expected
     # releases
-    expected = TEST_OBJECTS["release"]
-    result = dst.release_get([obj.id for obj in TEST_OBJECTS["release"]])
+    expected = TEST_OBJECTS[Release.object_type]
+    result = dst.release_get([obj.id for obj in TEST_OBJECTS[Release.object_type]])
     assert result == expected
     # snapshot
     # result from snapshot_get is paginated, so adapt the expected to be comparable
     expected = [
-        {"next_branch": None, **obj.to_dict()} for obj in TEST_OBJECTS["snapshot"]
+        {"next_branch": None, **obj.to_dict()}
+        for obj in TEST_OBJECTS[Snapshot.object_type]
     ]
-    result = [dst.snapshot_get(obj.id) for obj in TEST_OBJECTS["snapshot"]]
+    result = [dst.snapshot_get(obj.id) for obj in TEST_OBJECTS[Snapshot.object_type]]
     assert result == expected
     # directories
-    for directory in TEST_OBJECTS["directory"]:
+    for directory in TEST_OBJECTS[Directory.object_type]:
         assert set(dst.directory_get_entries(directory.id).results) == set(
             directory.entries
         )
@@ -563,22 +593,27 @@ def test_storage_replayer_with_validation_nok_with_exceptions(
     # Fill Kafka using a source storage
     nb_sent = 0
     for object_type, objects in TEST_OBJECTS.items():
-        method = getattr(src, object_type + "_add")
+        method = getattr(src, f"{object_type}_add")
         method(objects)
         nb_sent += len(objects)
 
     # insert invalid objects
     known_invalid = []
     all_objs = {}
-    for object_type in ("revision", "directory", "release", "snapshot"):
+    for object_type in (
+        Revision.object_type,
+        Directory.object_type,
+        Release.object_type,
+        Snapshot.object_type,
+    ):
         all_objs[object_type] = TEST_OBJECTS[object_type][:]
-        method = getattr(src, object_type + "_add")
+        method = getattr(src, f"{object_type}_add")
         invalid_obj = attr.evolve(TEST_OBJECTS[object_type][0], id=b"\x00" * 20)
         method([invalid_obj])
         nb_sent += 1
         all_objs[object_type].append(invalid_obj)
         known_invalid.append(
-            (object_type, b"\x00" * 20, TEST_OBJECTS[object_type][0].id)
+            (object_type.value, b"\x00" * 20, TEST_OBJECTS[object_type][0].id)
         )
 
     replayer.value_deserializer = ModelObjectDeserializer(
@@ -606,20 +641,24 @@ def test_storage_replayer_with_validation_nok_with_exceptions(
 
     # check that all objects did reach the dst storage
     # revisions
-    expected = [attr.evolve(rev, metadata=None) for rev in all_objs["revision"]]
-    result = dst.revision_get([obj.id for obj in all_objs["revision"]])
+    expected = [
+        attr.evolve(rev, metadata=None) for rev in all_objs[Revision.object_type]
+    ]
+    result = dst.revision_get([obj.id for obj in all_objs[Revision.object_type]])
     assert result == expected
     # releases
-    expected = all_objs["release"]
-    result = dst.release_get([obj.id for obj in all_objs["release"]])
+    expected = all_objs[Release.object_type]
+    result = dst.release_get([obj.id for obj in all_objs[Release.object_type]])
     assert result == expected
     # snapshot
     # result from snapshot_get is paginated, so adapt the expected to be comparable
-    expected = [{"next_branch": None, **obj.to_dict()} for obj in all_objs["snapshot"]]
-    result = [dst.snapshot_get(obj.id) for obj in all_objs["snapshot"]]
+    expected = [
+        {"next_branch": None, **obj.to_dict()} for obj in all_objs[Snapshot.object_type]
+    ]
+    result = [dst.snapshot_get(obj.id) for obj in all_objs[Snapshot.object_type]]
     assert result == expected
     # directories
-    for directory in all_objs["directory"]:
+    for directory in all_objs[Directory.object_type]:
         assert set(dst.directory_get_entries(directory.id).results) == set(
             directory.entries
         )
@@ -647,13 +686,18 @@ def test_storage_replayer_with_validation_nok_raises(
     # Fill Kafka using a source storage
     nb_sent = 0
     for object_type, objects in TEST_OBJECTS.items():
-        method = getattr(src, object_type + "_add")
+        method = getattr(src, f"{object_type}_add")
         method(objects)
         nb_sent += len(objects)
 
     # insert invalid objects
-    for object_type in ("revision", "directory", "release", "snapshot"):
-        method = getattr(src, object_type + "_add")
+    for object_type in (
+        Revision.object_type,
+        Directory.object_type,
+        Release.object_type,
+        Snapshot.object_type,
+    ):
+        method = getattr(src, f"{object_type}_add")
         method([attr.evolve(TEST_OBJECTS[object_type][0], id=b"\x00" * 20)])
         nb_sent += 1
 
@@ -671,3 +715,162 @@ def test_storage_replayer_with_validation_nok_raises(
             invalid += 1
     assert invalid == 1, "One invalid objects should be detected"
     assert len(redisdb.keys()) == 1
+
+
+def test_storage_replayer_tenacious_with_hashcollisions(
+    replayer_storage_and_client, caplog, redisdb
+):
+    """Replayer w/ tenacious proxy, filled with hash colliding content objects
+
+    Ensure colliding objects are inserted properly
+    """
+    src, replayer = replayer_storage_and_client
+    jwriter = src.journal_writer
+
+    caplog.set_level(logging.ERROR, "swh.journal.replay")
+    # Fill Kafka using the journal writer
+    contents = [attr.evolve(c, ctime=now()) for c in TEST_OBJECTS["content"]]
+
+    dst = get_storage(
+        cls="tenacious", storage={"cls": "memory"}, error_reporter=redisdb.set
+    )
+    worker_fn = functools.partial(process_replay_objects, storage=dst)
+
+    jwriter.content_add(contents)
+    jwriter.journal.flush()
+    nb_processed = replayer.process(worker_fn)
+    assert nb_processed == len(contents)
+    assert len(dst.storage._cql_runner._contents.data) == len(contents)
+    assert not redisdb.keys()
+
+    # hash collisions on sha256
+    colliding_objs = [attr.evolve(c, sha256=b"\x00" * 32, data=None) for c in contents]
+    jwriter.content_add(colliding_objs)
+    jwriter.journal.flush()
+    nb_processed = replayer.process(worker_fn)
+    assert nb_processed == len(contents)
+    assert sum(
+        len(x) for x in dst.storage._cql_runner._contents.data.values()
+    ) == 2 * len(contents)
+    assert set(redisdb.keys()) == set()
+
+    # hash collisions on blake2s256
+    colliding_objs = [
+        attr.evolve(c, blake2s256=b"\x00" * 32, data=None) for c in contents
+    ]
+    jwriter.content_add(colliding_objs)
+    jwriter.journal.flush()
+    nb_processed = replayer.process(worker_fn)
+    assert nb_processed == len(contents)
+    assert sum(
+        len(x) for x in dst.storage._cql_runner._contents.data.values()
+    ) == 3 * len(contents)
+    assert set(redisdb.keys()) == set()
+
+    # hash collisions on sha1
+    colliding_objs = [attr.evolve(c, sha1=b"\x00" * 20, data=None) for c in contents]
+    jwriter.content_add(colliding_objs)
+    jwriter.journal.flush()
+    nb_processed = replayer.process(worker_fn)
+    assert nb_processed == len(contents)
+    assert sum(
+        len(x) for x in dst.storage._cql_runner._contents.data.values()
+    ) == 4 * len(contents)
+    assert set(redisdb.keys()) == set()
+
+    # hash collisions on sha1_git
+    colliding_objs = [
+        attr.evolve(c, sha1_git=b"\x00" * 20, data=None) for c in contents
+    ]
+    jwriter.content_add(colliding_objs)
+    jwriter.journal.flush()
+    nb_processed = replayer.process(worker_fn)
+    assert nb_processed == len(contents)
+    assert sum(
+        len(x) for x in dst.storage._cql_runner._contents.data.values()
+    ) == 5 * len(contents)
+    assert set(redisdb.keys()) == set()
+
+
+def test_storage_replayer_tenacious_with_invalid_objects(
+    replayer_storage, replayer_client, caplog, redisdb
+):
+    """Replayer scenario with invalid objects
+
+    with raise_on_error set to True
+
+    This:
+    - writes both valid & invalid objects to a source storage
+    - a StorageArgumentException should be raised while replayer consumes
+      objects from the topic and replays them
+    """
+    # disable the validation made by the replayer itself since we want to test
+    # errors occurring in the storage backend here
+    replayer_client.value_deserializer.__self__.validate = False
+    jwriter = replayer_storage.journal_writer
+
+    caplog.set_level(logging.ERROR, "swh.journal.replay")
+
+    n_inserted = 0
+    # insert invalid objects
+    for object_type in (
+        Revision.object_type,
+        Directory.object_type,
+        Release.object_type,
+        Snapshot.object_type,
+    ):
+        inv_obj = attr.evolve(TEST_OBJECTS[object_type][0], id=b"\x00" * 20)
+        jwriter.write_additions(
+            object_type,
+            TEST_OBJECTS[object_type] + [inv_obj],
+        )
+        n_inserted += len(TEST_OBJECTS[object_type]) + 1
+    jwriter.journal.flush()
+
+    # Fill the destination storage from Kafka
+    dst = get_storage(
+        cls="tenacious",
+        storage={"cls": "validate", "storage": {"cls": "memory"}},
+        error_reporter=redisdb.set,
+    )
+    worker_fn = functools.partial(process_replay_objects, storage=dst)
+    nb_processed = replayer_client.process(worker_fn)
+
+    assert nb_processed == n_inserted
+    assert len(redisdb.keys()) == 4
+
+    object_types = []
+    for ts, k in validate_keys(redisdb.keys()):
+        object_types.append(k)
+
+        # values are yaml serialized dicts with 2 keys: obj (as a dict) and exc
+        # (dump of the exception as a list of str)
+        value = redisdb.get(f"{ts}/{k}")
+        # cannot use safe_load because this latter does not know how to load
+        # tuples, which can be generated by some ModelObject.to_dict() implems
+        error_struct = yaml.load(value, Loader=yaml.Loader)
+        assert "obj" in error_struct
+        assert error_struct["obj"]["id"] == b"\x00" * 20
+        assert "exc" in error_struct
+        assert "\n".join(error_struct["exc"]).startswith("Traceback")
+
+    assert set(object_types) == {"revision", "directory", "release", "snapshot"}
+
+
+def validate_keys(keys: List[bytes]) -> List[Tuple[str, str]]:
+    """Check error reporter keys (from redis)
+
+    Check they are correctly foratted and return them without the timestamp"""
+    # keys are 'iso-date/remaiming'
+    # check the timestamps for reported errors are in a reasonable range
+    n = now()
+    dt0 = datetime.timedelta(0)
+    dt1 = datetime.timedelta(minutes=1)
+    output = []
+    for k in (x.decode() for x in keys):
+        assert "/" in k
+        tstamp, rem = k.split("/", 1)
+        dt = n - datetime.datetime.fromisoformat(tstamp)
+        assert dt0 < dt < dt1
+        output.append((tstamp, rem))
+    return output

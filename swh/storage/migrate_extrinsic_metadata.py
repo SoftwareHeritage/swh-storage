@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Copyright (C) 2020-2021  The Software Heritage developers
+# Copyright (C) 2020-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -35,7 +35,7 @@ from urllib.parse import unquote, urlparse
 from urllib.request import urlopen
 
 import iso8601
-import psycopg2
+import psycopg
 
 from swh.core.db import BaseDb
 from swh.model.hashutil import hash_to_hex
@@ -841,7 +841,7 @@ def handle_row(row: Dict[str, Any], storage, deposit_cur, dry_run: bool):
                     # in this case, the metadata seems to be both directly in metadata
                     # and in metadata["extrinsic"]["raw"]["metadata"]
 
-                    (origin, discovery_date) = handle_deposit_row(
+                    origin, discovery_date = handle_deposit_row(
                         row, discovery_date, origin, storage, deposit_cur, dry_run
                     )
 
@@ -884,7 +884,7 @@ def handle_row(row: Dict[str, Any], storage, deposit_cur, dry_run: bool):
                         )
                         assert "codemeta:author" in actual_metadata
 
-                    (origin, discovery_date) = handle_deposit_row(
+                    origin, discovery_date = handle_deposit_row(
                         row, discovery_date, origin, storage, deposit_cur, dry_run
                     )
 
@@ -967,7 +967,7 @@ def handle_row(row: Dict[str, Any], storage, deposit_cur, dry_run: bool):
             origin = None  # TODO
             discovery_date = None  # TODO
 
-            (origin, discovery_date) = handle_deposit_row(
+            origin, discovery_date = handle_deposit_row(
                 row, discovery_date, origin, storage, deposit_cur, dry_run
             )
             remove_atom_codemeta_metadata_with_xmlns(metadata)
@@ -989,7 +989,7 @@ def handle_row(row: Dict[str, Any], storage, deposit_cur, dry_run: bool):
             origin = None
             discovery_date = None  # TODO
 
-            (origin, discovery_date) = handle_deposit_row(
+            origin, discovery_date = handle_deposit_row(
                 row, discovery_date, origin, storage, deposit_cur, dry_run
             )
             remove_atom_codemeta_metadata_without_xmlns(metadata)
@@ -1062,7 +1062,7 @@ def handle_row(row: Dict[str, Any], storage, deposit_cur, dry_run: bool):
             origin = None  # TODO
             discovery_date = None
 
-            (origin, discovery_date) = handle_deposit_row(
+            origin, discovery_date = handle_deposit_row(
                 row, discovery_date, origin, storage, deposit_cur, dry_run
             )
         else:
@@ -1179,7 +1179,7 @@ def iter_revision_rows(storage_dbconn: str, first_id: Sha1Git):
                     after_id = row_d["id"]
                     if new_rows == 0:
                         return
-        except psycopg2.OperationalError as e:
+        except psycopg.OperationalError as e:
             print(e)
             # most likely a temporary error, try again
             if failures >= 60:
@@ -1226,20 +1226,20 @@ def main(storage_dbconn, storage_url, deposit_dbconn, first_id, limit, dry_run):
                     int.from_bytes(row["id"][0:4], byteorder="big") * 100 / (1 << 32)
                 )
                 print(
-                    f"Processed {total_rows/1000000.:.2f}M rows "
+                    f"Processed {total_rows / 1000000.:.2f}M rows "
                     f"(~{percents:.1f}%, last revision: {row['id'].hex()})"
                 )
 
 
 if __name__ == "__main__":
     if len(sys.argv) == 4:
-        (_, storage_dbconn, storage_url, deposit_dbconn) = sys.argv
+        _, storage_dbconn, storage_url, deposit_dbconn = sys.argv
         first_id = "00" * 20
     elif len(sys.argv) == 5:
-        (_, storage_dbconn, storage_url, deposit_dbconn, first_id) = sys.argv
+        _, storage_dbconn, storage_url, deposit_dbconn, first_id = sys.argv
         limit = None
     elif len(sys.argv) == 6:
-        (_, storage_dbconn, storage_url, deposit_dbconn, first_id, limit_str) = sys.argv
+        _, storage_dbconn, storage_url, deposit_dbconn, first_id, limit_str = sys.argv
         limit = int(limit_str)
     else:
         print(

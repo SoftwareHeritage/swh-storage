@@ -1,4 +1,4 @@
-# Copyright (C) 2024 The Software Heritage developers
+# Copyright (C) 2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -11,44 +11,29 @@ import pytest
 
 from swh.core.api.classes import stream_results
 from swh.model.model import (
+    Directory,
+    DirectoryEntry,
+    ExtID,
     OriginVisit,
     OriginVisitStatus,
     Release,
+    ReleaseTargetType,
     Revision,
     RevisionType,
     Snapshot,
     SnapshotBranch,
-    TargetType,
+    SnapshotTargetType,
 )
-from swh.model.model import Directory, DirectoryEntry, ExtID
-from swh.model.model import ObjectType as ModelObjectType
 from swh.model.swhids import CoreSWHID, ExtendedObjectType, ExtendedSWHID, ObjectType
 from swh.storage.exc import MaskedObjectException
 from swh.storage.interface import HashDict
-from swh.storage.proxies.masking import MaskingProxyStorage
+from swh.storage.proxies.masking.cls import MaskingProxyStorage
 from swh.storage.proxies.masking.db import MaskedState
 from swh.storage.tests.storage_data import StorageData
 
 
 def now() -> datetime.datetime:
     return datetime.datetime.now(tz=datetime.timezone.utc)
-
-
-@pytest.fixture
-def swh_storage_backend_config():
-    return {
-        "cls": "memory",
-        "journal_writer": {
-            "cls": "memory",
-        },
-    }
-
-
-@pytest.fixture
-def swh_storage(masking_db_postgresql, swh_storage_backend):
-    return MaskingProxyStorage(
-        masking_db=masking_db_postgresql.info.dsn, storage=swh_storage_backend
-    )
 
 
 @pytest.fixture
@@ -402,7 +387,7 @@ def test_revision_log(swh_storage, set_object_visibility):
 
     # But the parent is properly masked
     assert_masked_objects_raise(
-        lambda: swh_storage.revision_log([StorageData.revision2.id], limit=2),
+        lambda: list(swh_storage.revision_log([StorageData.revision2.id], limit=2)),
         [StorageData.revision.swhid().to_extended()],
         set_object_visibility,
     )
@@ -424,7 +409,9 @@ def test_revision_shortlog(swh_storage, set_object_visibility):
 
     # But the parent is properly masked
     assert_masked_objects_raise(
-        lambda: swh_storage.revision_shortlog([StorageData.revision2.id], limit=2),
+        lambda: list(
+            swh_storage.revision_shortlog([StorageData.revision2.id], limit=2)
+        ),
         [StorageData.revision.swhid().to_extended()],
         set_object_visibility,
     )
@@ -511,11 +498,11 @@ def test_extid_get_from_extid():
 def test_release_get(swh_storage, set_object_visibility):
     # release.target = revision
     assert StorageData.release.target == StorageData.revision.id
-    assert StorageData.release.target_type == ModelObjectType.REVISION
+    assert StorageData.release.target_type == ReleaseTargetType.REVISION
 
     # release2.target = revision2
     assert StorageData.release2.target == StorageData.revision2.id
-    assert StorageData.release2.target_type == ModelObjectType.REVISION
+    assert StorageData.release2.target_type == ReleaseTargetType.REVISION
 
     # Ensure that object masking doesn't prevent insertion
     set_object_visibility(
@@ -550,7 +537,7 @@ def test_release_get_partition(swh_storage, set_object_visibility):
             author=None,
             date=None,
             target=b"\x00" * 20,
-            target_type=ModelObjectType.REVISION,
+            target_type=ReleaseTargetType.REVISION,
             synthetic=True,
         )
         for i in range(100)
@@ -595,7 +582,7 @@ def test_snapshot_get(swh_storage, set_object_visibility):
     )
     # Check that masking branch targets doesn't affect snapshot visibility
     for branch in StorageData.complete_snapshot.branches.values():
-        if not branch or branch.target_type == TargetType.ALIAS:
+        if not branch or branch.target_type == SnapshotTargetType.ALIAS:
             continue
 
         set_object_visibility(
@@ -642,7 +629,7 @@ def test_snapshot_get_branches(swh_storage, set_object_visibility):
     )
     # Check that masking branch targets doesn't affect snapshot visibility
     for branch in StorageData.complete_snapshot.branches.values():
-        if not branch or branch.target_type == TargetType.ALIAS:
+        if not branch or branch.target_type == SnapshotTargetType.ALIAS:
             continue
 
         set_object_visibility(
@@ -673,7 +660,7 @@ def test_snapshot_branch_get_by_name(swh_storage, set_object_visibility):
 
     # Check that masking branch targets doesn't affect snapshot visibility
     for name, branch in StorageData.complete_snapshot.branches.items():
-        if branch and branch.target_type != TargetType.ALIAS:
+        if branch and branch.target_type != SnapshotTargetType.ALIAS:
             set_object_visibility(
                 [branch.swhid().to_extended()], MaskedState.DECISION_PENDING
             )
@@ -700,7 +687,7 @@ def test_snapshot_get_id_partition(swh_storage, set_object_visibility):
             branches={
                 f"branch{i}".encode(): SnapshotBranch(
                     target=b"\x00" * 20,
-                    target_type=TargetType.REVISION,
+                    target_type=SnapshotTargetType.REVISION,
                 ),
             },
         )
@@ -968,3 +955,10 @@ def test_proxy_overhead_metric(swh_storage: MaskingProxyStorage, mocker) -> None
         pytest.approx(2500.0),
         tags={"endpoint": "content_get_data"},
     )
+
+
+def test_proxy_config_deprecation(masking_db_postgresql, swh_storage_backend):
+    with pytest.warns(DeprecationWarning):
+        assert MaskingProxyStorage(
+            masking_db=masking_db_postgresql.info.dsn, storage=swh_storage_backend
+        )

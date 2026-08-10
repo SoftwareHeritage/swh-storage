@@ -1,19 +1,28 @@
-# Copyright (C) 2020 The Software Heritage developers
+# Copyright (C) 2020  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 from collections import Counter, deque
+import datetime
 from functools import partial
 import logging
+import traceback
+from typing import Callable
 from typing import Counter as CounterT
-from typing import Deque, Dict, Iterable, List, Optional
+from typing import Deque, Dict, Iterable, List, cast
 
-from swh.model.model import BaseModel
+import yaml
+
+from swh.model.model import BaseModel, Content
 from swh.storage import get_storage
 from swh.storage.exc import HashCollision
 
 logger = logging.getLogger(__name__)
+
+
+def now():
+    return datetime.datetime.now(datetime.UTC)
 
 
 class RateQueue:
@@ -68,12 +77,12 @@ class TenaciousProxyStorage:
 
         storage:
           cls: tenacious
-        storage:
-          cls: remote
-          args: http://storage.internal.staging.swh.network:5002/
-        error-rate-limit:
-          errors: 10
-          window_size: 1000
+          storage:
+            cls: remote
+            args: http://storage.internal.staging.swh.network:5002/
+          error-rate-limit:
+            errors: 10
+            window_size: 1000
 
     """
 
@@ -92,8 +101,9 @@ class TenaciousProxyStorage:
     def __init__(
         self,
         storage,
-        error_rate_limit: Optional[Dict[str, int]] = None,
+        error_rate_limit: Dict[str, int] | None = None,
         retries: int = 3,
+        error_reporter: Callable[[str, bytes], None] | None = None,
     ):
         self.storage = get_storage(**storage)
         if error_rate_limit is None:
@@ -105,6 +115,7 @@ class TenaciousProxyStorage:
             max_errors=error_rate_limit["errors"],
         )
         self._single_object_retries: int = retries
+        self.error_reporter = error_reporter
 
     def __getattr__(self, key):
         if key in self.tenacious_methods:
@@ -112,15 +123,16 @@ class TenaciousProxyStorage:
         return getattr(self.storage, key)
 
     def _tenacious_add(self, func_name, objects: Iterable[BaseModel]) -> Dict[str, int]:
-        """Enqueue objects to write to the storage. This checks if the queue's
-        threshold is hit. If it is actually write those to the storage.
-
-        """
+        """Try hard to add as many objects as possible the the backend storage."""
         add_function = getattr(self.storage, func_name)
         object_type = self.tenacious_methods[func_name]
 
-        # list of lists of objects; note this to_add list is consumed from the tail
-        to_add: List[List[BaseModel]] = [list(objects)]
+        # list of lists of objects; note this to_add list is consumed from the
+        # tail. This list is also deduplicated (while keeping the orders of the
+        # elements; using the list(dict.fronkeys(()) trick) to ensure we don't
+        # get hit by unicity constraint errors, depending on the actual storage
+        # backend we have...
+        to_add: List[List[BaseModel]] = [list(dict.fromkeys(objects))]
         n_objs: int = len(to_add[0])
 
         results: CounterT[str] = Counter()
@@ -138,8 +150,46 @@ class TenaciousProxyStorage:
                 )
             objs = to_add.pop()
             try:
-                results.update(add_function(objs))
+                r = add_function(objs)
+                results.update(r)
                 self.rate_queue.add_ok(len(objs))
+            except HashCollision as exc:
+                # In case we have a HashCollision error and the batch on
+                # inserted contents only have a few of thems (usually only
+                # one), then we can be a bit smarter than the generic logic.
+                # This exception gives us the list of failed objects, so use it
+                # instead of splitting the batch over and over again
+                assert object_type in ("content", "skipped_content")
+                to_add.append(
+                    [
+                        obj
+                        for obj in cast(List[Content], objs)
+                        if obj.hashes() not in exc.colliding_content_hashes()
+                    ]
+                )
+                dropped_objs = [
+                    obj
+                    for obj in cast(List[Content], objs)
+                    if obj.hashes() in exc.colliding_content_hashes()
+                ]
+                n_dropped = len(dropped_objs)
+                logger.info(
+                    "%s: dropping %s %s objects (hash collision)",
+                    func_name,
+                    n_dropped,
+                    object_type,
+                )
+                for dropped in dropped_objs:
+                    logger.info("dropped %s", dropped)
+                    if self.error_reporter:
+                        key = f"{now().isoformat()}/{object_type}"
+                        value = {
+                            "exc": traceback.format_exception(exc),
+                            "obj": dropped.to_dict(),
+                        }
+                        self.error_reporter(key, yaml.dump(value).encode())
+                results.update({f"{object_type}:add:errors": n_dropped})
+
             except Exception as exc:
                 if len(objs) > 1:
                     logger.info(
@@ -155,6 +205,8 @@ class TenaciousProxyStorage:
                     # one-object-batch retries counter
                     retries = self._single_object_retries
                 else:
+                    assert len(objs) == 1
+                    obj = objs[0]
                     retries -= 1
                     if retries:
                         logger.info(
@@ -168,7 +220,7 @@ class TenaciousProxyStorage:
                         logger.error(
                             "%s: failed to insert an object, excluding %s (from a batch of %s)",
                             func_name,
-                            objs,
+                            obj,
                             n_objs,
                         )
                         logger.error(
@@ -177,6 +229,13 @@ class TenaciousProxyStorage:
                             exc_info=not isinstance(exc, HashCollision),
                         )
                         results.update({f"{object_type}:add:errors": 1})
+                        if self.error_reporter:
+                            key = f"{now().isoformat()}/{object_type}"
+                            value = {
+                                "obj": obj.to_dict(),
+                                "exc": traceback.format_exception(exc),
+                            }
+                            self.error_reporter(key, yaml.dump(value).encode())
                         self.rate_queue.add_error()
                         # reset the retries counter (needed in case the next
                         # batch is also 1 element only)

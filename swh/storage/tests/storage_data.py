@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2021  The Software Heritage developers
+# Copyright (C) 2015-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -9,7 +9,7 @@ from typing import Tuple
 import attr
 
 from swh.model import from_disk
-from swh.model.hashutil import hash_to_bytes
+from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_bytes
 from swh.model.model import (
     Content,
     Directory,
@@ -30,7 +30,7 @@ from swh.model.model import (
     SkippedContent,
     Snapshot,
     SnapshotBranch,
-    TargetType,
+    SnapshotTargetType,
     Timestamp,
     TimestampWithTimezone,
 )
@@ -272,13 +272,6 @@ class StorageData:
         parents=(),
         type=RevisionType.GIT,
         directory=directory.id,
-        metadata={
-            "checksums": {
-                "sha1": "tarball-sha1",
-                "sha256": "tarball-sha256",
-            },
-            "signed-off-by": "some-dude",
-        },
         extra_headers=(
             (b"gpgsig", b"test123"),
             (b"mergetag", b"foo\\bar"),
@@ -316,7 +309,6 @@ class StorageData:
         parents=tuple([revision.id]),
         type=RevisionType.GIT,
         directory=directory2.id,
-        metadata=None,
         extra_headers=(),
         synthetic=False,
     )
@@ -350,7 +342,6 @@ class StorageData:
         parents=tuple([revision.id, revision2.id]),
         type=RevisionType.GIT,
         directory=directory2.id,
-        metadata=None,
         extra_headers=(),
         synthetic=True,
     )
@@ -384,14 +375,13 @@ class StorageData:
         parents=tuple([revision3.id]),
         type=RevisionType.GIT,
         directory=directory.id,
-        metadata=None,
         extra_headers=(),
         synthetic=False,
     )
     git_revisions: Tuple[Revision, ...] = (revision, revision2, revision3, revision4)
 
     hg_revision = Revision(
-        id=hash_to_bytes("951c9503541e7beaf002d7aebf2abd1629084c68"),
+        id=hash_to_bytes("c072611236d33235c139a1a89fbc910446ad4ca6"),
         message=b"hello",
         author=Person(
             name=b"Nicolas Dandrimont",
@@ -414,19 +404,13 @@ class StorageData:
         parents=(),
         type=RevisionType.MERCURIAL,
         directory=directory.id,
-        metadata={
-            "checksums": {
-                "sha1": "tarball-sha1",
-                "sha256": "tarball-sha256",
-            },
-            "signed-off-by": "some-dude",
-            "node": "a316dfb434af2b451c1f393496b7eaeda343f543",
-        },
-        extra_headers=(),
+        extra_headers=(
+            (b"node", hash_to_bytes("a316dfb434af2b451c1f393496b7eaeda343f543")),
+        ),
         synthetic=True,
     )
     hg_revision2 = Revision(
-        id=hash_to_bytes("df4afb063236300eb13b96a0d7fff03f7b7cbbaf"),
+        id=hash_to_bytes("09c72d554c2eaaa8458af749844ef8cd145ab04f"),
         message=b"hello again",
         author=Person(
             name=b"Roberto Dicosmo",
@@ -455,14 +439,13 @@ class StorageData:
         parents=tuple([hg_revision.id]),
         type=RevisionType.MERCURIAL,
         directory=directory2.id,
-        metadata=None,
         extra_headers=(
             (b"node", hash_to_bytes("fa1b7c84a9b40605b67653700f268349a6d6aca1")),
         ),
         synthetic=False,
     )
     hg_revision3 = Revision(
-        id=hash_to_bytes("84d8e7081b47ebb88cad9fa1f25de5f330872a37"),
+        id=hash_to_bytes("deead49045ecfd1bc685e731ecd4e1323945a3d7"),
         message=b"a simple revision with no parents this time",
         author=Person(
             name=b"Roberto Dicosmo",
@@ -491,14 +474,13 @@ class StorageData:
         parents=tuple([hg_revision.id, hg_revision2.id]),
         type=RevisionType.MERCURIAL,
         directory=directory2.id,
-        metadata=None,
         extra_headers=(
             (b"node", hash_to_bytes("7f294a01c49065a90b3fe8b4ad49f08ce9656ef6")),
         ),
         synthetic=True,
     )
     hg_revision4 = Revision(
-        id=hash_to_bytes("4683324ba26dfe941a72cc7552e86eaaf7c27fe3"),
+        id=hash_to_bytes("80ae99f2e0361de748b4c4bbb7ba8e518cfaf5c3"),
         message=b"parent of self.revision2",
         author=Person(
             name=b"me",
@@ -527,7 +509,6 @@ class StorageData:
         parents=tuple([hg_revision3.id]),
         type=RevisionType.MERCURIAL,
         directory=directory.id,
-        metadata=None,
         extra_headers=(
             (b"node", hash_to_bytes("f4160af0485c85823d9e829bae2c00b00a2e6297")),
         ),
@@ -696,7 +677,7 @@ class StorageData:
         branches={
             b"master": SnapshotBranch(
                 target=revision.id,
-                target_type=TargetType.REVISION,
+                target_type=SnapshotTargetType.REVISION,
             ),
         },
     )
@@ -709,31 +690,31 @@ class StorageData:
         branches={
             b"directory": SnapshotBranch(
                 target=directory.id,
-                target_type=TargetType.DIRECTORY,
+                target_type=SnapshotTargetType.DIRECTORY,
             ),
             b"directory2": SnapshotBranch(
                 target=directory2.id,
-                target_type=TargetType.DIRECTORY,
+                target_type=SnapshotTargetType.DIRECTORY,
             ),
             b"content": SnapshotBranch(
                 target=content.sha1_git,
-                target_type=TargetType.CONTENT,
+                target_type=SnapshotTargetType.CONTENT,
             ),
             b"alias": SnapshotBranch(
                 target=b"revision",
-                target_type=TargetType.ALIAS,
+                target_type=SnapshotTargetType.ALIAS,
             ),
             b"revision": SnapshotBranch(
                 target=revision.id,
-                target_type=TargetType.REVISION,
+                target_type=SnapshotTargetType.REVISION,
             ),
             b"release": SnapshotBranch(
                 target=release.id,
-                target_type=TargetType.RELEASE,
+                target_type=SnapshotTargetType.RELEASE,
             ),
             b"snapshot": SnapshotBranch(
                 target=empty_snapshot.id,
-                target_type=TargetType.SNAPSHOT,
+                target_type=SnapshotTargetType.SNAPSHOT,
             ),
             b"dangling": None,
         },
@@ -864,3 +845,21 @@ class StorageData:
         extid3,
         extid4,
     )
+
+    @property
+    def colliding_contents(self):
+        if not hasattr(self, "_colliding_contents"):
+            now = datetime.datetime(2019, 12, 1, tzinfo=datetime.timezone.utc)
+            self._colliding_contents = {}
+            for colliding_hash in DEFAULT_ALGORITHMS:
+                content = Content.from_data(
+                    b"colliding 1 " + colliding_hash.encode()
+                ).evolve(ctime=now)
+                content2 = Content.from_data(
+                    b"colliding 2 " + colliding_hash.encode()
+                ).evolve(
+                    ctime=now, **{colliding_hash: getattr(content, colliding_hash)}
+                )
+                self._colliding_contents[colliding_hash] = [content, content2]
+
+        return self._colliding_contents

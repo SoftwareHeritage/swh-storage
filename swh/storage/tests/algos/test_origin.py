@@ -118,7 +118,6 @@ def init_storage_with_origin_visits(swh_storage, sample_data):
         type=ov2.type,
         status="full",
         snapshot=snapshot.id,
-        metadata={"something": "wicked"},
     )
 
     swh_storage.origin_visit_status_add([ovs11, ovs12, ovs21, ovs22])

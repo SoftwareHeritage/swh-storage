@@ -1,4 +1,4 @@
-# Copyright (C) 2024 The Software Heritage developers
+# Copyright (C) 2024  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -8,21 +8,10 @@ import functools
 import pytest
 
 from swh.storage.exc import MaskedObjectException
-from swh.storage.proxies.masking import MaskingProxyStorage
+from swh.storage.proxies.masking.cls import MaskingProxyStorage
 from swh.storage.proxies.masking.db import MaskedState
 from swh.storage.tests.storage_data import StorageData
 from swh.storage.tests.test_in_memory import TestInMemoryStorage as _TestStorage
-
-
-@pytest.fixture
-def swh_storage_backend_config():
-    yield {
-        "cls": "memory",
-        "journal_writer": {
-            "cls": "memory",
-        },
-    }
-
 
 MASKED_SWHIDS = {
     StorageData.content.swhid().to_extended(),
@@ -45,9 +34,13 @@ def swh_storage(masking_db_postgresql, masking_admin, swh_storage_backend):
         swhids=list(MASKED_SWHIDS),
     )
 
-    return MaskingProxyStorage(
-        masking_db=masking_db_postgresql.info.dsn, storage=swh_storage_backend
+    storage = MaskingProxyStorage(
+        db=masking_db_postgresql.info.dsn, storage=swh_storage_backend
     )
+    try:
+        yield storage
+    finally:
+        storage._masking_pool.close()
 
 
 class TestStorage(_TestStorage):

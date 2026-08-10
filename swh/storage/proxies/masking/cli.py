@@ -3,7 +3,19 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Optional, TextIO
+import csv
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    TextIO,
+    Tuple,
+)
+import warnings
 
 import click
 
@@ -37,26 +49,40 @@ def masking_cli_group(ctx: click.Context) -> click.Context:
           …
         \b
         masking_admin:
-          masking_db: "service=swh-masking-admin"
+          cls: postgresql
+          db: "service=swh-masking-admin"
     """
 
-    if (
-        "masking_admin" not in ctx.obj["config"]
-        or "masking_db" not in ctx.obj["config"]["masking_admin"]
+    if "masking_admin" not in ctx.obj["config"] or (
+        "masking_db" not in ctx.obj["config"]["masking_admin"]
+        and "db" not in ctx.obj["config"]["masking_admin"]
     ):
         ctx.fail(
-            "You must have a masking_admin, with a masking_db entry, "
+            "You must have a masking_admin, with a db entry, "
             "configured in your config file."
         )
 
-    from psycopg2 import OperationalError
+    if "masking_db" in ctx.obj["config"]["masking_admin"]:
+        warnings.warn(
+            "Please use the db field for the masking admin configuration, which "
+            "makes it compatible with the `swh db` command-line utilities",
+            DeprecationWarning,
+        )
+
+    from psycopg import OperationalError
 
     from .db import MaskingAdmin
 
     try:
-        ctx.obj["masking_admin"] = MaskingAdmin.connect(
-            ctx.obj["config"]["masking_admin"]["masking_db"]
-        )
+        db = None
+        for key in ("db", "masking_db"):
+            db = ctx.obj["config"]["masking_admin"].get(key)
+            if db:
+                break
+        if not db:
+            assert False, "Existence of config entries has been checked earlier"
+
+        ctx.obj["masking_admin"] = MaskingAdmin.connect(db)
     except OperationalError as ex:
         raise click.ClickException(str(ex))
 
@@ -71,15 +97,15 @@ def edit_message(prompt: str, extra_lines: List[str] = []):
     """Edit a message through click.edit() adding some extra context, filtering
     comments, and raising an exception on empty messages"""
 
-    message = (
+    message_base = (
         "\n\n"
         f"# {prompt}\n"
         "# Lines starting with “#” will be ignored. "
         "An empty message will abort the operation.\n"
     )
     if extra_lines:
-        message += "#\n# " + "\n# ".join(extra_lines)
-    message = click.edit(message)
+        message_base += "#\n# " + "\n# ".join(extra_lines)
+    message = click.edit(message_base)
     if message is None:
         raise EditAborted()
     message = "\n".join(
@@ -191,10 +217,8 @@ def list_requests(ctx: click.Context, include_cleared_requests: bool) -> None:
 
 class MaskedStateType(click.Choice):
     def __init__(self):
-        from .db import MaskedState
-
         super().__init__(
-            [format_masked_state(state) for state in MaskedState], case_sensitive=False
+            ["visible", "decision-pending", "restricted"], case_sensitive=False
         )
 
 
@@ -411,3 +435,36 @@ def clear_request(
         raise click.ClickException(f"Request with id “{request.id}” not found.")
 
     click.echo(f"Masks cleared for request “{request.slug}”.")
+
+
+@masking_cli_group.group(name="patching")
+@click.pass_context
+def patching_cli_group(ctx: click.Context) -> click.Context:
+    """Tools to manage the patching of objects"""
+    return ctx
+
+
+def read_display_names(file: Iterable) -> List[Tuple[bytes, bytes]]:
+    data = list(csv.reader(file))
+    assert all(len(x) == 2 for x in data)
+    return [(name.encode(), newname.encode()) for (name, newname) in data]
+
+
+@patching_cli_group.command(name="set")
+@click.argument("input", type=click.File("r"))
+@click.option(
+    "--clear/--keep",
+    help="Clear the display names table before inserting new entries",
+)
+@click.pass_context
+def set_patching_entries(
+    ctx: click.Context,
+    input,
+    clear: bool,
+) -> None:
+    """Set display names (patching entries)"""
+    display_names = read_display_names(input)
+
+    db = ctx.obj["masking_admin"]
+    db.set_display_names(display_names, clear=clear)
+    click.echo("Display names updated")

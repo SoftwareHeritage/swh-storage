@@ -278,10 +278,10 @@ Here is a list of all the metadata format stored:
 ``gitlab-project-json``
     The metadata is the response of an API call to `Gitlab's /api/v4/projects/:id
     <https://docs.gitlab.com/ee/api/projects.html#get-single-project>`_ endpoint.
-``gitea-project-json``
+``gitea-repository-json``
     The metadata is the response of an API call to `Gitea's /api/v1/repos/{owner}/{repo}
     <https://gittea.dev/api/swagger#/repository/repoGet>`_ endpoint.
-``gogs-project-json``
+``gogs-repository-json``
     The metadata is the response of an API call to `Gogs's /api/v1/repos/:owner/:repo
     <https://github.com/gogs/docs-api/tree/master/Repositories#get>`_ endpoint.
 ``pypi-project-json``

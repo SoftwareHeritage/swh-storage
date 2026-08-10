@@ -1,4 +1,4 @@
-# Copyright (C) 2019  The Software Heritage developers
+# Copyright (C) 2019-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -14,6 +14,7 @@ from swh.core.statsd import statsd
 
 logger = logging.getLogger(__name__)
 
+CONTENT_ADD_DURATION_METRIC = "swh_storage_content_add_suboperations_total"
 OPERATIONS_METRIC = "swh_storage_operations_total"
 OPERATIONS_UNIT_METRIC = "swh_storage_operations_{unit}_total"
 DURATION_METRIC = "swh_storage_request_duration_seconds"
@@ -152,17 +153,3 @@ def send_metric(metric, count, method_name):
         },
     )
     return True
-
-
-def process_metrics(f):
-    """Increment object counters for the decorated function."""
-
-    @wraps(f)
-    def d(*a, **kw):
-        r = f(*a, **kw)
-        for metric, count in r.items():
-            send_metric(metric=metric, count=count, method_name=f.__name__)
-
-        return r
-
-    return d

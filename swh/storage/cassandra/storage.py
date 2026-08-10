@@ -1,19 +1,20 @@
-# Copyright (C) 2019-2024  The Software Heritage developers
+# Copyright (C) 2019-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 import base64
-from collections import defaultdict
+from collections import Counter, defaultdict, deque
 import datetime
 import itertools
+import logging
 import operator
 import random
 import re
+import time
 from typing import (
     Any,
     Callable,
-    Counter,
     Dict,
     Iterable,
     Iterator,
@@ -28,10 +29,12 @@ from typing import (
 )
 
 import attr
+from packaging.version import Version
 
 from swh.core.api.classes import stream_results
 from swh.core.api.serializers import msgpack_dumps, msgpack_loads
-from swh.model.hashutil import DEFAULT_ALGORITHMS, hash_to_hex
+from swh.core.statsd import statsd
+from swh.model.hashutil import DEFAULT_ALGORITHMS, LiteralHashAlgo, hash_to_hex
 from swh.model.model import (
     Content,
     Directory,
@@ -50,15 +53,18 @@ from swh.model.model import (
     SkippedContent,
     Snapshot,
     SnapshotBranch,
-    TargetType,
+    SnapshotTargetType,
 )
 from swh.model.swhids import CoreSWHID, ExtendedObjectType, ExtendedSWHID
 from swh.model.swhids import ObjectType as SwhidObjectType
+from swh.objstorage.interface import objid_from_dict
+from swh.storage import __version__
 from swh.storage.interface import (
     VISIT_STATUSES,
     HashDict,
     ListOrder,
     ObjectReference,
+    ObjectReferencesPartition,
     OriginVisitWithStatuses,
     PagedResult,
     PartialBranches,
@@ -66,13 +72,13 @@ from swh.storage.interface import (
     SnapshotBranchByNameResponse,
     TotalHashDict,
 )
+from swh.storage.metrics import CONTENT_ADD_DURATION_METRIC
 from swh.storage.objstorage import ObjStorage
 from swh.storage.utils import now
 from swh.storage.writer import JournalWriter
 
 from . import converters
 from ..exc import (
-    HashCollision,
     StorageArgumentException,
     UnknownMetadataAuthority,
     UnknownMetadataFetcher,
@@ -80,6 +86,7 @@ from ..exc import (
 from ..utils import remove_keys
 from .common import TOKEN_BEGIN, TOKEN_END, hash_url
 from .cql import CqlRunner
+from .migrations import MigrationStatus, list_migrations
 from .model import (
     BaseRow,
     ContentRow,
@@ -110,6 +117,9 @@ DIRECTORY_ENTRIES_INSERT_ALGOS = ["one-by-one", "concurrent", "batch"]
 
 TResult = TypeVar("TResult")
 TRow = TypeVar("TRow", bound=BaseRow)
+
+
+logger = logging.getLogger(__name__)
 
 
 def _get_paginated_sha1_partition(
@@ -172,6 +182,7 @@ class CassandraStorage:
         consistency_level="ONE",
         directory_entries_insert_algo="one-by-one",
         auth_provider: Optional[Dict] = None,
+        table_options: Optional[Dict[str, str]] = None,
     ):
         """
         A backend of swh-storage backed by Cassandra
@@ -205,12 +216,15 @@ class CassandraStorage:
                         cls: cassandra.auth.PlainTextAuthProvider
                         username: myusername
                         password: mypassword
-        """
+            table_options: An optional dict mapping each table name (or the literal
+                ``object_references_*``) to `CQL table options <https://cassandra.apache.org/doc/latest/cassandra/reference/cql-commands/create-table.html#table_options>`_
+        """  # noqa: B950
         self._hosts = hosts
         self._keyspace = keyspace
         self._port = port
         self._consistency_level = consistency_level
         self._auth_provider = auth_provider
+        self._table_options = table_options
         self._set_cql_runner()
         self.journal_writer: JournalWriter = JournalWriter(journal_writer)
         self.objstorage: ObjStorage = ObjStorage(self, objstorage)
@@ -235,7 +249,7 @@ class CassandraStorage:
     def port(self) -> int:
         return self._port
 
-    def _set_cql_runner(self):
+    def _set_cql_runner(self) -> None:
         """Used by tests when they need to reset the CqlRunner"""
         self._cql_runner: CqlRunner = CqlRunner(
             self._hosts,
@@ -243,10 +257,45 @@ class CassandraStorage:
             self._port,
             self._consistency_level,
             self._auth_provider,
+            self._table_options,
         )
 
     def check_config(self, *, check_write: bool) -> bool:
         self._cql_runner.check_read()
+
+        current_version = Version(__version__)
+
+        incompatible_migrations = []
+
+        rows = list(self._cql_runner.migration_list())
+        for row in rows:
+            if row.status != MigrationStatus.PENDING:
+                min_read_version = Version(row.min_read_version)
+                if min_read_version > current_version:
+                    incompatible_migrations.append((min_read_version, row.id))
+
+        if incompatible_migrations:
+            incompatible_migrations.sort()  # sort by min_read_version
+            logger.warning(
+                "Database contains unsupported migrations: %s",
+                ", ".join(
+                    f"{id_} ({min_read_version})"
+                    for (min_read_version, id_) in incompatible_migrations
+                ),
+            )
+            return False
+
+        missing_migrations: list[str] = []
+        for migration, status in list_migrations(self._cql_runner, rows=rows):
+            if migration.required and status != MigrationStatus.COMPLETED:
+                missing_migrations.append(migration.id)
+
+        if missing_migrations:
+            logger.warning(
+                "Database missing required migrations: %s",
+                ", ".join(missing_migrations),
+            )
+            return False
 
         return True
 
@@ -273,14 +322,93 @@ class CassandraStorage:
                 yield row
 
     def _content_add(self, contents: List[Content], with_data: bool) -> Dict[str, int]:
-        # Filter-out content already in the database.
+        timings = defaultdict(float)
+
+        # Check for hash collisions and existing contents. This test is not
+        # atomic with the insertion, so it won't detect a collision if both
+        # contents are inserted at the same time from different storage
+        # instances. The low number of wild collisions makes this unlikely
+        # (especially considering that most colliding contents will, as of now,
+        # ship together in the same origin, and therefore be inserted
+        # sequentially).
+        #
+        # The proper way to do it would probably be a BATCH, but this
+        # would be inefficient because of the number of partitions we
+        # need to affect (len(HASH_ALGORITHMS)+1, which is currently 5)
+
+        # Positions of contents being inserted that are already in storage
+        known_content_ids: Set[int] = set()
+
+        # Hashes for known objects that collide with an object that is being inserted
+        colliding_hashes: List[Dict[str, bytes]] = []
+
+        # Positions of contents being inserted that collide with an object already
+        # present in storage
+        colliding_content_ids: Set[int] = set()
+
+        # Positions of all the objects that have a given hash (for each hash algorithm)
+        content_ids_by_hash: Dict[str, Dict[bytes, List[int]]] = {}
+
+        for algo in HASH_ALGORITHMS:
+            content_ids_by_hash[algo] = defaultdict(list)
+            for i, content in enumerate(contents):
+                content_ids_by_hash[algo][content.get_hash(algo)].append(i)
+
+        # Get all rows that could match one of the hashes being inserted
+        start_time = time.monotonic()
+        rows_by_algo = [
+            (
+                algo,
+                self._content_get_from_hashes(algo, list(content_ids_by_hash[algo])),
+            )
+            for algo in HASH_ALGORITHMS
+        ]
+
+        end_time = time.monotonic()
+        timings["get_from_hashes"] = end_time - start_time
+
+        for algo, rows in rows_by_algo:
+            for row in rows:
+                content_ids = content_ids_by_hash[algo].get(getattr(row, algo))
+                if content_ids is None:
+                    # collision of token(partition key), ignore this row
+                    continue
+
+                # The row has a matching hash with the following contents being inserted
+                for content_id in content_ids:
+                    if content_id in known_content_ids:
+                        # The content being inserted is already in storage, we can
+                        # skip it
+                        continue
+
+                    content = contents[content_id]
+                    # Check whether other hashes are a match
+                    for other_algo in HASH_ALGORITHMS:
+                        if algo == other_algo:
+                            continue
+
+                        if getattr(row, other_algo) != content.get_hash(other_algo):
+                            # This hash didn't match; we have an actual hash collision
+                            colliding_hashes.append(
+                                {k: getattr(row, k) for k in HASH_ALGORITHMS}
+                            )
+                            colliding_content_ids.add(content_id)
+                            break
+                    else:
+                        # All hashes are identical, mark this content is already known
+                        # in storage
+                        known_content_ids.add(content_id)
+
+        contents_to_add = contents
         if not self._allow_overwrite:
-            contents = [
-                c
-                for c in contents
-                if not self._cql_runner.content_get_from_pk(c.to_dict())
+            # We don't allow overwrites so skip known contents
+            contents_to_add = [
+                content
+                for i, content in enumerate(contents)
+                if i not in known_content_ids
             ]
 
+        start_time = time.monotonic()
         if with_data:
             # First insert to the objstorage, if the endpoint is
             # `content_add` (as opposed to `content_add_metadata`).
@@ -290,65 +418,97 @@ class CassandraStorage:
             #    we didn't have time to write to the objstorage before the crash
             # 2. the objstorage mirroring, which reads from the journal, may attempt to
             #    read from the objstorage before we finished writing it
+
             summary = self.objstorage.content_add(
-                c for c in contents if c.status != "absent"
+                c for c in contents_to_add if c.status != "absent"
             )
-            content_add_bytes = summary["content:add:bytes"]
+            content_bytes_added = summary["content:add:bytes"]
 
-        self.journal_writer.content_add(contents)
+            end_time = time.monotonic()
+            timings["add_to_objstorage"] = end_time - start_time
+            start_time = end_time
 
-        content_add = 0
-        for content in contents:
-            content_add += 1
+        self.journal_writer.content_add(contents_to_add)
 
-            # Check for sha1 or sha1_git collisions. This test is not atomic
-            # with the insertion, so it won't detect a collision if both
-            # contents are inserted at the same time, but it's good enough.
-            #
-            # The proper way to do it would probably be a BATCH, but this
-            # would be inefficient because of the number of partitions we
-            # need to affect (len(HASH_ALGORITHMS)+1, which is currently 5)
-            if not self._allow_overwrite:
-                for algo in {"sha1", "sha1_git"}:
-                    collisions = []
-                    # Get tokens of 'content' rows with the same value for
-                    # sha1/sha1_git
-                    # TODO: batch these requests, instead of sending them one by one
-                    rows = self._content_get_from_hashes(algo, [content.get_hash(algo)])
-                    for row in rows:
-                        if getattr(row, algo) != content.get_hash(algo):
-                            # collision of token(partition key), ignore this
-                            # row
-                            continue
+        end_time = time.monotonic()
+        timings["add_to_journal"] = end_time - start_time
+        start_time = end_time
 
-                        for other_algo in HASH_ALGORITHMS:
-                            if getattr(row, other_algo) != content.get_hash(other_algo):
-                                # This hash didn't match; discard the row.
-                                collisions.append(
-                                    {k: getattr(row, k) for k in HASH_ALGORITHMS}
-                                )
+        colliding_objects = []
+        if with_data:
+            for collision in colliding_hashes:
+                # Fetch external collisions from object storage
+                known_data = self.content_get_data(objid_from_dict(collision))
+                known = Content.from_data(known_data)
+                if known.hashes() != collision:
+                    raise ValueError(
+                        "Content retrieved from objstorage "
+                        "doesn't match the colliding content"
+                    )
+                colliding_objects.append(known)
 
-                    if collisions:
-                        collisions.append(dict(content.hashes()))
-                        raise HashCollision(algo, content.get_hash(algo), collisions)
+            if colliding_hashes:
+                end_time = time.monotonic()
+                timings["get_data_collision"] = end_time - start_time
+                start_time = end_time
 
-            (token, insertion_finalizer) = self._cql_runner.content_add_prepare(
-                ContentRow(**remove_keys(content.to_dict(), ("data",)))
-            )
-
-            # Then add to index tables
+            # Also handle collisions within the current batch
             for algo in HASH_ALGORITHMS:
-                self._cql_runner.content_index_add_one(algo, content, token)
+                for ids in content_ids_by_hash[algo].values():
+                    if len(ids) > 1:
+                        colliding_content_ids.update(ids)
+
+            if colliding_content_ids:
+                start_time = time.monotonic()
+                for i in colliding_content_ids:
+                    # remove ctime from all colliding contents
+                    colliding_objects.append(contents[i].evolve(ctime=None))
+
+                    self.journal_writer.hash_colliding_content_add(colliding_objects)
+
+                end_time = time.monotonic()
+                timings["add_collision_to_journal"] = end_time - start_time
+
+        if contents_to_add:
+            # Compute the token of each content
+            contents_with_tokens = []
+            finalizers = []
+            for content in contents_to_add:
+                row = ContentRow(**remove_keys(content.to_dict(), ("data",)))
+                token, finalizer = self._cql_runner.content_add_prepare(row)
+                contents_with_tokens.append((token, content))
+                finalizers.append(finalizer)
+
+            # Add the token to index tables
+            start_time = time.monotonic()
+            for algo in HASH_ALGORITHMS:
+                self._cql_runner.content_index_add_concurrent(
+                    algo, contents_with_tokens
+                )
+            end_time = time.monotonic()
+            timings["add_to_index_table"] += end_time - start_time
 
             # Then to the main table
-            insertion_finalizer()
+            start_time = end_time
+            self._cql_runner.content_add_finalize(finalizers)
+            end_time = time.monotonic()
+            timings["add_to_main_table"] += end_time - start_time
+
+        for suboperation, value in timings.items():
+            statsd.increment(
+                CONTENT_ADD_DURATION_METRIC,
+                value,
+                tags={"suboperation": suboperation},
+            )
 
         summary = {
-            "content:add": content_add,
+            "content:add": len(contents_to_add),
         }
 
         if with_data:
-            summary["content:add:bytes"] = content_add_bytes
+            summary["content:add:bytes"] = content_bytes_added
+            if colliding_objects:
+                summary["content:add:collision"] = len(colliding_objects)
 
         return summary
 
@@ -479,7 +639,7 @@ class CassandraStorage:
         for content in self._cql_runner.content_missing_from_all_hashes(
             contents_with_all_hashes
         ):
-            yield content[key_hash]  # type: ignore
+            yield content[key_hash]
 
         if contents_with_missing_hashes:
             # For these, we need the expensive index lookups + main table.
@@ -503,7 +663,11 @@ class CassandraStorage:
             # since we need to check using dict inclusion instead of hash+equality)
             for missing_content in contents_with_missing_hashes:
                 # Pick any of the algorithms provided in missing_content
-                algo = next(algo for (algo, hash_) in missing_content.items() if hash_)
+                algo = next(
+                    cast(LiteralHashAlgo, algo)
+                    for (algo, hash_) in missing_content.items()
+                    if hash_
+                )
 
                 # Get the list of found_contents that match this hash in the
                 # missing_content. (its length is at most 1, unless there is a
@@ -527,7 +691,7 @@ class CassandraStorage:
                         break
                 else:
                     # Not found
-                    yield missing_content[key_hash]  # type: ignore
+                    yield missing_content[key_hash]
 
     def content_missing_per_sha1(self, contents: List[bytes]) -> Iterable[bytes]:
         return self.content_missing([{"sha1": c} for c in contents])
@@ -561,7 +725,7 @@ class CassandraStorage:
 
         for content in contents:
             # Compute token of the row in the main table
-            (token, insertion_finalizer) = self._cql_runner.skipped_content_add_prepare(
+            token, insertion_finalizer = self._cql_runner.skipped_content_add_prepare(
                 SkippedContentRow.from_dict({"origin": None, **content.to_dict()})
             )
 
@@ -656,7 +820,7 @@ class CassandraStorage:
         return self._cql_runner.directory_missing(directories)
 
     def _join_dentry_to_content(
-        self, dentry: DirectoryEntry, contents: List[Content]
+        self, dentry: Dict[str, Any], contents: Dict[Sha1Git, Content]
     ) -> Dict[str, Any]:
         content: Union[None, Content, SkippedContentRow]
         keys = (
@@ -666,14 +830,11 @@ class CassandraStorage:
             "sha256",
             "length",
         )
-        ret = dict.fromkeys(keys)
-        ret.update(dentry.to_dict())
-        if ret["type"] == "file":
-            for content in contents:
-                if dentry.target == content.sha1_git:
-                    break
-            else:
-                target = ret["target"]
+        dentry.update(dict.fromkeys(keys))
+        if dentry["type"] == "file":
+            content = contents.get(dentry["target"])
+            if content is None:
+                target = dentry["target"]
                 assert target is not None
                 tokens = list(
                     self._cql_runner.skipped_content_get_tokens_from_single_hash(
@@ -684,38 +845,10 @@ class CassandraStorage:
                     content = list(
                         self._cql_runner.skipped_content_get_from_token(tokens[0])
                     )[0]
-                else:
-                    content = None
             if content:
                 for key in keys:
-                    ret[key] = getattr(content, key)
-        return ret
-
-    def _directory_ls(
-        self, directory_id: Sha1Git, recursive: bool, prefix: bytes = b""
-    ) -> Iterable[Dict[str, Any]]:
-        if self.directory_missing([directory_id]):
-            return
-        rows = list(self._cql_runner.directory_entry_get([directory_id]))
-
-        # TODO: dedup to be fast in case the directory contains the same subdir/file
-        # multiple times
-        contents = self._content_find_many([{"sha1_git": row.target} for row in rows])
-
-        for row in rows:
-            entry_d = row.to_dict()
-            # Build and yield the directory entry dict
-            del entry_d["directory_id"]
-            entry = DirectoryEntry.from_dict(entry_d)
-            ret = self._join_dentry_to_content(entry, contents)
-            ret["name"] = prefix + ret["name"]
-            ret["dir_id"] = directory_id
-            yield ret
-
-            if recursive and ret["type"] == "dir":
-                yield from self._directory_ls(
-                    ret["target"], True, prefix + ret["name"] + b"/"
-                )
+                    dentry[key] = getattr(content, key)
+        return dentry
 
     def directory_entry_get_by_path(
         self, directory: Sha1Git, paths: List[bytes]
@@ -759,7 +892,38 @@ class CassandraStorage:
     def directory_ls(
         self, directory: Sha1Git, recursive: bool = False
     ) -> Iterable[Dict[str, Any]]:
-        yield from self._directory_ls(directory, recursive)
+        if self.directory_missing([directory]):
+            return
+
+        queue = deque([(b"", directory)])
+
+        while queue:
+            path, dir_id = queue.popleft()
+            rows = list(self._cql_runner.directory_entry_get(dir_id))
+
+            contents = {
+                c.sha1_git: c
+                for c in self._content_find_many(
+                    [
+                        {"sha1_git": sha1_git}
+                        for sha1_git in {
+                            row.target for row in rows if row.type == "file"
+                        }
+                    ]
+                )
+            }
+
+            for row in rows:
+                entry_d = row.to_dict()
+                # Build and yield the directory entry dict
+                del entry_d["directory_id"]
+                ret = self._join_dentry_to_content(entry_d, contents)
+                ret["name"] = path + ret["name"]
+                ret["dir_id"] = dir_id
+                yield ret
+
+                if recursive and ret["type"] == "dir":
+                    queue.append((ret["name"] + b"/", ret["target"]))
 
     def directory_get_entries(
         self,
@@ -824,6 +988,12 @@ class CassandraStorage:
             to_add = {r.id: r for r in revisions}.values()
             missing = self.revision_missing([rev.id for rev in to_add])
             revisions = [rev for rev in revisions if rev.id in missing]
+
+        if any([getattr(revision, "metadata") for revision in revisions]):
+            logger.warning(
+                "Revision should not have a metadata field any more; it will be ignored"
+            )
+
         self.journal_writer.revision_add(revisions)
 
         for revision in revisions:
@@ -866,29 +1036,39 @@ class CassandraStorage:
 
         return [revisions.get(rev_id) for rev_id in revision_ids]
 
-    def _get_parent_revs(
+    def _revisions_walker_dfs(
         self,
         rev_ids: Iterable[Sha1Git],
-        seen: Set[Sha1Git],
         limit: Optional[int],
         short: bool,
     ) -> Union[
         Iterable[Dict[str, Any]],
         Iterable[Tuple[Sha1Git, Tuple[Sha1Git, ...]]],
     ]:
-        if limit and len(seen) >= limit:
-            return
-        rev_ids = [id_ for id_ in rev_ids if id_ not in seen]
+
+        rev_ids = list(reversed(list(rev_ids)))
         if not rev_ids:
             return
-        seen |= set(rev_ids)
 
-        # We need this query, even if short=True, to return consistent
-        # results (ie. not return only a subset of a revision's parents
-        # if it is being written)
-        if short:
-            ids = self._cql_runner.revision_get_ids(rev_ids)
-            for id_ in ids:
+        seen: Set[Sha1Git] = set()
+
+        while rev_ids:
+
+            rev_id = rev_ids.pop()
+            if rev_id in seen:
+                continue
+
+            seen.add(rev_id)
+
+            # We need this query, even if short=True, to return consistent
+            # results (ie. not return only a subset of a revision's parents
+            # if it is being written)
+            if short:
+                ids = list(self._cql_runner.revision_get_ids([rev_id]))
+                if not ids:
+                    continue
+                id_ = ids[0]
+
                 # TODO: use a single query to get all parents?
                 # (it might have less latency, but requires less code and more
                 # bandwidth (because revision id would be part of each returned
@@ -899,11 +1079,12 @@ class CassandraStorage:
                 # sorted by rank.
 
                 yield (id_, parents)
-                yield from self._get_parent_revs(parents, seen, limit, short)
-        else:
-            rows = self._cql_runner.revision_get(rev_ids)
+            else:
+                rows = list(self._cql_runner.revision_get([rev_id]))
+                if not rows:
+                    continue
+                row = rows[0]
 
-            for row in rows:
                 # TODO: use a single query to get all parents?
                 # (it might have less latency, but requires less code and more
                 # bandwidth (because revision id would be part of each returned
@@ -915,7 +1096,11 @@ class CassandraStorage:
 
                 rev = converters.revision_from_db(row, parents=parents)
                 yield rev.to_dict()
-                yield from self._get_parent_revs(parents, seen, limit, short)
+
+            rev_ids += reversed(parents)
+
+            if limit and len(seen) >= limit:
+                return
 
     def revision_get_partition(
         self,
@@ -944,19 +1129,17 @@ class CassandraStorage:
         ignore_displayname: bool = False,
         limit: Optional[int] = None,
     ) -> Iterable[Optional[Dict[str, Any]]]:
-        seen: Set[Sha1Git] = set()
         yield from cast(
             Iterable[Optional[Dict[str, Any]]],
-            self._get_parent_revs(revisions, seen, limit, short=False),
+            self._revisions_walker_dfs(revisions, limit, short=False),
         )
 
     def revision_shortlog(
         self, revisions: List[Sha1Git], limit: Optional[int] = None
     ) -> Iterable[Optional[Tuple[Sha1Git, Tuple[Sha1Git, ...]]]]:
-        seen: Set[Sha1Git] = set()
         yield from cast(
             Iterable[Optional[Tuple[Sha1Git, Tuple[Sha1Git, ...]]]],
-            self._get_parent_revs(revisions, seen, limit, short=True),
+            self._revisions_walker_dfs(revisions, limit, short=True),
         )
 
     def revision_get_random(self) -> Sha1Git:
@@ -1172,7 +1355,8 @@ class CassandraStorage:
                     None
                     if branch.target is None
                     else SnapshotBranch(
-                        target=branch.target, target_type=TargetType(branch.target_type)
+                        target=branch.target,
+                        target_type=SnapshotTargetType(branch.target_type),
                     )
                 )
                 for branch in branches
@@ -1208,12 +1392,15 @@ class CassandraStorage:
                 break
             branch = branches[0]
             resolve_chain.append(branch_name)
-            if branch.target_type != TargetType.ALIAS.value or not follow_alias_chain:
+            if (
+                branch.target_type != SnapshotTargetType.ALIAS.value
+                or not follow_alias_chain
+            ):
                 # first non alias branch or the first branch when follow_alias_chain is False
                 target = (
                     SnapshotBranch(
                         target=branch.target,
-                        target_type=TargetType(branch.target_type),
+                        target_type=SnapshotTargetType(branch.target_type),
                     )
                     if branch.target
                     else None
@@ -1242,7 +1429,7 @@ class CassandraStorage:
     # Origin
     ##########################
 
-    def origin_get(self, origins: List[str]) -> Iterable[Optional[Origin]]:
+    def origin_get(self, origins: List[str]) -> List[Optional[Origin]]:
         return [self.origin_get_one(origin) for origin in origins]
 
     def origin_get_one(self, origin_url: str) -> Optional[Origin]:
@@ -1411,6 +1598,12 @@ class CassandraStorage:
                     f"of origin {visit_status.origin}"
                 )
             visit_status = attr.evolve(visit_status, type=visit_row.type)
+
+        if getattr(visit_status, "metadata"):
+            logger.warning(
+                "OriginVisitStatus should not have a metadata field any more; "
+                "it will be ignored"
+            )
 
         self.journal_writer.origin_visit_status_add([visit_status])
         self._cql_runner.origin_visit_status_add_one(
@@ -1771,19 +1964,21 @@ class CassandraStorage:
                     # from Cassandra.
                     origin=metadata_entry.origin or "",
                     visit=metadata_entry.visit or 0,
-                    snapshot=str(metadata_entry.snapshot)
-                    if metadata_entry.snapshot
-                    else "",
-                    release=str(metadata_entry.release)
-                    if metadata_entry.release
-                    else "",
-                    revision=str(metadata_entry.revision)
-                    if metadata_entry.revision
-                    else "",
+                    snapshot=(
+                        str(metadata_entry.snapshot) if metadata_entry.snapshot else ""
+                    ),
+                    release=(
+                        str(metadata_entry.release) if metadata_entry.release else ""
+                    ),
+                    revision=(
+                        str(metadata_entry.revision) if metadata_entry.revision else ""
+                    ),
                     path=metadata_entry.path or b"",
-                    directory=str(metadata_entry.directory)
-                    if metadata_entry.directory
-                    else "",
+                    directory=(
+                        str(metadata_entry.directory)
+                        if metadata_entry.directory
+                        else ""
+                    ),
                 )
 
             except TypeError as e:
@@ -1815,7 +2010,7 @@ class CassandraStorage:
         limit: int = 1000,
     ) -> PagedResult[RawExtrinsicMetadata]:
         if page_token is not None:
-            (after_date, id_) = msgpack_loads(base64.b64decode(page_token))
+            after_date, id_ = msgpack_loads(base64.b64decode(page_token))
             if after and after_date < after:
                 raise StorageArgumentException(
                     "page_token is inconsistent with the value of 'after'."
@@ -1985,7 +2180,7 @@ class CassandraStorage:
                 target_type=target_type,
                 target=target,
             )
-            (token, insertion_finalizer) = self._cql_runner.extid_add_prepare(extidrow)
+            token, insertion_finalizer = self._cql_runner.extid_add_prepare(extidrow)
             indexrow = ExtIDByTargetRow(
                 target_type=target_type,
                 target=target,
@@ -2057,7 +2252,7 @@ class CassandraStorage:
         return result
 
     #########################
-    # 'object_references' table
+    # 'object_references' tables
     #########################
 
     def object_find_recent_references(
@@ -2078,6 +2273,37 @@ class CassandraStorage:
         )
         self._cql_runner.object_reference_add_concurrent(to_add)
         return {"object_reference:add": len(to_add)}
+
+    #########################
+    # 'object_references' tables management
+    #########################
+
+    def object_references_create_partition(
+        self, year: int, week: int
+    ) -> Tuple[datetime.date, datetime.date]:
+        """Create the partition of the object_references table for the given ISO
+        ``year`` and ``week``."""
+        return self._cql_runner.object_references_create_table((year, week))
+
+    def object_references_drop_partition(
+        self, partition: ObjectReferencesPartition
+    ) -> None:
+        """Delete the partition of the object_references table for the given partition."""
+        self._cql_runner.object_references_drop_table(partition.year, partition.week)
+
+    def object_references_list_partitions(self) -> List[ObjectReferencesPartition]:
+        """List existing partitions of the object_references table, ordered from
+        oldest to the most recent."""
+        return [
+            ObjectReferencesPartition(
+                table_name=row.name,
+                year=row.year,
+                week=row.week,
+                start=row.start.date(),  # cassandra.util.Date -> datetime.date
+                end=row.end.date(),  # ditto
+            )
+            for row in self._cql_runner.object_references_list_tables()
+        ]
 
     #########################
     # Deletion
@@ -2113,10 +2339,10 @@ class CassandraStorage:
                 for row in self._cql_runner.skipped_content_get_from_token(token):
                     skipped_content_hashes.append(
                         TotalHashDict(
-                            sha1=row.sha1,
-                            sha1_git=row.sha1_git,
-                            sha256=row.sha256,
-                            blake2s256=row.blake2s256,
+                            sha1=row.sha1 or b"",
+                            sha1_git=row.sha1_git or b"",
+                            sha256=row.sha256 or b"",
+                            blake2s256=row.blake2s256 or b"",
                         )
                     )
         for skipped_content_hash in skipped_content_hashes:
@@ -2186,6 +2412,43 @@ class CassandraStorage:
             "origin_visit_status:delete": origin_visit_status_count,
         }
 
+    def _raw_extrinsic_metadata_delete(self, emd_ids: Set[Sha1Git]) -> Dict[str, int]:
+        result: Counter[str] = Counter()
+        for emd_by_id_row in self._cql_runner.raw_extrinsic_metadata_get_by_ids(
+            emd_ids
+        ):
+            discovery_date = None
+            # Sadly, the `raw_extrinsic_metadata_by_id` table does not contain
+            # the `discovery_date` which is needed to remove a specific line in
+            # the `raw_extrinsic_metadata` table. We have to get it by scanning
+            # `raw_extrinsic_metadata` table, looking for the right line.
+            for emd_row in self._cql_runner.raw_extrinsic_metadata_get(
+                emd_by_id_row.target,
+                emd_by_id_row.authority_type,
+                emd_by_id_row.authority_url,
+            ):
+                if emd_row.id == emd_by_id_row.id:
+                    discovery_date = emd_row.discovery_date
+                    break
+            if discovery_date is None:
+                logger.warning(
+                    f"Unable to find `swh:1:emd:{emd_by_id_row.id.hex()}` in "
+                    "`raw_extrinsic_metadata` while it exists in "
+                    "`raw_extrinsic_metadata_by_id`!"
+                )
+                continue
+            self._cql_runner.raw_extrinsic_metadata_delete(
+                emd_by_id_row.target,
+                emd_by_id_row.authority_type,
+                emd_by_id_row.authority_url,
+                discovery_date,
+                emd_by_id_row.id,
+            )
+            result[f"{emd_by_id_row.target[6:9]}_metadata:delete"] += 1
+        for emd_id in emd_ids:
+            self._cql_runner.raw_extrinsic_metadata_by_id_delete(emd_id)
+        return dict(result)
+
     def object_delete(self, swhids: List[ExtendedSWHID]) -> Dict[str, int]:
         """Delete objects from the storage
 
@@ -2199,32 +2462,120 @@ class CassandraStorage:
             swhids: list of SWHID of the objects to remove
 
         Returns:
-            Summary dict with the following keys and associated values:
+            dict: number of objects removed. Details of each key:
 
-                content:delete: Number of content objects removed
-                content:delete:bytes: Sum of the removed contents’ data length
-                skipped_content:delete: Number of skipped content objects removed
-                directory:delete: Number of directory objects removed
-                revision:delete: Number of revision objects removed
-                release:delete: Number of release objects removed
-                snapshot:delete: Number of snapshot objects removed
-                origin:delete: Number of origin objects removed
-                origin_visit:delete: Number of origin visit objects removed
-                origin_visit_status:delete: Number of origin visit status objects removed
+            content:delete
+                Number of content objects removed
+
+            content:delete:bytes
+                Sum of the removed contents’ data length
+
+            skipped_content:delete
+                Number of skipped content objects removed
+
+            directory:delete
+                Number of directory objects removed
+
+            revision:delete
+                Number of revision objects removed
+
+            release:delete
+                Number of release objects removed
+
+            snapshot:delete
+                Number of snapshot objects removed
+
+            origin:delete
+                Number of origin objects removed
+
+            origin_visit:delete
+                Number of origin visit objects removed
+
+            origin_visit_status:delete
+                Number of origin visit status objects removed
+
+            ori_metadata:delete
+                Number of raw extrinsic metadata objects targeting
+                an origin that have been removed
+
+            snp_metadata:delete
+                Number of raw extrinsic metadata objects targeting
+                a snapshot that have been removed
+
+            rev_metadata:delete
+                Number of raw extrinsic metadata objects targeting
+                a revision that have been removed
+
+            rel_metadata:delete
+                Number of raw extrinsic metadata objects targeting
+                a release that have been removed
+
+            dir_metadata:delete
+                Number ef raw extrinsic metadata objects targeting
+                a directory that have been removed
+
+            cnt_metadata:delete
+                Number of raw extrinsic metadata objects targeting
+                a content that have been removed
+
+            emd_metadata:delete
+                Number of raw extrinsic metadata objects targeting
+                a raw extrinsic metadata object that have been removed
         """
 
         # groupby() splits consecutive groups, so we need to order the list first
         def key(swhid: ExtendedSWHID) -> int:
             return _DELETE_ORDERING[swhid.object_type]
 
-        result = {}
+        result = Counter(
+            {
+                k: 0
+                for k in [
+                    "content:delete",
+                    "content:delete:bytes",
+                    "skipped_content:delete",
+                    "directory:delete",
+                    "release:delete",
+                    "revision:delete",
+                    "snapshot:delete",
+                    "origin:delete",
+                    "origin_visit:delete",
+                    "origin_visit_status:delete",
+                ]
+            }
+        )
         sorted_swhids = sorted(swhids, key=key)
         for object_type, grouped_swhids in itertools.groupby(
             sorted_swhids, key=operator.attrgetter("object_type")
         ):
             object_ids = {swhid.object_id for swhid in grouped_swhids}
             result.update(_DELETE_METHODS[object_type](self, object_ids))
-        return result
+        return dict(result)
+
+    def extid_delete_for_target(self, target_swhids: List[CoreSWHID]) -> Dict[str, int]:
+        """Delete ExtID objects from the storage
+
+        Args:
+            target_swhids: list of SWHIDs targeted by the ExtID objects to remove
+
+        Returns:
+            Summary dict with the following keys and associated values:
+
+                extid:delete: Number of ExtID objects removed
+        """
+        deleted_extid_count = 0
+        for target_swhid in target_swhids:
+            target_type = target_swhid.object_type.value
+            target = target_swhid.object_id
+
+            extid_rows = list(
+                self._cql_runner.extid_get_from_target(target_type, target)
+            )
+            self._cql_runner.extid_delete_from_by_target_table(target_type, target)
+            for extid_row in extid_rows:
+                self._cql_runner.extid_delete(**extid_row.to_dict())
+                deleted_extid_count += 1
+        return {"extid:delete": deleted_extid_count}
 
     ##########################
     # misc.
@@ -2248,6 +2599,7 @@ _DELETE_METHODS: Dict[
     ExtendedObjectType.RELEASE: CassandraStorage._release_delete,
     ExtendedObjectType.SNAPSHOT: CassandraStorage._snapshot_delete,
     ExtendedObjectType.ORIGIN: CassandraStorage._origin_delete,
+    ExtendedObjectType.RAW_EXTRINSIC_METADATA: CassandraStorage._raw_extrinsic_metadata_delete,
 }
 
 _DELETE_ORDERING: Dict[ExtendedObjectType, int] = {

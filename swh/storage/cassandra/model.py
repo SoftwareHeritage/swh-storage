@@ -17,6 +17,13 @@ them are subtly different:
 
 Therefore, this model doesn't reuse swh.model.model, except for types
 that can be mapped to UDTs (Person and TimestampWithTimezone).
+
+Fields may have :func:`dataclasses metadata <dataclasses.field>` keys ``fk``
+if the existence of a corresponding row in a different table is almost guaranteed
+(up to loaders not crashing and eventual-consistency settling down) and
+``points_to`` if they are a Merkle-DAG link to another object (which is more likely
+to be missing).
+This is used by :func:`swh.storage.cassandra.diagram.dot_diagram`.
 """
 
 import dataclasses
@@ -36,6 +43,8 @@ from typing import (
 
 if TYPE_CHECKING:
     from _typeshed import DataclassInstance
+
+from cassandra.util import Date
 
 from swh.model.model import Person, TimestampWithTimezone
 
@@ -68,6 +77,13 @@ class BaseRow:
     CLUSTERING_KEY: ClassVar[Tuple[str, ...]] = ()
 
     @classmethod
+    def denullify_clustering_key(self, ck: Tuple) -> Tuple:
+        """If this class has a Optional fields used as a clustering key, this replaces
+        such values from the given clustering key so it is suitable for sorting purposes
+        """
+        return ck
+
+    @classmethod
     def from_dict(cls: Type[T], d: Dict[str, Any]) -> T:
         return cls(**d)
 
@@ -79,6 +95,18 @@ class BaseRow:
 
     def to_dict(self) -> Dict[str, Any]:
         return dataclasses.asdict(cast("DataclassInstance", self))
+
+
+@dataclasses.dataclass
+class MigrationRow(BaseRow):
+    TABLE = "migration"
+    PARTITION_KEY = ("id",)
+
+    id: str
+    dependencies: set[str]
+    min_read_version: str
+    status: str
+    """``pending``/``running``/``completed``"""
 
 
 @dataclasses.dataclass
@@ -96,7 +124,7 @@ class ContentRow(BaseRow):
     sha256: bytes
     blake2s256: bytes
     length: int
-    ctime: datetime.datetime
+    ctime: Optional[datetime.datetime]
     """creation time, i.e. time of (first) injection into the storage"""
     status: str
 
@@ -116,6 +144,10 @@ class SkippedContentRow(BaseRow):
     status: str
     reason: str
     origin: str
+
+    @classmethod
+    def denullify_clustering_key(self, ck: Tuple) -> Tuple:
+        return tuple(MAGIC_NULL_PK if v is None else v for v in ck)
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "SkippedContentRow":
@@ -142,10 +174,19 @@ class DirectoryEntryRow(BaseRow):
     PARTITION_KEY = ("directory_id",)
     CLUSTERING_KEY = ("name",)
 
-    directory_id: bytes
+    directory_id: bytes = dataclasses.field(metadata={"fk": ["directory.id"]})
     name: bytes
     """path name, relative to containing dir"""
-    target: bytes
+    target: bytes = dataclasses.field(
+        metadata={
+            "points_to": [
+                "content.sha1_git",
+                "skipped_content.sha1_git",
+                "directory.id",
+                "revision.id",
+            ]
+        }
+    )
     perms: int
     """unix-like permissions"""
     type: str
@@ -161,15 +202,13 @@ class RevisionRow(BaseRow):
     date: Optional[TimestampWithTimezone]
     committer_date: Optional[TimestampWithTimezone]
     type: str
-    directory: bytes
+    directory: bytes = dataclasses.field(metadata={"points_to": ["directory.id"]})
     """source code "root" directory"""
     message: bytes
     author: Person
     committer: Person
     synthetic: bool
     """true iff revision has been created by Software Heritage"""
-    metadata: str
-    """extra metadata as JSON(tarball checksums, etc...)"""
     extra_headers: dict
     """extra commit information as (tuple(key, value), ...)"""
     raw_manifest: Optional[bytes]
@@ -182,10 +221,10 @@ class RevisionParentRow(BaseRow):
     PARTITION_KEY = ("id",)
     CLUSTERING_KEY = ("parent_rank",)
 
-    id: bytes
+    id: bytes = dataclasses.field(metadata={"fk": ["revision.id"]})
     parent_rank: int
     """parent position in merge commits, 0-based"""
-    parent_id: bytes
+    parent_id: bytes = dataclasses.field(metadata={"points_to": ["revision.id"]})
 
 
 @dataclasses.dataclass
@@ -195,7 +234,16 @@ class ReleaseRow(BaseRow):
 
     id: bytes
     target_type: str
-    target: bytes
+    target: bytes = dataclasses.field(
+        metadata={
+            "points_to": [
+                "content.sha1_git",
+                "skipped_content.sha1_git",
+                "directory.id",
+                "revision.id",
+            ]
+        }
+    )
     date: TimestampWithTimezone
     name: bytes
     message: bytes
@@ -225,10 +273,19 @@ class SnapshotBranchRow(BaseRow):
     PARTITION_KEY = ("snapshot_id",)
     CLUSTERING_KEY = ("name",)
 
-    snapshot_id: bytes
+    snapshot_id: bytes = dataclasses.field(metadata={"fk": ["snapshot.id"]})
     name: bytes
     target_type: Optional[str]
-    target: Optional[bytes]
+    target: Optional[bytes] = dataclasses.field(
+        metadata={
+            "points_to": [
+                "content.sha1_git",
+                "skipped_content.sha1_git",
+                "revision.id",
+                "release.id",
+            ]
+        }
+    )
 
 
 @dataclasses.dataclass
@@ -237,7 +294,7 @@ class OriginVisitRow(BaseRow):
     PARTITION_KEY = ("origin",)
     CLUSTERING_KEY = ("visit",)
 
-    origin: str
+    origin: str = dataclasses.field(metadata={"fk": ["origin.url"]})
     visit: int
     date: datetime.datetime
     type: str
@@ -249,13 +306,12 @@ class OriginVisitStatusRow(BaseRow):
     PARTITION_KEY = ("origin",)
     CLUSTERING_KEY = ("visit", "date")
 
-    origin: str
-    visit: int
+    origin: str = dataclasses.field(metadata={"fk": ["origin_visit.origin"]})
+    visit: int = dataclasses.field(metadata={"fk": ["origin_visit.visit"]})
     date: datetime.datetime
     type: str
     status: str
-    metadata: str
-    snapshot: bytes
+    snapshot: bytes = dataclasses.field(metadata={"fk": ["snapshot.id"]})
 
     @classmethod
     def from_dict(cls: Type[T], d: Dict[str, Any]) -> T:
@@ -342,11 +398,15 @@ class RawExtrinsicMetadataRow(BaseRow):
     target: str
 
     # metadata source:
-    authority_type: str
-    authority_url: str
+    authority_type: str = dataclasses.field(
+        metadata={"fk": ["metadata_authority.type"]}
+    )
+    authority_url: str = dataclasses.field(metadata={"fk": ["metadata_authority.url"]})
     discovery_date: datetime.datetime
-    fetcher_name: str
-    fetcher_version: str
+    fetcher_name: str = dataclasses.field(metadata={"fk": ["metadata_fetcher.name"]})
+    fetcher_version: str = dataclasses.field(
+        metadata={"fk": ["metadata_fetcher.version"]}
+    )
 
     # metadata itself:
     format: str
@@ -372,8 +432,8 @@ class RawExtrinsicMetadataByIdRow(BaseRow):
     PARTITION_KEY = ("id",)
     CLUSTERING_KEY = ()
 
-    id: bytes
-    target: str
+    id: bytes = dataclasses.field(metadata={"fk": ["raw_extrinsic_metadata.id"]})
+    target: str = dataclasses.field(metadata={"fk": ["raw_extrinsic_metadata.target"]})
     authority_type: str
     authority_url: str
 
@@ -409,7 +469,7 @@ class ExtIDByTargetRow(BaseRow):
     CLUSTERING_KEY = ("target_token",)
 
     target_type: str
-    target: bytes
+    target: bytes = dataclasses.field(metadata={"fk": ["extid.target"]})
     target_token: int
     """value of token(pk) on the "primary" table"""
 
@@ -424,3 +484,20 @@ class ObjectReferenceRow(BaseRow):
     target: bytes
     source_type: str
     source: bytes
+
+
+@dataclasses.dataclass(frozen=True)
+class ObjectReferencesTableRow(BaseRow):
+    TABLE = "object_references_table"
+    PARTITION_KEY = ("pk",)
+    CLUSTERING_KEY = ("name",)
+
+    pk: int
+    """always zero, puts everything in the same Cassandra partition for faster querying"""
+    name: str
+    year: int
+    """ISO year."""
+    week: int
+    """ISO week."""
+    start: Date
+    end: Date

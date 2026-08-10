@@ -1,10 +1,11 @@
-# Copyright (C) 2024  The Software Heritage developers
+# Copyright (C) 2024-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
 from contextlib import closing
 import datetime as dt
+from importlib.metadata import version
 from io import StringIO
 import socket
 import textwrap
@@ -14,12 +15,15 @@ import pytest
 
 from swh.core.cli.db import db as swhdb
 from swh.core.db.db_utils import get_database_info
+from swh.core.tests.test_cli import assert_result
 from swh.model.swhids import ExtendedSWHID, ValidationError
 
 from ...proxies.masking.cli import (
     EditAborted,
+    MaskedStateType,
     clear_request,
     edit_message,
+    format_masked_state,
     history_cmd,
     list_requests,
     masking_cli_group,
@@ -41,43 +45,43 @@ from ...proxies.masking.db import (
 
 def test_cli_db_create(postgresql):
     """Create a db then initializing it should be ok"""
-    module_name = "storage.proxies.masking"
-
+    module_name = "storage:masking"
     db_params = postgresql.info
-    dbname = "masking-db"
+    dbname = f"{module_name}-db"
     conninfo = (
         f"postgresql://{db_params.user}@{db_params.host}:{db_params.port}/{dbname}"
     )
 
     # This creates the db and installs the necessary admin extensions
     result = CliRunner().invoke(swhdb, ["create", module_name, "--dbname", conninfo])
-    assert result.exit_code == 0, f"Unexpected output: {result.output}"
+    assert_result(result)
 
     # This initializes the schema and data
     result = CliRunner().invoke(swhdb, ["init", module_name, "--dbname", conninfo])
-
-    assert result.exit_code == 0, f"Unexpected output: {result.output}"
+    assert_result(result)
 
     dbmodule, dbversion, dbflavor = get_database_info(conninfo)
-    assert dbmodule == "storage.proxies.masking"
+    assert dbmodule == "storage:masking"
     assert dbversion == MaskingAdmin.current_version
     assert dbflavor is None
 
 
 @pytest.fixture
 def masking_admin_config(masking_db_postgresql):
-    return {"masking_admin": {"masking_db": masking_db_postgresql.info.dsn}}
+    return {
+        "masking_admin": {"cls": "postgresql", "db": masking_db_postgresql.info.dsn}
+    }
 
 
 def test_masking_admin_not_defined():
-    runner = CliRunner(mix_stderr=False)
+    runner = CliRunner()
     result = runner.invoke(
         masking_cli_group,
         ["list-requests"],
         obj={"config": {}},
     )
     assert result.exit_code == 2
-    assert "masking_admin" in result.stderr
+    assert "masking_admin" in result.output
 
 
 def find_free_port():
@@ -90,14 +94,14 @@ def find_free_port():
 
 def test_masking_admin_unreachable():
     erroneous_postgresql_port = find_free_port()
-    runner = CliRunner(mix_stderr=False)
+    runner = CliRunner()
     result = runner.invoke(
         masking_cli_group,
         ["list-requests"],
         obj={
             "config": {
                 "masking_admin": {
-                    "masking_db": (
+                    "db": (
                         "postgresql://localhost/postgres?"
                         f"port={erroneous_postgresql_port}"
                     )
@@ -106,7 +110,7 @@ def test_masking_admin_unreachable():
         },
     )
     assert result.exit_code == 1
-    assert "failed: Connection refused" in result.stderr
+    assert "failed: Connection refused" in result.output
 
 
 def test_edit_message_success(mocker):
@@ -117,28 +121,22 @@ def test_edit_message_success(mocker):
         edit_message("Hello!", extra_lines=["Sometimes I'm alone", "Sometimes I'm not"])
         == "Sometimes I'm round"
     )
-    mocked_click_edit.assert_called_once_with(
-        textwrap.dedent(
-            """
+    mocked_click_edit.assert_called_once_with(textwrap.dedent("""
 
         # Hello!
         # Lines starting with “#” will be ignored. An empty message will abort the operation.
         #
         # Sometimes I'm alone
-        # Sometimes I'm not"""
-        )
-    )
+        # Sometimes I'm not"""))
 
 
 def test_edit_message_removes_comment(mocker):
     mocker.patch(
         "swh.storage.proxies.masking.cli.click.edit",
-        return_value=textwrap.dedent(
-            """\
+        return_value=textwrap.dedent("""\
         Hello!
 
-        # This is a comment"""
-        ),
+        # This is a comment"""),
     )
     assert edit_message("RANDOM PROMPT") == "Hello!"
 
@@ -265,7 +263,7 @@ def test_new_request(mocker, mocked_masking_admin, request01):
     result = runner.invoke(
         new_request, ["request-01"], obj={"masking_admin": mocked_masking_admin}
     )
-    assert result.exit_code == 0
+    assert_result(result)
     mocked_masking_admin.create_request.assert_called_once_with("request-01", "one")
     assert "da785a27-7e59-4a35-b82a-a5ae3714407c" in result.output
     assert "request-01" in result.output
@@ -280,7 +278,7 @@ def test_new_request_with_message(mocker, mocked_masking_admin, request01):
         ["--message=one", "request-01"],
         obj={"masking_admin": mocked_masking_admin},
     )
-    assert result.exit_code == 0
+    assert_result(result)
     mocked_click_edit.assert_not_called()
     mocked_masking_admin.create_request.assert_called_once_with("request-01", "one")
     assert "da785a27-7e59-4a35-b82a-a5ae3714407c" in result.output
@@ -301,12 +299,16 @@ def test_new_request_empty_message_aborts(mocker, mocked_masking_admin):
     mocked_masking_admin.create_request.assert_not_called()
 
 
+@pytest.mark.skipif(
+    version("click") == "8.4.0",
+    reason="A regression from click 8.4.0 in click.echo_with_pager makes that test fail.",
+)
 def test_list_requests_default(mocked_masking_admin):
     runner = CliRunner()
     result = runner.invoke(
         list_requests, [], obj={"masking_admin": mocked_masking_admin}
     )
-    assert result.exit_code == 0
+    assert_result(result)
     mocked_masking_admin.get_requests.assert_called_once_with(
         include_cleared_requests=False
     )
@@ -316,6 +318,10 @@ def test_list_requests_default(mocked_masking_admin):
     assert "4fd42e35-2b6c-4536-8447-bc213cd0118b" in result.output
 
 
+@pytest.mark.skipif(
+    version("click") == "8.4.0",
+    reason="A regression from click 8.4.0 in click.echo_with_pager makes that test fail.",
+)
 def test_list_requests_include_cleared_requests(mocked_masking_admin):
     runner = CliRunner()
     result = runner.invoke(
@@ -323,7 +329,7 @@ def test_list_requests_include_cleared_requests(mocked_masking_admin):
         ["--include-cleared-requests"],
         obj={"masking_admin": mocked_masking_admin},
     )
-    assert result.exit_code == 0
+    assert_result(result)
     mocked_masking_admin.get_requests.assert_called_once_with(
         include_cleared_requests=True
     )
@@ -365,7 +371,7 @@ def test_update_objects(mocker, mocked_masking_admin, request01):
         input=SWHIDS_INPUT,
         obj={"masking_admin": mocked_masking_admin},
     )
-    assert result.exit_code == 0
+    assert_result(result)
     assert "2 objects" in result.output
     assert "request-01" in result.output
     mocked_click_edit.assert_called_once()
@@ -388,7 +394,7 @@ def test_update_objects_with_message(mocker, mocked_masking_admin, request01):
         input=SWHIDS_INPUT,
         obj={"masking_admin": mocked_masking_admin},
     )
-    assert result.exit_code == 0
+    assert_result(result)
     mocked_click_edit.assert_not_called()
     mocked_masking_admin.set_object_state.assert_called_once()
     mocked_masking_admin.record_history.assert_called_once_with(
@@ -421,7 +427,7 @@ def test_update_objects_with_file(tmp_path, mocker, mocked_masking_admin, reques
         ["request-01", "decision-pending", f"--file={str(swhids_file)}"],
         obj={"masking_admin": mocked_masking_admin},
     )
-    assert result.exit_code == 0
+    assert_result(result)
     assert "2 objects" in result.output
     mocked_masking_admin.set_object_state.assert_called_once_with(
         request01.id, MaskedState.DECISION_PENDING, SWHIDS_INPUT_PARSED
@@ -461,14 +467,12 @@ def test_status(mocked_masking_admin, request01):
     result = runner.invoke(
         status_cmd, ["request-01"], obj={"masking_admin": mocked_masking_admin}
     )
-    assert result.exit_code == 0
+    assert_result(result)
     mocked_masking_admin.get_states_for_request.assert_called_once_with(request01.id)
-    assert result.output == textwrap.dedent(
-        """\
+    assert result.output == textwrap.dedent("""\
         swh:1:cnt:d81cc0710eb6cf9efd5b920a8453e1e07157b6cd restricted
         swh:1:cnt:36fade77193cb6d2bd826161a0979d64c28ab4fa decision-pending
-        """
-    )
+        """)
 
 
 def test_status_request_not_found(mocked_masking_admin):
@@ -487,16 +491,20 @@ def test_status_request_via_uuid(mocked_masking_admin, request01):
         ["da785a27-7e59-4a35-b82a-a5ae3714407c"],
         obj={"masking_admin": mocked_masking_admin},
     )
-    assert result.exit_code == 0
+    assert_result(result)
     mocked_masking_admin.get_states_for_request.assert_called_once_with(request01.id)
 
 
+@pytest.mark.skipif(
+    version("click") == "8.4.0",
+    reason="A regression from click 8.4.0 in click.echo_with_pager makes that test fail.",
+)
 def test_history(mocked_masking_admin, request01):
     runner = CliRunner()
     result = runner.invoke(
         history_cmd, ["request-01"], obj={"masking_admin": mocked_masking_admin}
     )
-    assert result.exit_code == 0
+    assert_result(result)
     mocked_masking_admin.get_history.assert_called_once_with(request01.id)
     assert (
         "History for request “request-01” (da785a27-7e59-4a35-b82a-a5ae3714407c)"
@@ -515,6 +523,10 @@ def test_history_not_found(mocked_masking_admin):
     assert "Error: Request “garbage” not found" in result.output
 
 
+@pytest.mark.skipif(
+    version("click") == "8.4.0",
+    reason="A regression from click 8.4.0 in click.echo_with_pager makes that test fail.",
+)
 def test_object_state(mocked_masking_admin, masked_content, masked_content2):
     masked_content_in_request02 = MaskedObject(
         request_slug="request-02", swhid=masked_content.swhid, state=MaskedState.VISIBLE
@@ -534,17 +546,15 @@ def test_object_state(mocked_masking_admin, masked_content, masked_content2):
         ],
         obj={"masking_admin": mocked_masking_admin},
     )
-    assert result.exit_code == 0
-    assert result.output == textwrap.dedent(
-        """\
+    assert_result(result)
+    assert result.output == textwrap.dedent("""\
         masked  swh:1:cnt:d81cc0710eb6cf9efd5b920a8453e1e07157b6cd
                 request-02: visible
                 request-01: restricted
         masked  swh:1:cnt:36fade77193cb6d2bd826161a0979d64c28ab4fa
                 request-01: decision-pending
 
-        """
-    )
+        """)
 
 
 def test_object_state_bad_swhid():
@@ -566,7 +576,7 @@ def test_clear_request(mocker, mocked_masking_admin, request01):
         ["request-01"],
         obj={"masking_admin": mocked_masking_admin},
     )
-    assert result.exit_code == 0
+    assert_result(result)
     assert "Masks cleared for request “request-01”." in result.output
     mocked_click_edit.assert_called_once()
     mocked_masking_admin.delete_masks.assert_called_once_with(request01.id)
@@ -583,7 +593,7 @@ def test_clear_request_with_message(mocker, mocked_masking_admin, request01):
         ["--message=request cleared", "request-01"],
         obj={"masking_admin": mocked_masking_admin},
     )
-    assert result.exit_code == 0
+    assert_result(result)
     assert "Masks cleared for request “request-01”." in result.output
     mocked_click_edit.assert_not_called()
     mocked_masking_admin.delete_masks.assert_called_once_with(request01.id)
@@ -615,3 +625,12 @@ def test_clear_request_not_found(mocked_masking_admin):
     assert "Error: Request “garbage” not found" in result.output
     mocked_masking_admin.delete_masks.assert_not_called()
     mocked_masking_admin.record_history.assert_not_called()
+
+
+def test_masked_state_type():
+    masked_states = set(MaskedStateType().choices)
+    # check MaskedStateType choices match MaskedState enum
+    assert masked_states == {format_masked_state(state) for state in MaskedState}
+    # check MaskedStateType choices are referenced in command documentation
+    for masked_state in masked_states:
+        assert masked_state in update_objects.__doc__

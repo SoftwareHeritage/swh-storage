@@ -1,4 +1,4 @@
-# Copyright (C) 2018-2021  The Software Heritage developers
+# Copyright (C) 2018-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -6,6 +6,7 @@
 from copy import deepcopy
 
 from swh.model.hashutil import hash_to_bytes, hash_to_hex
+from swh.model.model import Revision
 from swh.storage.algos.revisions_walker import get_revisions_walker
 
 # For those tests, we will walk the following revisions history
@@ -90,13 +91,11 @@ _revisions_list = [
         "author": {
             "email": b"adam.janicki@roche.com",  # noqa
             "fullname": b"Adam <adam.janicki@roche.com>",
-            "id": 8040905,
             "name": b"Adam",
         },
         "committer": {
             "email": b"adam.janicki@roche.com",
             "fullname": b"Adam <adam.janicki@roche.com>",
-            "id": 8040905,
             "name": b"Adam",
         },
         "committer_date": {
@@ -122,13 +121,11 @@ _revisions_list = [
         "author": {
             "email": b"adam.janicki@roche.com",
             "fullname": b"Adam <adam.janicki@roche.com>",
-            "id": 8040905,
             "name": b"Adam",
         },
         "committer": {
             "email": b"adam.janicki@roche.com",
             "fullname": b"Adam <adam.janicki@roche.com>",
-            "id": 8040905,
             "name": b"Adam",
         },
         "committer_date": {
@@ -153,13 +150,11 @@ _revisions_list = [
         "author": {
             "email": b"adam.janicki@roche.com",
             "fullname": b"Adam <adam.janicki@roche.com>",
-            "id": 8040905,
             "name": b"Adam",
         },
         "committer": {
             "email": b"adam.janicki@roche.com",
             "fullname": b"Adam <adam.janicki@roche.com>",
-            "id": 8040905,
             "name": b"Adam",
         },
         "committer_date": {
@@ -182,13 +177,11 @@ _revisions_list = [
         "author": {
             "email": b"janickia",
             "fullname": b"Adam Janicki <janickia>",
-            "id": 8040906,
             "name": b"Adam Janicki",
         },
         "committer": {
             "email": b"janickia",
             "fullname": b"Adam Janicki <janickia>",
-            "id": 8040906,
             "name": b"Adam Janicki",
         },
         "committer_date": {
@@ -211,13 +204,11 @@ _revisions_list = [
         "author": {
             "email": b"adam.janicki@roche.com",
             "fullname": b"Adam <adam.janicki@roche.com>",
-            "id": 8040905,
             "name": b"Adam",
         },
         "committer": {
             "email": b"adam.janicki@roche.com",
             "fullname": b"Adam <adam.janicki@roche.com>",
-            "id": 8040905,
             "name": b"Adam",
         },
         "committer_date": {
@@ -241,13 +232,11 @@ _revisions_list = [
         "author": {
             "email": b"janickia",
             "fullname": b"Adam Janicki <janickia>",
-            "id": 8040906,
             "name": b"Adam Janicki",
         },
         "committer": {
             "email": b"janickia",
             "fullname": b"Adam Janicki <janickia>",
-            "id": 8040906,
             "name": b"Adam Janicki",
         },
         "committer_date": {
@@ -270,13 +259,11 @@ _revisions_list = [
         "author": {
             "email": b"janickia",
             "fullname": b"Adam Janicki <janickia>",
-            "id": 8040906,
             "name": b"Adam Janicki",
         },
         "committer": {
             "email": b"janickia",
             "fullname": b"Adam Janicki <janickia>",
-            "id": 8040906,
             "name": b"Adam Janicki",
         },
         "committer_date": {
@@ -299,13 +286,11 @@ _revisions_list = [
         "author": {
             "email": b"adam.janicki@roche.com",
             "fullname": b"Adam <adam.janicki@roche.com>",
-            "id": 8040905,
             "name": b"Adam",
         },
         "committer": {
             "email": b"adam.janicki@roche.com",
             "fullname": b"Adam <adam.janicki@roche.com>",
-            "id": 8040905,
             "name": b"Adam",
         },
         "committer_date": {
@@ -328,13 +313,11 @@ _revisions_list = [
         "author": {
             "email": b"adam.janicki@roche.com",
             "fullname": b"Adam <adam.janicki@roche.com>",
-            "id": 8040905,
             "name": b"Adam",
         },
         "committer": {
             "email": b"adam.janicki@roche.com",
             "fullname": b"Adam <adam.janicki@roche.com>",
-            "id": 8040905,
             "name": b"Adam",
         },
         "committer_date": {
@@ -362,26 +345,25 @@ _rev_missing = "836d498396fb9b5d45c896885f84d8d60a5651dc"
 
 
 def check_revisions_ordering(
-    mocker,
+    swh_storage,
     rev_walker_type,
     expected_result,
     truncated_history,
     revisions_list=_revisions_list,
 ):
-    storage = mocker.patch("swh.storage.postgresql.storage.Storage")
-
-    if not truncated_history:
-        storage.revision_log.return_value = revisions_list
-    else:
-        revs_lists_truncated = [
-            None if hash_to_hex(rev["id"]) == _rev_missing else rev
-            for rev in revisions_list
-        ]
-
-        storage.revision_log.return_value = revs_lists_truncated
+    swh_storage.revision_add(list(map(Revision.from_dict, revisions_list)))
+    revision_get = swh_storage.revision_get
+    swh_storage.revision_get = lambda revision_ids, ignore_displayname: [
+        (
+            None
+            if truncated_history and rev and hash_to_hex(rev.id) == _rev_missing
+            else rev
+        )
+        for rev in revision_get(revision_ids, ignore_displayname)
+    ]
 
     revs_walker = get_revisions_walker(
-        rev_walker_type, storage, hash_to_bytes(_rev_start)
+        rev_walker_type, swh_storage, hash_to_bytes(_rev_start)
     )
 
     assert list(map(hash_to_bytes, expected_result)) == [
@@ -397,7 +379,7 @@ def check_revisions_ordering(
         assert revs_walker.missing_revisions() == set()
 
 
-def test_revisions_walker_committer_date(mocker):
+def test_revisions_walker_committer_date(swh_storage):
     # revisions should be returned in reverse chronological order
     # of their committer date
     expected_result = [
@@ -413,11 +395,11 @@ def test_revisions_walker_committer_date(mocker):
     ]
 
     check_revisions_ordering(
-        mocker, "committer_date", expected_result, truncated_history=False
+        swh_storage, "committer_date", expected_result, truncated_history=False
     )
 
 
-def test_revisions_walker_dfs(mocker):
+def test_revisions_walker_dfs(swh_storage):
     # revisions should be returned in the same order they are
     # visited when performing a depth-first search in pre order
     # on the revisions DAG
@@ -433,10 +415,12 @@ def test_revisions_walker_dfs(mocker):
         "9c5051397e5c2e0c258bb639c3dd34406584ca10",
     ]
 
-    check_revisions_ordering(mocker, "dfs", expected_result, truncated_history=False)
+    check_revisions_ordering(
+        swh_storage, "dfs", expected_result, truncated_history=False
+    )
 
 
-def test_revisions_walker_dfs_post(mocker):
+def test_revisions_walker_dfs_post(swh_storage):
     # revisions should be returned in the same order they are
     # visited when performing a depth-first search in post order
     # on the revisions DAG
@@ -453,11 +437,11 @@ def test_revisions_walker_dfs_post(mocker):
     ]
 
     check_revisions_ordering(
-        mocker, "dfs_post", expected_result, truncated_history=False
+        swh_storage, "dfs_post", expected_result, truncated_history=False
     )
 
 
-def test_revisions_walker_bfs(mocker):
+def test_revisions_walker_bfs(swh_storage):
     # revisions should be returned in the same order they are
     # visited when performing a breadth-first search on the
     # revisions DAG
@@ -473,10 +457,12 @@ def test_revisions_walker_bfs(mocker):
         "9c5051397e5c2e0c258bb639c3dd34406584ca10",
     ]
 
-    check_revisions_ordering(mocker, "bfs", expected_result, truncated_history=False)
+    check_revisions_ordering(
+        swh_storage, "bfs", expected_result, truncated_history=False
+    )
 
 
-def test_revisions_walker_truncated_history(mocker):
+def test_revisions_walker_truncated_history(swh_storage):
     expected_result = [
         "b364f53155044e5308a0f73abb3b5f01995a5b7d",
         "b94886c500c46e32dc3d7ebae8a5409accd592e5",
@@ -488,11 +474,11 @@ def test_revisions_walker_truncated_history(mocker):
 
     for revs_walker_type in ("committer_date", "bfs", "dfs", "dfs_post"):
         check_revisions_ordering(
-            mocker, revs_walker_type, expected_result, truncated_history=True
+            swh_storage, revs_walker_type, expected_result, truncated_history=True
         )
 
 
-def test_revisions_walker_no_committer_date(mocker):
+def test_revisions_walker_no_committer_date(swh_storage):
     expected_result = [
         "b364f53155044e5308a0f73abb3b5f01995a5b7d",
         "b94886c500c46e32dc3d7ebae8a5409accd592e5",
@@ -510,7 +496,7 @@ def test_revisions_walker_no_committer_date(mocker):
         revision["committer_date"] = None
 
     check_revisions_ordering(
-        mocker,
+        swh_storage,
         "committer_date",
         expected_result,
         truncated_history=False,

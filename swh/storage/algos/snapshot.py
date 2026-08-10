@@ -1,4 +1,4 @@
-# Copyright (C) 2018-2020  The Software Heritage developers
+# Copyright (C) 2018-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -12,7 +12,7 @@ from swh.model.model import (
     Sha1Git,
     Snapshot,
     SnapshotBranch,
-    TargetType,
+    SnapshotTargetType,
 )
 from swh.storage.algos.origin import (
     iter_origin_visit_statuses,
@@ -23,25 +23,54 @@ from swh.storage.interface import ListOrder, StorageInterface
 
 
 def snapshot_get_all_branches(
-    storage: StorageInterface, snapshot_id: Sha1Git
+    storage: StorageInterface,
+    snapshot_id: Sha1Git,
+    max_branches_per_page: int = 1000,
+    target_types: Optional[List[str]] = None,
+    branch_name_include_substring: Optional[bytes] = None,
+    branch_name_exclude_prefix: Optional[bytes] = None,
 ) -> Optional[Snapshot]:
     """Get all the branches for a given snapshot
 
     Args:
         storage (swh.storage.interface.StorageInterface): the storage instance
         snapshot_id (bytes): the snapshot's identifier
+        max_branches_per_page: optional parameter used to restrain
+            the amount of returned branches per page while iteratively fetching
+            all branches
+        target_types: optional parameter used to filter the
+            target types of branch to return (possible values that can be
+            contained in that list are ``content``, ``directory``,
+            ``revision``, ``release``, ``snapshot``, ``alias``)
+        branch_name_include_substring: if provided, only return branches whose name
+            contains given substring
+        branch_name_exclude_prefix: if provided, do not return branches whose name
+            contains given prefix
     Returns:
-        A snapshot objects populated with all known branches if the snapshot is
-        found or None.
+        A snapshot objects populated with all known branches (possibly filtered) if
+        the snapshot is found, :const:`None` otherwise.
     """
-    ret = storage.snapshot_get_branches(snapshot_id)
+    ret = storage.snapshot_get_branches(
+        snapshot_id,
+        branches_count=max_branches_per_page,
+        target_types=target_types,
+        branch_name_include_substring=branch_name_include_substring,
+        branch_name_exclude_prefix=branch_name_exclude_prefix,
+    )
 
     if not ret:
         return None
 
     next_branch = ret["next_branch"]
     while next_branch:
-        data = storage.snapshot_get_branches(snapshot_id, branches_from=next_branch)
+        data = storage.snapshot_get_branches(
+            snapshot_id,
+            branches_from=next_branch,
+            branches_count=max_branches_per_page,
+            target_types=target_types,
+            branch_name_include_substring=branch_name_include_substring,
+            branch_name_exclude_prefix=branch_name_exclude_prefix,
+        )
         assert data, f"Snapshot {hash_to_hex(snapshot_id)} ceased to exist"
         ret["branches"].update(data["branches"])
         next_branch = data["next_branch"]
@@ -54,6 +83,7 @@ def snapshot_get_latest(
     origin: str,
     allowed_statuses: Optional[List[str]] = None,
     branches_count: Optional[int] = None,
+    visit_type: Optional[str] = None,
 ) -> Optional[Snapshot]:
     """Get the latest snapshot for the given origin, optionally only from visits that have
     one of the given allowed_statuses.
@@ -71,6 +101,8 @@ def snapshot_get_latest(
         branches_count: Optional parameter to retrieve snapshot with all branches
             (default behavior when None) or not. If set to positive number, the snapshot
             will be partial with only that number of branches.
+        visit_type: Optional parameter to retrieve snapshot produced by a specific
+            visit type
 
     Raises:
         ValueError if branches_count is not a positive value
@@ -84,6 +116,7 @@ def snapshot_get_latest(
         origin,
         allowed_statuses=allowed_statuses,
         require_snapshot=True,
+        type=visit_type,
     )
     if not visit_status:
         return None
@@ -160,7 +193,7 @@ def visits_and_snapshots_get_from_revision(
             for branch_name, branch in snapshot.branches.items():
                 if (
                     branch is not None
-                    and branch.target_type == TargetType.REVISION
+                    and branch.target_type == SnapshotTargetType.REVISION
                     and branch.target == revision_id
                 ):  # snapshot found
                     yield (visit, visit_status, snapshot)

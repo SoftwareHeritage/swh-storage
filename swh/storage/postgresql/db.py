@@ -1,32 +1,40 @@
-# Copyright (C) 2015-2023  The Software Heritage developers
+# Copyright (C) 2015-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
-from dataclasses import dataclass
 import datetime
 import logging
 import random
 import re
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
 
-from psycopg2 import sql
-from psycopg2.extras import execute_values
+from psycopg import Cursor, sql
 
 from swh.core.db import BaseDb
-from swh.core.db.db_utils import execute_values_generator
 from swh.core.db.db_utils import jsonize as _jsonize
 from swh.core.db.db_utils import stored_procedure
 from swh.model.hashutil import DEFAULT_ALGORITHMS
 from swh.model.model import SHA1_SIZE, OriginVisit, OriginVisitStatus, Sha1Git
-from swh.model.swhids import ObjectType
-from swh.storage.interface import ListOrder
+from swh.model.swhids import ExtendedObjectType, ObjectType
+from swh.storage.interface import ListOrder, ObjectReferencesPartition
 
 logger = logging.getLogger(__name__)
 
 
 def jsonize(d):
     return _jsonize(dict(d) if d is not None else None)
+
+
+def execute_values_generator(
+    cur: Cursor, query: str, values: Iterable[Any]
+) -> Iterator[Any]:
+    cur.executemany(query, values, returning=True)
+    if cur.pgresult is None:
+        return
+    yield from cur.fetchall()
+    while cur.nextset():
+        yield from cur.fetchall()
 
 
 class QueryBuilder:
@@ -94,15 +102,6 @@ class QueryBuilder:
         db_cursor.execute(query, self.params)
 
 
-@dataclass
-class ObjectReferencesPartition:
-    table_name: str
-    year: int
-    week: int
-    start: datetime.datetime
-    end: datetime.datetime
-
-
 class Db(BaseDb):
     """Proxy to the SWH DB, with wrappers around stored procedures"""
 
@@ -120,9 +119,7 @@ class Db(BaseDb):
             (SELECT {cols} FROM {table} WHERE {id_col} < %s
              ORDER BY {id_col} DESC LIMIT 1)
             LIMIT 1
-            """.format(
-            cols=", ".join(cols), table=table_name, id_col=id_col
-        )
+            """.format(cols=", ".join(cols), table=table_name, id_col=id_col)
         cur.execute(query, (random_sha1, random_sha1))
         row = cur.fetchone()
         if row:
@@ -147,10 +144,6 @@ class Db(BaseDb):
 
     @stored_procedure("swh_mktemp_snapshot_branch")
     def mktemp_snapshot_branch(self, cur=None):
-        pass
-
-    @stored_procedure("swh_content_add")
-    def content_add_from_temp(self, cur=None):
         pass
 
     @stored_procedure("swh_directory_add")
@@ -183,16 +176,23 @@ class Db(BaseDb):
             """select swh_content_update(ARRAY[%s] :: text[])""" % keys_to_update
         )
 
-    content_get_metadata_keys = [
-        "sha1",
-        "sha1_git",
-        "sha256",
-        "blake2s256",
+    content_hash_keys = ["sha1", "sha1_git", "sha256", "blake2s256"]
+
+    content_get_metadata_keys = content_hash_keys + [
         "length",
         "status",
     ]
 
     content_add_keys = content_get_metadata_keys + ["ctime"]
+
+    def content_add_from_temp(self, cur=None) -> int:
+        add_columns = ", ".join(self.content_add_keys)
+        conflict_columns = ", ".join(self.content_hash_keys)
+        cur = self._cursor(cur)
+        cur.execute(f"""insert into content ({add_columns})
+            select distinct {add_columns} from tmp_content
+            on conflict ({conflict_columns}) do nothing""")
+        return cur.rowcount
 
     skipped_content_keys = [
         "sha1",
@@ -212,14 +212,11 @@ class Db(BaseDb):
         assert algo in DEFAULT_ALGORITHMS
         query = f"""
             select {", ".join(self.content_get_metadata_keys)}
-            from (values %s) as t (hash)
+            from (values (%s)) as t (hash)
             inner join content on (content.{algo}=hash)
         """
-        yield from execute_values_generator(
-            cur,
-            query,
-            ((hash_,) for hash_ in hashes),
-        )
+        args = ((hash_,) for hash_ in hashes)
+        yield from execute_values_generator(cur, query, args)
 
     def content_get_range(self, start, end, limit=None, cur=None) -> Iterator[Tuple]:
         """Retrieve contents within range [start, end]."""
@@ -227,13 +224,9 @@ class Db(BaseDb):
         query = """select %s from content
                    where %%s <= sha1 and sha1 <= %%s
                    order by sha1
-                   limit %%s""" % ", ".join(
-            self.content_get_metadata_keys
-        )
+                   limit %%s""" % ", ".join(self.content_get_metadata_keys)
         cur.execute(query, (start, end, limit))
         yield from cur
-
-    content_hash_keys = ["sha1", "sha1_git", "sha256", "blake2s256"]
 
     def content_missing_from_list(self, contents, cur=None):
         cur = self._cursor(cur)
@@ -243,27 +236,30 @@ class Db(BaseDb):
             ("t.%s = c.%s" % (key, key)) for key in self.content_hash_keys
         )
 
+        values = ", ".join("%s" for _ in self.content_hash_keys)
+        queries = f"""
+        SELECT {keys}
+        FROM (VALUES ({values})) as t({keys})
+        WHERE NOT EXISTS (
+            SELECT 1 FROM content c
+            WHERE {equality}
+        )
+        """
         yield from execute_values_generator(
             cur,
-            """
-            SELECT %s
-            FROM (VALUES %%s) as t(%s)
-            WHERE NOT EXISTS (
-                SELECT 1 FROM content c
-                WHERE %s
-            )
-            """
-            % (keys, keys, equality),
+            queries,
             (tuple(c[key] for key in self.content_hash_keys) for c in contents),
         )
 
     def content_missing_per_sha1(self, sha1s, cur=None):
+        if len(sha1s) == 0:
+            return
         cur = self._cursor(cur)
 
         yield from execute_values_generator(
             cur,
             """
-        SELECT t.sha1 FROM (VALUES %s) AS t(sha1)
+        SELECT t.sha1 FROM (VALUES (%s)) AS t(sha1)
         WHERE NOT EXISTS (
             SELECT 1 FROM content c WHERE c.sha1 = t.sha1
         )""",
@@ -271,12 +267,14 @@ class Db(BaseDb):
         )
 
     def content_missing_per_sha1_git(self, contents, cur=None):
+        if len(contents) == 0:
+            return
         cur = self._cursor(cur)
 
         yield from execute_values_generator(
             cur,
             """
-        SELECT t.sha1_git FROM (VALUES %s) AS t(sha1_git)
+        SELECT t.sha1_git FROM (VALUES (%s)) AS t(sha1_git)
         WHERE NOT EXISTS (
             SELECT 1 FROM content c WHERE c.sha1_git = t.sha1_git
         )""",
@@ -350,21 +348,19 @@ class Db(BaseDb):
             return []
         cur = self._cursor(cur)
 
-        query = """SELECT * FROM (VALUES %s) AS t (%s)
+        values_fmt = ", ".join("%s" for _ in self.content_hash_keys)
+        key_fmt = ", ".join(self.content_hash_keys)
+        query = f"""SELECT * FROM (VALUES ({values_fmt})) AS t ({key_fmt})
                    WHERE not exists
                    (SELECT 1 FROM skipped_content s WHERE
                        s.sha1 is not distinct from t.sha1::sha1 and
                        s.sha1_git is not distinct from t.sha1_git::sha1 and
-                       s.sha256 is not distinct from t.sha256::bytea);""" % (
-            (", ".join("%s" for _ in contents)),
-            ", ".join(self.content_hash_keys),
-        )
-        cur.execute(
+                       s.sha256 is not distinct from t.sha256::bytea);"""
+        yield from execute_values_generator(
+            cur,
             query,
             [tuple(cont[key] for key in self.content_hash_keys) for cont in contents],
         )
-
-        yield from cur
 
     skipped_content_find_cols = [
         "sha1",
@@ -396,14 +392,12 @@ class Db(BaseDb):
 
         # XXX: The origin part is untested because of
         # https://gitlab.softwareheritage.org/swh/devel/swh-storage/-/issues/4693
-        query_parts = [
-            f"""
+        query_parts = [f"""
             SELECT {','.join(self.skipped_content_find_cols)}, origin.url AS origin
             FROM skipped_content
             LEFT JOIN origin ON origin.id = skipped_content.origin
             WHERE
-            """
-        ]
+            """]
         query_params = []
         where_parts = []
         # Adds only those keys which have values exist
@@ -427,7 +421,7 @@ class Db(BaseDb):
         yield from execute_values_generator(
             cur,
             """
-            SELECT id FROM (VALUES %s) as t(id)
+            SELECT id FROM (VALUES (%s)) as t(id)
             WHERE NOT EXISTS (
                 SELECT 1 FROM directory d WHERE d.id = t.id
             )
@@ -491,7 +485,7 @@ class Db(BaseDb):
         yield from execute_values_generator(
             cur,
             """
-            SELECT t.id, raw_manifest FROM (VALUES %s) as t(id)
+            SELECT t.id, raw_manifest FROM (VALUES (%s)) as t(id)
             INNER JOIN directory ON (t.id=directory.id)
             """,
             ((id_,) for id_ in directory_ids),
@@ -524,7 +518,7 @@ class Db(BaseDb):
         yield from execute_values_generator(
             cur,
             """
-            SELECT id FROM (VALUES %s) as t(id)
+            SELECT id FROM (VALUES (%s)) as t(id)
             WHERE NOT EXISTS (
                 SELECT 1 FROM revision r WHERE r.id = t.id
             )
@@ -551,7 +545,6 @@ class Db(BaseDb):
         "committer_fullname",
         "committer_name",
         "committer_email",
-        "metadata",
         "synthetic",
         "extra_headers",
         "raw_manifest",
@@ -614,14 +607,13 @@ class Db(BaseDb):
 
         yield from execute_values_generator(
             cur,
-            """
-            SELECT %s FROM (VALUES %%s) as t(sortkey, id)
+            f"""
+            SELECT {query_keys} FROM (VALUES (%s, %s)) as t(sortkey, id)
             LEFT JOIN revision ON t.id = revision.id
             LEFT JOIN person author ON revision.author = author.id
             LEFT JOIN person committer ON revision.committer = committer.id
             ORDER BY sortkey
-            """
-            % query_keys,
+            """,
             ((sortkey, id) for sortkey, id in enumerate(revisions)),
         )
 
@@ -640,8 +632,7 @@ class Db(BaseDb):
             LEFT JOIN person committer ON revision.committer = committer.id
             WHERE %%s <= revision.id AND revision.id <= %%s
             LIMIT %%s
-            """
-            % query_keys,
+            """ % query_keys,
             (start, end, limit),
         )
         yield from cur
@@ -655,9 +646,7 @@ class Db(BaseDb):
         SELECT %s
         FROM swh_revision_log(
           "root_revisions" := %%s, num_revs := %%s, "ignore_displayname" := %%s
-        )""" % ", ".join(
-            self.revision_get_cols
-        )
+        )""" % ", ".join(self.revision_get_cols)
 
         cur.execute(query, (root_revisions, limit, ignore_displayname))
         yield from cur
@@ -669,9 +658,7 @@ class Db(BaseDb):
 
         query = """SELECT %s
                    FROM swh_revision_list(%%s, %%s)
-                """ % ", ".join(
-            self.revision_shortlog_cols
-        )
+                """ % ", ".join(self.revision_shortlog_cols)
 
         cur.execute(query, (root_revisions, limit))
         yield from cur
@@ -686,31 +673,33 @@ class Db(BaseDb):
     extid_cols = ["extid", "extid_version", "extid_type", "target", "target_type"]
 
     def extid_get_from_extid_list(
-        self, extid_type: str, ids: List[bytes], version: Optional[int] = None, cur=None
+        self,
+        extid_type: str,
+        ids: List[bytes],
+        version: Optional[int] = None,
+        cur=None,
     ):
         cur = self._cursor(cur)
         query_keys = ", ".join(
             self.mangle_query_key(k, "extid", "t.id") for k in self.extid_cols
         )
+        extra_inputs: Tuple[Any, ...] = (extid_type,)
         filter_query = ""
         if version is not None:
-            filter_query = cur.mogrify(
-                f"WHERE extid_version={version}", (version,)
-            ).decode()
+            filter_query = "WHERE extid_version = %s"
+            extra_inputs += (version,)
 
         sql = f"""
             SELECT {query_keys}
-            FROM (VALUES %s) as t(sortkey, extid, extid_type)
+            FROM (VALUES (%s, %s, %s)) as t(sortkey, extid, extid_type)
             LEFT JOIN extid USING (extid, extid_type)
             {filter_query}
             ORDER BY sortkey
             """
 
-        yield from execute_values_generator(
-            cur,
-            sql,
-            (((sortkey, extid, extid_type) for sortkey, extid in enumerate(ids))),
-        )
+        inputs = ((sortkey, extid) + extra_inputs for sortkey, extid in enumerate(ids))
+
+        yield from execute_values_generator(cur, sql, inputs)
 
     def extid_get_from_swhid_list(
         self,
@@ -728,29 +717,42 @@ class Db(BaseDb):
             self.mangle_query_key(k, "extid", "t.id") for k in self.extid_cols
         )
         filter_query = ""
+        query_extra: Tuple[Any, ...] = ()
         if extid_version is not None and extid_type is not None:
-            filter_query = cur.mogrify(
-                "WHERE extid_version=%s AND extid_type=%s",
-                (
-                    extid_version,
-                    extid_type,
-                ),
-            ).decode()
+            filter_query = "WHERE extid_version = %s AND extid_type = %s"
+            query_extra = (
+                extid_version,
+                extid_type,
+            )
 
         sql = f"""
             SELECT {query_keys}
-            FROM (VALUES %s) as t(sortkey, target, target_type)
+            FROM (VALUES (%s,%s,%s::object_type)) as t(sortkey, target, target_type)
             LEFT JOIN extid USING (target, target_type)
             {filter_query}
             ORDER BY sortkey
             """
 
-        yield from execute_values_generator(
-            cur,
-            sql,
-            (((sortkey, target, target_type) for sortkey, target in enumerate(ids))),
-            template=b"(%s,%s,%s::object_type)",
+        args = (
+            (sortkey, target, target_type) + query_extra
+            for sortkey, target in enumerate(ids)
         )
+        yield from execute_values_generator(cur, sql, args)
+
+    def extid_delete_for_target(
+        self, target_rows: List[Tuple[str, bytes]], cur=None
+    ) -> Dict[str, int]:
+        result = {}
+        cur = self._cursor(cur)
+        cur.executemany(
+            """DELETE FROM extid
+                USING (VALUES (%s::object_type, %s)) AS t(target_type, target)
+                WHERE extid.target_type = t.target_type
+                  AND extid.target = t.target""",
+            target_rows,
+        )
+        result["extid:delete"] = cur.rowcount
+        return result
 
     ##########################
     # 'release' table
@@ -761,7 +763,7 @@ class Db(BaseDb):
         yield from execute_values_generator(
             cur,
             """
-            SELECT id FROM (VALUES %s) as t(id)
+            SELECT id FROM (VALUES (%s)) as t(id)
             WHERE NOT EXISTS (
                 SELECT 1 FROM release r WHERE r.id = t.id
             )
@@ -797,12 +799,11 @@ class Db(BaseDb):
         yield from execute_values_generator(
             cur,
             """
-            SELECT %s FROM (VALUES %%s) as t(sortkey, id)
+            SELECT %s FROM (VALUES (%%s, %%s)) as t(sortkey, id)
             LEFT JOIN release ON t.id = release.id
             LEFT JOIN person author ON release.author = author.id
             ORDER BY sortkey
-            """
-            % query_keys,
+            """ % query_keys,
             ((sortkey, id) for sortkey, id in enumerate(releases)),
         )
 
@@ -820,8 +821,7 @@ class Db(BaseDb):
             LEFT JOIN person author ON release.author = author.id
             WHERE %%s <= release.id AND release.id <= %%s
             LIMIT %%s
-            """
-            % query_keys,
+            """ % query_keys,
             (start, end, limit),
         )
         yield from cur
@@ -846,7 +846,7 @@ class Db(BaseDb):
         yield from execute_values_generator(
             cur,
             """
-            SELECT id FROM (VALUES %s) as t(id)
+            SELECT id FROM (VALUES (%s)) as t(id)
             WHERE NOT EXISTS (
                 SELECT 1 FROM snapshot d WHERE d.id = t.id
             )
@@ -871,9 +871,7 @@ class Db(BaseDb):
         cur = self._cursor(cur)
         query = """\
            SELECT %s FROM swh_snapshot_count_branches(%%s, %%s)
-        """ % ", ".join(
-            self.snapshot_count_cols
-        )
+        """ % ", ".join(self.snapshot_count_cols)
 
         cur.execute(query, (snapshot_id, branch_name_exclude_prefix))
 
@@ -895,9 +893,7 @@ class Db(BaseDb):
         query = """\
         SELECT %s
         FROM swh_snapshot_get_by_id(%%s, %%s, %%s, %%s :: snapshot_target[], %%s, %%s)
-        """ % ", ".join(
-            self.snapshot_get_cols
-        )
+        """ % ", ".join(self.snapshot_get_cols)
 
         cur.execute(
             query,
@@ -977,7 +973,6 @@ class Db(BaseDb):
         "type",
         "status",
         "snapshot",
-        "metadata",
     ]
 
     def origin_visit_status_add(
@@ -985,19 +980,19 @@ class Db(BaseDb):
     ) -> None:
         """Add new origin visit status"""
         assert self.origin_visit_status_cols[0] == "origin"
-        assert self.origin_visit_status_cols[-1] == "metadata"
-        cols = self.origin_visit_status_cols[1:-1]
+        cols = self.origin_visit_status_cols[1:]
         cur = self._cursor(cur)
-        cur.execute(
+        sql_stm = (
             f"WITH origin_id as (select id from origin where url=%s) "
             f"INSERT INTO origin_visit_status "
-            f"(origin, {', '.join(cols)}, metadata) "
+            f"(origin, {', '.join(cols)}) "
             f"VALUES ((select id from origin_id), "
-            f"{', '.join(['%s']*len(cols))}, %s) "
-            f"ON CONFLICT (origin, visit, date) do nothing",
-            [visit_status.origin]
-            + [getattr(visit_status, key) for key in cols]
-            + [jsonize(visit_status.metadata)],
+            f"{', '.join(['%s'] * len(cols))}) "
+            f"ON CONFLICT (origin, visit, date) do nothing"
+        )
+        cur.execute(
+            sql_stm,
+            [visit_status.origin] + [getattr(visit_status, key) for key in cols],
         )
 
     origin_visit_cols = ["origin", "visit", "date", "type"]
@@ -1021,7 +1016,6 @@ class Db(BaseDb):
         "date",
         "type",
         "status",
-        "metadata",
         "snapshot",
     ]
     origin_visit_select_cols = [
@@ -1031,7 +1025,6 @@ class Db(BaseDb):
         "ov.type AS type",
         "ovs.status",
         "ovs.snapshot",
-        "ovs.metadata",
     ]
 
     origin_visit_status_select_cols = [
@@ -1041,7 +1034,6 @@ class Db(BaseDb):
         "ovs.type AS type",
         "ovs.status",
         "ovs.snapshot",
-        "ovs.metadata",
     ]
 
     def _make_origin_visit_status(
@@ -1077,8 +1069,8 @@ class Db(BaseDb):
             query_parts.append("AND ovs.snapshot is not null")
 
         if allowed_statuses:
-            query_parts.append("AND ovs.status IN %s")
-            query_params.append(tuple(allowed_statuses))
+            query_parts.append("AND ovs.status = Any(%s)")
+            query_params.append(list(allowed_statuses))
 
         query_parts.append("ORDER BY ovs.date DESC LIMIT 1")
         query = "\n".join(query_parts)
@@ -1137,11 +1129,9 @@ class Db(BaseDb):
         origin_visit_cols = ["o.url as origin", "ov.visit", "ov.date", "ov.type"]
         builder = QueryBuilder()
         builder.add_query_part(
-            sql.SQL(
-                f"""SELECT { ', '.join(origin_visit_cols) } FROM origin_visit ov
+            sql.SQL(f"""SELECT {', '.join(origin_visit_cols)} FROM origin_visit ov
                 INNER JOIN origin o ON o.id = ov.origin
-                WHERE ov.origin = (select id from origin where url = %s)"""
-            ),
+                WHERE ov.origin = (select id from origin where url = %s)"""),
             params=[origin],  # dynamic params
         )
         builder.add_pagination_clause(
@@ -1185,8 +1175,8 @@ class Db(BaseDb):
             query_parts.append("AND ovs.snapshot is not null")
 
         if allowed_statuses:
-            query_parts.append("AND ovs.status IN %s")
-            query_params.append(tuple(allowed_statuses))
+            query_parts.append("AND ovs.status = Any(%s)")
+            query_params.append(list(allowed_statuses))
 
         query_parts.append("ORDER BY ovs.visit ASC, ovs.date ASC")
 
@@ -1215,9 +1205,7 @@ class Db(BaseDb):
             WHERE ov.origin = (select id from origin where url = %%s) AND ov.visit = %%s
             ORDER BY ovs.date DESC
             LIMIT 1
-            """ % (
-            ", ".join(self.origin_visit_select_cols)
-        )
+            """ % (", ".join(self.origin_visit_select_cols))
 
         cur.execute(query, (origin_id, visit_id))
         r = cur.fetchall()
@@ -1291,8 +1279,8 @@ class Db(BaseDb):
             query_parts.append("AND ovs.snapshot is not null")
 
         if allowed_statuses:
-            query_parts.append("AND ovs.status IN %s")
-            query_params.append(tuple(allowed_statuses))
+            query_parts.append("AND ovs.status = ANY(%s)")
+            query_params.append(list(allowed_statuses))
 
         query_parts.append("ORDER BY ovs.visit DESC, ovs.date DESC LIMIT 1")
 
@@ -1343,11 +1331,9 @@ class Db(BaseDb):
         """Retrieve origin `(type, url)` from urls if found."""
         cur = self._cursor(cur)
 
-        query = """SELECT %s FROM (VALUES %%s) as t(url)
+        query = """SELECT %s FROM (VALUES (%%s)) as t(url)
                    LEFT JOIN origin ON t.url = origin.url
-                """ % ",".join(
-            "origin." + col for col in self.origin_cols
-        )
+                """ % ",".join("origin." + col for col in self.origin_cols)
 
         yield from execute_values_generator(cur, query, ((url,) for url in origins))
 
@@ -1355,11 +1341,9 @@ class Db(BaseDb):
         """Retrieve origin urls from sha1s if found."""
         cur = self._cursor(cur)
 
-        query = """SELECT %s FROM (VALUES %%s) as t(sha1)
+        query = """SELECT %s FROM (VALUES (%%s)) as t(sha1)
                    LEFT JOIN origin ON t.sha1 = digest(origin.url, 'sha1')
-                """ % ",".join(
-            "origin." + col for col in self.origin_cols
-        )
+                """ % ",".join("origin." + col for col in self.origin_cols)
 
         yield from execute_values_generator(cur, query, ((sha1,) for sha1 in sha1s))
 
@@ -1367,7 +1351,7 @@ class Db(BaseDb):
         """Retrieve origin `(type, url)` from urls if found."""
         cur = self._cursor(cur)
 
-        query = """SELECT id FROM (VALUES %s) as t(url)
+        query = """SELECT id FROM (VALUES (%s)) as t(url)
                    LEFT JOIN origin ON t.url = origin.url
                 """
 
@@ -1392,9 +1376,7 @@ class Db(BaseDb):
         query = """SELECT %s
                    FROM origin WHERE id >= %%s
                    ORDER BY id LIMIT %%s
-                """ % ",".join(
-            self.origin_get_range_cols
-        )
+                """ % ",".join(self.origin_get_range_cols)
 
         cur.execute(query, (origin_from, origin_count))
         yield from cur
@@ -1543,7 +1525,7 @@ class Db(BaseDb):
         yield from execute_values_generator(
             cur,
             """
-            WITH t (sha1_git) AS (VALUES %s),
+            WITH t (sha1_git) AS (VALUES (%s)),
             known_objects as ((
                 select
                   id as sha1_git,
@@ -1724,7 +1706,7 @@ class Db(BaseDb):
         yield from execute_values_generator(
             cur,
             self._raw_extrinsic_metadata_select_query
-            + "INNER JOIN (VALUES %s) AS t(id) ON t.id = raw_extrinsic_metadata.id",
+            + "INNER JOIN (VALUES (%s)) AS t(id) ON t.id = raw_extrinsic_metadata.id",
             [(id_,) for id_ in ids],
         )
 
@@ -1824,8 +1806,7 @@ class Db(BaseDb):
             """SELECT %s
             FROM object_references
             WHERE target_type = %%s and target=%%s
-            LIMIT %%s"""
-            % (", ".join(self._object_references_cols)),
+            LIMIT %%s""" % (", ".join(self._object_references_cols)),
             (target_type, target, limit),
         )
         return [dict(zip(self._object_references_cols, row)) for row in cur.fetchall()]
@@ -1833,10 +1814,10 @@ class Db(BaseDb):
     def object_references_add(self, reference_rows, cur=None) -> None:
         cols = ", ".join(self._object_references_cols)
         cur = self._cursor(cur)
-        execute_values(
-            cur,
+        values_fmt = ", ".join("%s" for _ in self._object_references_cols)
+        cur.executemany(
             f"""INSERT INTO object_references ({cols})
-            VALUES %s ON CONFLICT (insertion_date, {cols}) DO NOTHING""",
+            VALUES ({values_fmt}) ON CONFLICT (insertion_date, {cols}) DO NOTHING""",
             reference_rows,
         )
 
@@ -1853,14 +1834,15 @@ class Db(BaseDb):
         next_monday = monday + datetime.timedelta(days=7)
 
         cur = self._cursor(cur)
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS object_references_%04dw%02d
-            PARTITION OF object_references
-            FOR VALUES FROM (%%s) TO (%%s)"""
-            % (year, week),
-            (monday.isoformat(), next_monday.isoformat()),
-        )
+
+        assert not cur.closed
+        query = f"""
+        CREATE TABLE IF NOT EXISTS object_references_{year:04d}w{week:02d}
+        PARTITION OF object_references
+        FOR VALUES FROM ('{monday.isoformat()}')
+        TO ('{next_monday.isoformat()}')
+        """
+        cur.execute(query)
 
         return (monday, next_monday)
 
@@ -1876,13 +1858,11 @@ class Db(BaseDb):
         """List existing partitions of the object_references table, ordered from
         oldest to the most recent."""
         cur = self._cursor(cur)
-        cur.execute(
-            """SELECT relname, pg_get_expr(relpartbound, oid)
+        cur.execute("""SELECT relname, pg_get_expr(relpartbound, oid)
                  FROM pg_partition_tree('object_references') pt
                       INNER JOIN pg_class ON relid = pg_class.oid
                 WHERE isleaf = true
-                ORDER BY relname"""
-        )
+                ORDER BY relname""")
         name_re = re.compile(r"^object_references_([0-9]+)w([0-9]+)$")
         bounds_re = re.compile(r"^FOR VALUES FROM \('([0-9-]+)'\) TO \('([0-9-]+)'\)$")
         partitions = []
@@ -1896,8 +1876,8 @@ class Db(BaseDb):
                     table_name=row[0],
                     year=int(name_m[1]),
                     week=int(name_m[2]),
-                    start=datetime.datetime.fromisoformat(bounds_m[1]),
-                    end=datetime.datetime.fromisoformat(bounds_m[2]),
+                    start=datetime.date.fromisoformat(bounds_m[1]),
+                    end=datetime.date.fromisoformat(bounds_m[2]),
                 )
             )
         return partitions
@@ -1911,125 +1891,101 @@ class Db(BaseDb):
     ) -> Dict[str, int]:
         result = {}
         cur = self._cursor(cur)
-        cur.execute(
-            """
+        cur.execute("""
             CREATE TEMPORARY TABLE objects_to_remove (
                 type extended_object_type NOT NULL,
                 id BYTEA NOT NULL
             ) ON COMMIT DROP
-            """
-        )
-        execute_values(
-            cur,
+            """)
+        cur.executemany(
             """INSERT INTO objects_to_remove (type, id)
-               VALUES %s""",
+               VALUES (%s, %s)""",
             object_rows,
         )
+        # Let’s handle raw extrinsic metadata first as they’ll
+        # be referencing other objects
+        cur.execute("""SELECT COUNT(emd.id), emd.type AS target_type
+                 FROM raw_extrinsic_metadata emd
+                WHERE emd.id IN (SELECT id
+                                   FROM objects_to_remove
+                                  WHERE type = 'raw_extrinsic_metadata')
+                GROUP BY type""")
+        for count, target_type in cur:
+            result[
+                f"{ExtendedObjectType[target_type.upper()].value}_metadata:delete"
+            ] = count
+        cur.execute("""DELETE FROM raw_extrinsic_metadata emd
+                WHERE emd.id IN (SELECT id
+                                   FROM objects_to_remove
+                                  WHERE type = 'raw_extrinsic_metadata')""")
         # We need to remove lines from `origin_visit_status`,
         # `origin_visit` and `origin`.
-        cur.execute(
-            """CREATE TEMPORARY TABLE origins_to_remove
+        cur.execute("""CREATE TEMPORARY TABLE origins_to_remove
                  ON COMMIT DROP
                  AS
                    SELECT origin.id FROM origin
                     INNER JOIN objects_to_remove otr
-                       ON DIGEST(url, 'sha1') = otr.id and otr.type = 'origin'"""
-        )
-        cur.execute(
-            """DELETE FROM origin_visit_status ovs
-                WHERE ovs.origin IN (SELECT id FROM origins_to_remove)"""
-        )
+                       ON DIGEST(url, 'sha1') = otr.id and otr.type = 'origin'""")
+        cur.execute("""DELETE FROM origin_visit_status ovs
+                WHERE ovs.origin IN (SELECT id FROM origins_to_remove)""")
         result["origin_visit_status:delete"] = cur.rowcount
-        cur.execute(
-            """DELETE FROM origin_visit ov
-                WHERE ov.origin IN (SELECT id FROM origins_to_remove)"""
-        )
+        cur.execute("""DELETE FROM origin_visit ov
+                WHERE ov.origin IN (SELECT id FROM origins_to_remove)""")
         result["origin_visit:delete"] = cur.rowcount
-        cur.execute(
-            """DELETE FROM origin
-                WHERE origin.id IN (SELECT id FROM origins_to_remove)"""
-        )
+        cur.execute("""DELETE FROM origin
+                WHERE origin.id IN (SELECT id FROM origins_to_remove)""")
         result["origin:delete"] = cur.rowcount
-        # We need to remove lines from both `snapshot_branches`
-        # and `snapshot_branch`.
-        cur.execute(
-            """CREATE TEMPORARY TABLE snapshots_to_remove
+        # We must not remove entries for snapshot_branch, they are shared across
+        # multiple snapshots, and we don't keep a reverse index (to know if the
+        # shared branches are still used by another snapshot).
+        cur.execute("""CREATE TEMPORARY TABLE snapshots_to_remove
                   ON COMMIT DROP
                   AS
-                    SELECT object_id AS snapshot_id
+                    SELECT object_id
                       FROM snapshot s
                      INNER JOIN objects_to_remove otr
-                        ON s.id = otr.id AND otr.type = 'snapshot'"""
-        )
-        cur.execute(
-            """CREATE TEMPORARY TABLE snapshot_branches_to_remove
-                 ON COMMIT DROP
-                 AS
-                    SELECT branch_id
-                      FROM snapshot_branches sb
-                     WHERE sb.snapshot_id IN (SELECT snapshot_id FROM snapshots_to_remove)"""
-        )
-        cur.execute(
-            """DELETE FROM snapshot_branches
-                WHERE snapshot_branches.branch_id IN
-                  (SELECT branch_id FROM snapshot_branches_to_remove)"""
-        )
-        cur.execute(
-            """DELETE FROM snapshot_branch
-                WHERE snapshot_branch.object_id IN
-                  (SELECT branch_id FROM snapshot_branches_to_remove)"""
-        )
-        cur.execute(
-            """DELETE FROM snapshot
-                WHERE snapshot.object_id IN (SELECT snapshot_id FROM snapshots_to_remove)"""
-        )
+                        ON s.id = otr.id AND otr.type = 'snapshot'""")
+        cur.execute("""DELETE FROM snapshot_branches
+                WHERE snapshot_branches.snapshot_id IN
+                  (SELECT object_id FROM snapshots_to_remove)""")
+        cur.execute("""DELETE FROM snapshot
+                WHERE snapshot.object_id IN (SELECT object_id
+                                               FROM snapshots_to_remove)""")
         result["snapshot:delete"] = cur.rowcount
-        cur.execute(
-            """DELETE FROM release
+        cur.execute("""DELETE FROM release
                 WHERE release.id IN (SELECT id
                                        FROM objects_to_remove
-                                      WHERE type = 'release')"""
-        )
+                                      WHERE type = 'release')""")
         result["release:delete"] = cur.rowcount
-        cur.execute(
-            """DELETE FROM revision_history
+        cur.execute("""DELETE FROM revision_history
                 WHERE revision_history.id IN (SELECT id
                                                 FROM objects_to_remove
-                                               WHERE type = 'revision')"""
-        )
-        cur.execute(
-            """DELETE FROM revision
+                                               WHERE type = 'revision')""")
+        cur.execute("""DELETE FROM revision
                 WHERE revision.id IN (SELECT id
                                         FROM objects_to_remove
-                                       WHERE type = 'revision')"""
-        )
+                                       WHERE type = 'revision')""")
         result["revision:delete"] = cur.rowcount
         # We do not remove anything from `directory_entry_dir`,
         # `directory_entry_file`, `directory_entry_rev`: these entries are
         # shared across directories and we don't have (or don’t want to keep) an
         # index to know which directory uses what entry.
-        cur.execute(
-            """DELETE FROM directory
+        cur.execute("""DELETE FROM directory
                 WHERE directory.id IN (SELECT id
                                          FROM objects_to_remove
-                                        WHERE type = 'directory')"""
-        )
+                                        WHERE type = 'directory')""")
         result["directory:delete"] = cur.rowcount
-        cur.execute(
-            """DELETE FROM skipped_content
+        cur.execute("""DELETE FROM skipped_content
                 WHERE skipped_content.sha1_git IN (
                     SELECT id
                       FROM objects_to_remove
-                     WHERE type = 'content')"""
-        )
+                     WHERE type = 'content')""")
         result["skipped_content:delete"] = cur.rowcount
-        cur.execute(
-            """DELETE FROM content
+        cur.execute("""DELETE FROM content
                 WHERE content.sha1_git IN (
                     SELECT id
                       FROM objects_to_remove
-                     WHERE type = 'content')"""
-        )
+                     WHERE type = 'content')""")
         result["content:delete"] = cur.rowcount
         # We are not an objstorage
         result["content:delete:bytes"] = 0

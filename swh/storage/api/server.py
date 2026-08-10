@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2022  The Software Heritage developers
+# Copyright (C) 2015-2025  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -14,7 +14,7 @@ from swh.core.api import encode_data_server as encode_data
 from swh.core.api import error_handler
 from swh.storage import get_storage as get_swhstorage
 
-from ..exc import NonRetryableException
+from ..exc import NonRetryableException, QueryTimeout
 from ..interface import StorageInterface
 from ..metrics import send_metric, timed
 from .serializers import DECODERS, ENCODERS
@@ -94,6 +94,13 @@ app = StorageServerApp(
 storage = None
 
 
+@app.errorhandler(QueryTimeout)
+def query_timeout_handler(exception):
+    """Return 503 instead of 500, telling clients this is a transient
+    error and they should retry."""
+    return error_handler(exception, encode_data, status_code=503)
+
+
 @app.errorhandler(NonRetryableException)
 def non_retryable_error_handler(exception):
     """Send all non-retryable errors with a 400 status code so the client can
@@ -101,9 +108,6 @@ def non_retryable_error_handler(exception):
     return error_handler(
         exception, partial(encode_data, extra_type_encoders=ENCODERS), status_code=400
     )
-
-
-app.setup_psycopg2_errorhandlers()
 
 
 @app.errorhandler(Exception)

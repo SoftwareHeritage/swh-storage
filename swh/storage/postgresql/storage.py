@@ -1,4 +1,4 @@
-# Copyright (C) 2015-2023  The Software Heritage developers
+# Copyright (C) 2015-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -28,9 +28,9 @@ from typing import (
 )
 
 import attr
-import psycopg2
-import psycopg2.errors
-import psycopg2.pool
+import psycopg
+import psycopg.errors
+import psycopg_pool
 
 from swh.core.api.serializers import msgpack_dumps, msgpack_loads
 from swh.core.db.common import db_transaction as _db_transaction
@@ -57,11 +57,11 @@ from swh.model.model import (
     SkippedContent,
     Snapshot,
     SnapshotBranch,
-    TargetType,
+    SnapshotTargetType,
 )
-from swh.model.swhids import ExtendedObjectType, ExtendedSWHID, ObjectType
+from swh.model.swhids import CoreSWHID, ExtendedObjectType, ExtendedSWHID, ObjectType
 from swh.storage.exc import (
-    HashCollision,
+    NonRetryableException,
     QueryTimeout,
     StorageArgumentException,
     StorageDBError,
@@ -73,18 +73,14 @@ from swh.storage.interface import (
     HashDict,
     ListOrder,
     ObjectReference,
+    ObjectReferencesPartition,
     OriginVisitWithStatuses,
     PagedResult,
     PartialBranches,
     SnapshotBranchByNameResponse,
 )
 from swh.storage.objstorage import ObjStorage
-from swh.storage.utils import (
-    extract_collision_hash,
-    get_partition_bounds_bytes,
-    map_optional,
-    now,
-)
+from swh.storage.utils import get_partition_bounds_bytes, map_optional, now
 from swh.storage.writer import JournalWriter
 
 from . import converters
@@ -103,13 +99,13 @@ VALIDATION_EXCEPTIONS = (
     KeyError,
     TypeError,
     ValueError,
-    psycopg2.errors.CheckViolation,
-    psycopg2.errors.IntegrityError,
-    psycopg2.errors.InvalidTextRepresentation,
-    psycopg2.errors.NotNullViolation,
-    psycopg2.errors.NumericValueOutOfRange,
-    psycopg2.errors.UndefinedFunction,  # (raised on wrong argument typs)
-    psycopg2.errors.ProgramLimitExceeded,  # typically person_name_idx
+    psycopg.errors.CheckViolation,
+    psycopg.errors.IntegrityError,
+    psycopg.errors.InvalidTextRepresentation,
+    psycopg.errors.NotNullViolation,
+    psycopg.errors.NumericValueOutOfRange,
+    psycopg.errors.UndefinedFunction,  # (raised on wrong argument typs)
+    psycopg.errors.ProgramLimitExceeded,  # typically person_name_idx
 )
 """Exceptions raised by postgresql when validation of the arguments
 failed."""
@@ -121,7 +117,7 @@ def convert_validation_exceptions():
     re-raises a StorageArgumentException."""
     try:
         yield
-    except psycopg2.errors.UniqueViolation:
+    except psycopg.errors.UniqueViolation:
         # This only happens because of concurrent insertions, but it is
         # a subclass of IntegrityError; so we need to catch and reraise it
         # before the next clause converts it to StorageArgumentException.
@@ -138,7 +134,7 @@ def db_transaction_generator(*args, **kwargs):
         def _meth(self, *args, **kwargs):
             try:
                 yield from meth(self, *args, **kwargs)
-            except psycopg2.errors.QueryCanceled as e:
+            except psycopg.errors.QueryCanceled as e:
                 raise QueryTimeout(*e.args)
 
         return _meth
@@ -154,7 +150,7 @@ def db_transaction(*args, **kwargs):
         def _meth(self, *args, **kwargs):
             try:
                 return meth(self, *args, **kwargs)
-            except psycopg2.errors.QueryCanceled as e:
+            except psycopg.errors.QueryCanceled as e:
                 raise QueryTimeout(*e.args)
 
         return _meth
@@ -193,7 +189,7 @@ def _get_paginated_sha1_partition(
 
     assert get_id is not None  # to please mypy
 
-    (start, end) = get_partition_bounds_bytes(partition_id, nb_partitions, SHA1_SIZE)
+    start, end = get_partition_bounds_bytes(partition_id, nb_partitions, SHA1_SIZE)
     if page_token:
         start = hash_to_bytes(page_token)
     if end is None:
@@ -216,31 +212,31 @@ def _get_paginated_sha1_partition(
 class Storage:
     """SWH storage datastore proxy, encompassing DB and object storage"""
 
-    current_version: int = 193
+    current_version: int = 195
 
     def __init__(
         self,
-        db,
-        objstorage=None,
-        min_pool_conns=1,
-        max_pool_conns=10,
-        journal_writer=None,
-        query_options=None,
+        db: Union[str, psycopg.Connection[Any]],
+        objstorage: Optional[Dict] = None,
+        min_pool_conns: int = 1,
+        max_pool_conns: int = 10,
+        journal_writer: Optional[Dict[str, Any]] = None,
+        query_options: Optional[Dict[str, Dict[str, Any]]] = None,
     ):
         """Instantiate a storage instance backed by a PostgreSQL database and an
         objstorage.
 
         When ``db`` is passed as a connection string, then this module automatically
         manages a connection pool between ``min_pool_conns`` and ``max_pool_conns``.
-        When ``db`` is an explicit psycopg2 connection, then ``min_pool_conns`` and
+        When ``db`` is an explicit psycopg connection, then ``min_pool_conns`` and
         ``max_pool_conns`` are ignored and the connection is used directly.
 
         Args:
-            db: either a libpq connection string, or a psycopg2 connection
+            db: either a libpq connection string, or a psycopg connection
             objstorage: configuration for the backend :class:`ObjStorage`; if unset,
                use a NoopObjStorage
-            min_pool_conns: min number of connections in the psycopg2 pool
-            max_pool_conns: max number of connections in the psycopg2 pool
+            min_pool_conns: min number of connections in the psycopg pool
+            max_pool_conns: max number of connections in the psycopg pool
             journal_writer: configuration for the :class:`JournalWriter`
             query_options: configuration for the sql connections; keys of the dict are
                the method names decorated with :func:`db_transaction` or
@@ -257,19 +253,25 @@ class Storage:
 
         """
 
+        self._db: Optional[Db]
+        self._pool: Optional[psycopg_pool.ConnectionPool]
+
         try:
-            if isinstance(db, psycopg2.extensions.connection):
+            if isinstance(db, str):
+                self._pool = psycopg_pool.ConnectionPool(
+                    conninfo=db,
+                    min_size=min_pool_conns,
+                    max_size=max_pool_conns,
+                    open=True,
+                )
+                self._db = None
+            else:
                 self._pool = None
                 self._db = Db(db)
 
                 # See comment below
                 self._db.cursor().execute("SET TIME ZONE 'UTC'")
-            else:
-                self._pool = psycopg2.pool.ThreadedConnectionPool(
-                    min_pool_conns, max_pool_conns, db
-                )
-                self._db = None
-        except psycopg2.OperationalError as e:
+        except psycopg.OperationalError as e:
             raise StorageDBError(e)
         self.journal_writer = JournalWriter(journal_writer)
         self.objstorage = ObjStorage(self, objstorage)
@@ -286,12 +288,6 @@ class Storage:
         else:
             db = Db.from_pool(self._pool)
 
-            # Workaround for psycopg2 < 2.9.0 not handling fractional timezones,
-            # which may happen on old revision/release dates on systems configured
-            # with non-UTC timezones.
-            # https://www.psycopg.org/docs/usage.html#time-zones-handling
-            db.cursor().execute("SET TIME ZONE 'UTC'")
-
             return db
 
     def put_db(self, db):
@@ -303,14 +299,15 @@ class Storage:
         db = None
         try:
             db = self.get_db()
-            yield db
+            with db:
+                yield db
         finally:
             if db:
                 self.put_db(db)
 
     @db_transaction()
     def get_flavor(self, *, db: Db, cur=None) -> str:
-        flavor = swh_db_flavor(db.conn.dsn)
+        flavor = swh_db_flavor(db.conn)
         assert flavor is not None
         return flavor
 
@@ -326,7 +323,7 @@ class Storage:
         if not self.objstorage.check_config(check_write=check_write):
             return False
 
-        dbversion = swh_db_version(db.conn.dsn)
+        dbversion = swh_db_version(db.conn)
         if dbversion != self.current_version:
             logger.warning(
                 "database dbversion (%s) != %s current_version (%s)",
@@ -356,7 +353,7 @@ class Storage:
             return hash
         return tuple([hash[k] for k in keys])
 
-    def _content_add_metadata(self, db, cur, content):
+    def _content_add_metadata(self, db, cur, content) -> int:
         """Add content to the postgresql database but not the object storage."""
         # create temporary table for metadata injection
         db.mktemp("content", cur)
@@ -366,31 +363,9 @@ class Storage:
         )
 
         # move metadata in place
-        try:
-            db.content_add_from_temp(cur)
-        except psycopg2.IntegrityError as e:
-            if e.diag.sqlstate == "23505" and e.diag.table_name == "content":
-                message_detail = e.diag.message_detail
-                if message_detail:
-                    hash_name, hash_id = extract_collision_hash(message_detail)
-                    collision_contents_hashes = [
-                        c.hashes() for c in content if c.get_hash(hash_name) == hash_id
-                    ]
-                else:
-                    constraint_to_hash_name = {
-                        "content_pkey": "sha1",
-                        "content_sha1_git_idx": "sha1_git",
-                        "content_sha256_idx": "sha256",
-                    }
-                    hash_name = constraint_to_hash_name.get(e.diag.constraint_name)
-                    hash_id = None
-                    collision_contents_hashes = None
-
-                raise HashCollision(
-                    hash_name, hash_id, collision_contents_hashes
-                ) from None
-            else:
-                raise
+        contents_added = db.content_add_from_temp(cur)
+        # TODO: detect hash collisions and send them to the journal?
+        return contents_added
 
     def content_add(self, content: List[Content]) -> Dict[str, int]:
         ctime = now()
@@ -404,23 +379,12 @@ class Storage:
         #    read from the objstorage before we finished writing it
         objstorage_summary = self.objstorage.content_add(contents)
 
-        with self.db() as db:
-            with db.transaction() as cur:
-                missing = set(
-                    self.content_missing(
-                        [c.to_dict() for c in contents],
-                        key_hash="sha1_git",
-                        db=db,
-                        cur=cur,
-                    )
-                )
-                contents = [c for c in contents if c.sha1_git in missing]
-
-                self.journal_writer.content_add(contents)
-                self._content_add_metadata(db, cur, contents)
+        self.journal_writer.content_add(contents)
+        with self.db() as db, db.transaction() as cur:
+            added = self._content_add_metadata(db, cur, contents)
 
         return {
-            "content:add": len(contents),
+            "content:add": added,
             "content:add:bytes": objstorage_summary["content:add:bytes"],
         }
 
@@ -442,22 +406,10 @@ class Storage:
     def content_add_metadata(
         self, content: List[Content], *, db: Db, cur=None
     ) -> Dict[str, int]:
-        missing = set(
-            self.content_missing(
-                [c.to_dict() for c in content],
-                key_hash="sha1_git",
-                db=db,
-                cur=cur,
-            )
-        )
-        contents = [c for c in content if c.sha1_git in missing]
+        self.journal_writer.content_add_metadata(content)
+        added = self._content_add_metadata(db, cur, content)
 
-        self.journal_writer.content_add_metadata(contents)
-        self._content_add_metadata(db, cur, contents)
-
-        return {
-            "content:add": len(contents),
-        }
+        return {"content:add": added}
 
     def content_get_data(self, content: Union[HashDict, Sha1]) -> Optional[bytes]:
         # FIXME: Make this method support slicing the `data`
@@ -837,6 +789,10 @@ class Storage:
             revision for revision in revisions if revision.id in revisions_missing
         ]
 
+        if any([getattr(revision, "metadata") for revision in revisions_filtered]):
+            logger.warning(
+                "Revision should not have a metadata field any more; it will be ignored"
+            )
         self.journal_writer.revision_add(revisions_filtered)
 
         db_revisions_filtered = list(map(converters.revision_to_db, revisions_filtered))
@@ -1253,7 +1209,7 @@ class Storage:
                 assert branch_d["target_type"] is not None
                 branch = SnapshotBranch(
                     target=branch_d["target"],
-                    target_type=TargetType(branch_d["target_type"]),
+                    target_type=SnapshotTargetType(branch_d["target_type"]),
                 )
             branches[name] = branch
 
@@ -1308,14 +1264,14 @@ class Storage:
             branch_d = dict(zip(cols_to_fetch, branch))
             resolve_chain.append(branch_name)
             if (
-                branch_d["target_type"] != TargetType.ALIAS.value
+                branch_d["target_type"] != SnapshotTargetType.ALIAS.value
                 or not follow_alias_chain
             ):
                 # first non alias branch or the first branch when follow_alias_chain is False
                 target = (
                     SnapshotBranch(
                         target=branch_d["target"],
-                        target_type=TargetType(branch_d["target_type"]),
+                        target_type=SnapshotTargetType(branch_d["target_type"]),
                     )
                     if branch_d["target"]
                     else None
@@ -1386,6 +1342,12 @@ class Storage:
         self, visit_status: OriginVisitStatus, db, cur
     ) -> None:
         """Add an origin visit status"""
+        if getattr(visit_status, "metadata"):
+            logger.warning(
+                "OriginVisitStatus should not have a metadata field any more; "
+                "it will be ignored"
+            )
+
         self.journal_writer.origin_visit_status_add([visit_status])
         db.origin_visit_status_add(visit_status, cur=cur)
 
@@ -1681,7 +1643,7 @@ class Storage:
     @db_transaction(statement_timeout=1000)
     def origin_get(
         self, origins: List[str], *, db: Db, cur=None
-    ) -> Iterable[Optional[Origin]]:
+    ) -> List[Optional[Origin]]:
         rows = db.origin_get_by_url(origins, cur)
         result: List[Optional[Origin]] = []
         for row in rows:
@@ -1895,7 +1857,7 @@ class Storage:
         cur=None,
     ) -> PagedResult[RawExtrinsicMetadata]:
         if page_token:
-            (after_time, after_fetcher) = msgpack_loads(base64.b64decode(page_token))
+            after_time, after_fetcher = msgpack_loads(base64.b64decode(page_token))
             if after and after_time < after:
                 raise StorageArgumentException(
                     "page_token is inconsistent with the value of 'after'."
@@ -2048,10 +2010,15 @@ class Storage:
         self, references: List[ObjectReference], *, db: Db, cur=None
     ) -> Dict[str, int]:
         to_add = list({converters.object_reference_to_db(ref) for ref in references})
-        db.object_references_add(
-            to_add,
-            cur=cur,
-        )
+        try:
+            db.object_references_add(
+                to_add,
+                cur=cur,
+            )
+        except psycopg.errors.CheckViolation:
+            raise NonRetryableException(
+                "No 'object_references_*' table open for writing."
+            )
 
         return {"object_reference:add": len(to_add)}
 
@@ -2096,20 +2063,109 @@ class Storage:
             swhids: list of SWHID of the objects to remove
 
         Returns:
-            Summary dict with the following keys and associated values:
+            dict: number of objects removed. Details of each key:
 
-                content:delete: Number of content objects removed
-                content:delete:bytes: Sum of the removed contents’ data length
-                skipped_content:delete: Number of skipped content objects removed
-                directory:delete: Number of directory objects removed
-                revision:delete: Number of revision objects removed
-                release:delete: Number of release objects removed
-                snapshot:delete: Number of snapshot objects removed
-                origin:delete: Number of origin objects removed
-                origin_visit:delete: Number of origin visit objects removed
-                origin_visit_status:delete: Number of origin visit status objects removed
+            content:delete
+                Number of content objects removed
+
+            content:delete:bytes
+                Sum of the removed contents’ data length
+
+            skipped_content:delete
+                Number of skipped content objects removed
+
+            directory:delete
+                Number of directory objects removed
+
+            revision:delete
+                Number of revision objects removed
+
+            release:delete
+                Number of release objects removed
+
+            snapshot:delete
+                Number of snapshot objects removed
+
+            origin:delete
+                Number of origin objects removed
+
+            origin_visit:delete
+                Number of origin visit objects removed
+
+            origin_visit_status:delete
+                Number of origin visit status objects removed
+
+            ori_metadata:delete
+                Number of raw extrinsic metadata objects targeting
+                an origin that have been removed
+
+            snp_metadata:delete
+                Number of raw extrinsic metadata objects targeting
+                a snapshot that have been removed
+
+            rev_metadata:delete
+                Number of raw extrinsic metadata objects targeting
+                a revision that have been removed
+
+            rel_metadata:delete
+                Number of raw extrinsic metadata objects targeting
+                a release that have been removed
+
+            dir_metadata:delete
+                Number ef raw extrinsic metadata objects targeting
+                a directory that have been removed
+
+            cnt_metadata:delete
+                Number of raw extrinsic metadata objects targeting
+                a content that have been removed
+
+            emd_metadata:delete
+                Number of raw extrinsic metadata objects targeting
+                a raw extrinsic metadata object that have been removed
         """
         object_rows = [
             (swhid.object_type.name.lower(), swhid.object_id) for swhid in swhids
         ]
-        return db.object_delete(object_rows)
+        return db.object_delete(object_rows, cur=cur)
+
+    @db_transaction()
+    def extid_delete_for_target(
+        self, target_swhids: List[CoreSWHID], *, db: Db, cur=None
+    ) -> Dict[str, int]:
+        """Delete ExtID objects from the storage
+
+        Args:
+            target_swhids: list of SWHIDs targeted by the ExtID objects to remove
+
+        Returns:
+            Summary dict with the following keys and associated values:
+
+                extid:delete: Number of ExtID objects removed
+        """
+        target_rows = [
+            (swhid.object_type.name.lower(), swhid.object_id) for swhid in target_swhids
+        ]
+        return db.extid_delete_for_target(target_rows, cur=cur)
+
+    @db_transaction()
+    def object_references_create_partition(
+        self, year: int, week: int, *, db: Db, cur=None
+    ) -> Tuple[datetime.date, datetime.date]:
+        """Create the partition of the object_references table for the given ISO
+        ``year`` and ``week``."""
+        return db.object_references_create_partition(year, week, cur=cur)
+
+    @db_transaction()
+    def object_references_drop_partition(
+        self, partition: ObjectReferencesPartition, *, db: Db, cur=None
+    ) -> None:
+        """Delete the partition of the object_references table for the given partition."""
+        db.object_references_drop_partition(partition.year, partition.week, cur=cur)
+
+    @db_transaction()
+    def object_references_list_partitions(
+        self, *, db: Db, cur=None
+    ) -> List[ObjectReferencesPartition]:
+        """List existing partitions of the object_references table, ordered from
+        oldest to the most recent."""
+        return db.object_references_list_partitions(cur=cur)

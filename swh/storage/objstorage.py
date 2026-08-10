@@ -1,4 +1,4 @@
-# Copyright (C) 2020-2023 The Software Heritage developers
+# Copyright (C) 2020-2023  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -10,8 +10,7 @@ from swh.model.hashutil import DEFAULT_ALGORITHMS
 from swh.model.model import Content, MissingData, Sha1
 from swh.objstorage.exc import ObjNotFoundError
 from swh.objstorage.factory import get_objstorage
-from swh.objstorage.interface import CompositeObjId
-from swh.storage.interface import HashDict
+from swh.storage.interface import HashDict, StorageInterface
 
 from .exc import StorageArgumentException
 
@@ -22,7 +21,7 @@ class ObjStorage:
 
     """
 
-    def __init__(self, storage, objstorage_config: Optional[Dict]):
+    def __init__(self, storage: StorageInterface, objstorage_config: Optional[Dict]):
         self.storage = storage
         self.warn_usage = False
         if objstorage_config is None:
@@ -99,14 +98,14 @@ class ObjStorage:
             warnings.warn(
                 "Actually using a NoopObjstorage; this is most probably a configuration error.",
             )
-        content_pairs: List[Tuple[CompositeObjId, bytes]] = []
+        content_pairs: List[Tuple[HashDict, bytes]] = []
         for content in contents:
             try:
                 content = content.with_data()
             except MissingData:
                 raise StorageArgumentException("Missing data") from None
             assert content.data is not None
-            content_pairs.append((cast(CompositeObjId, content.hashes()), content.data))
+            content_pairs.append((content.hashes(), content.data))
         summary = self.objstorage.add_batch(content_pairs)
         return {
             "content:add": summary["object:add"],

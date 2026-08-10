@@ -6,7 +6,10 @@ sql-autodoc:
 	make -C ../sql/ doc
 	cp ../sql/doc/sql/db-schema.svg images/
 
-images: sql-autodoc
+cql-autodoc:
+	python3 -c "from swh.storage.cassandra.diagram import dot_diagram; print(dot_diagram())" | dot -T svg > images/cassandra-schema.svg
+
+images: sql-autodoc cql-autodoc
 	make -C images/
 clean-images:
 	make -C images/ clean

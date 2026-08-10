@@ -1,4 +1,4 @@
-# Copyright (C) 2022 The Software Heritage developers
+# Copyright (C) 2022-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -180,7 +180,7 @@ class OverlayProxyStorage:
 
             return [results[id_] for id_ in ids]
 
-        return newf
+        return newf  # type: ignore[return-value]
 
     def _missing(self, method_name: str) -> Callable[[List[TKey]], Iterable[TKey]]:
         @functools.wraps(getattr(self.storages[0], method_name))
@@ -193,7 +193,7 @@ class OverlayProxyStorage:
                 missing_ids = list(method(missing_ids))
             return missing_ids
 
-        return newf
+        return newf  # type: ignore[return-value]
 
     def _getter_random(self, method_name: str) -> Callable[[], Optional[TValue]]:
         @functools.wraps(getattr(self.storages[0], method_name))
@@ -221,7 +221,7 @@ class OverlayProxyStorage:
     def _getter_intersection(self, method_name) -> Callable[..., List[TKey]]:
         @functools.wraps(getattr(self.storages[0], method_name))
         def newf(*args, **kwargs) -> List[TKey]:
-            (head, *tail) = self.storages
+            head, *tail = self.storages
             results = set(getattr(head, method_name)(*args, **kwargs))
             for storage in tail:
                 method = getattr(storage, method_name)
@@ -248,9 +248,9 @@ class OverlayProxyStorage:
                 storage_id = 0
             else:
                 if isinstance(page_token, str):
-                    (storage_id_str, page_token) = page_token.split(" ", 1)
+                    storage_id_str, page_token = page_token.split(" ", 1)
                 elif isinstance(page_token, bytes):
-                    (storage_id_bytes, page_token) = page_token.split(b" ", 1)
+                    storage_id_bytes, page_token = page_token.split(b" ", 1)
                     storage_id_str = storage_id_bytes.decode()
                 else:
                     raise StorageArgumentException(
@@ -290,7 +290,7 @@ class OverlayProxyStorage:
         return newf
 
     def check_config(self, *, check_write: bool) -> bool:
-        (rw_storage, *ro_storages) = self.storages
+        rw_storage, *ro_storages = self.storages
         return rw_storage.check_config(check_write=check_write) and all(
             storage.check_config(check_write=False) for storage in ro_storages
         )
@@ -323,7 +323,7 @@ class OverlayProxyStorage:
     def object_find_by_sha1_git(self, ids: List[Sha1Git]) -> Dict[Sha1Git, List[Dict]]:
         results: Dict[Sha1Git, List[Dict]] = {id_: [] for id_ in ids}
         for storage in self.storages:
-            for (id_, objects) in storage.object_find_by_sha1_git(ids).items():
+            for id_, objects in storage.object_find_by_sha1_git(ids).items():
                 # note: this is quadratic in the number of hash conflicts:
                 for object_ in objects:
                     if object_ not in results[id_]:
@@ -341,16 +341,18 @@ class OverlayProxyStorage:
         )
 
     def origin_visit_find_by_date(
-        self, origin: str, visit_date: datetime.datetime
+        self, origin: str, visit_date: datetime.datetime, type: Optional[str] = None
     ) -> Optional[OriginVisit]:
         return min(
             (
-                storage.origin_visit_find_by_date(origin, visit_date)
+                storage.origin_visit_find_by_date(origin, visit_date, type)
                 for storage in self.storages
             ),
-            key=lambda ov: (datetime.timedelta.max, None)
-            if ov is None
-            else (abs(visit_date - ov.date), -(ov.visit or 0)),
+            key=lambda ov: (
+                (datetime.timedelta.max, None)
+                if ov is None
+                else (abs(visit_date - ov.date), -(ov.visit or 0))
+            ),
         )
 
     def clear_buffers(self, object_types: Sequence[str] = ()) -> None:

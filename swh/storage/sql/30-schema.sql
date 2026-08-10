@@ -489,7 +489,7 @@ create table object_counts_bucketed
 );
 
 comment on table object_counts_bucketed is 'Bucketed count for objects ordered by type';
-comment on column object_counts_bucketed.line is 'Auto incremented idenitfier value';
+comment on column object_counts_bucketed.line is 'Auto incremented identifier value';
 comment on column object_counts_bucketed.object_type is 'Object type (''content'', ''directory'', ''revision'',
  ''release'', ''snapshot'')';
 comment on column object_counts_bucketed.identifier is 'Common identifier for bucketed objects';
@@ -513,7 +513,7 @@ comment on table extid is 'Correspondance SWH object (SWHID) <-> original revisi
 comment on column extid.extid_type is 'ExtID type';
 comment on column extid.extid is 'Intrinsic identifier of the object (e.g. hg revision)';
 comment on column extid.target_type is 'Type of SWHID of the referenced SWH object';
-comment on column extid.target is 'Value (hash) of SWHID of the refenced SWH object';
+comment on column extid.target is 'Value (hash) of SWHID of the referenced SWH object';
 comment on column extid.extid_version is 'Version of the extid type for the given original object';
 
 create table object_references

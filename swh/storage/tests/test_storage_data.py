@@ -4,8 +4,8 @@
 # See top-level LICENSE file for more information
 import pytest
 
-from swh.model.model import BaseModel
-from swh.storage.tests.storage_data import StorageData
+from swh.model.model import BaseModel, Content
+from swh.storage.tests.storage_data import DEFAULT_ALGORITHMS, StorageData
 
 
 def test_storage_data():
@@ -28,6 +28,20 @@ def test_storage_data():
     ]:
         for obj in getattr(data, attribute_key):
             assert isinstance(obj, BaseModel)
+
+
+def test_storage_data_colliding_contents():
+    data = StorageData()
+    for h in DEFAULT_ALGORITHMS:
+        hashes = set()
+        values = set()
+        for content in data.colliding_contents[h]:
+            assert isinstance(content, Content)
+            values.add(content.data)
+            hashes.add(getattr(content, h))
+
+        assert len(hashes) == 1
+        assert len(values) == len(data.colliding_contents[h])
 
 
 @pytest.mark.parametrize(

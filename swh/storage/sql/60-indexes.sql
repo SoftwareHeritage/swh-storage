@@ -7,16 +7,11 @@ select swh_get_dbflavor() = 'default' as dbflavor_default \gset
 
 -- content
 
-create unique index concurrently content_pkey on content(sha1);
-alter table content add primary key using index content_pkey;
+create unique index concurrently content_multi_pkey on content(sha256, sha1, sha1_git, blake2s256);
+alter table content add primary key using index content_multi_pkey;
 
-\if :dbflavor_does_deduplication
-  create unique index concurrently on content(sha1_git);
-\else
-  create index concurrently on content(sha1_git);
-\endif
-
-create index concurrently on content(sha256);
+create index concurrently on content(sha1);
+create index concurrently on content(sha1_git);
 create index concurrently on content(blake2s256);
 
 \if :dbflavor_default
@@ -229,14 +224,6 @@ create index concurrently origin_visit_origin_date_idx on origin_visit (origin, 
 
 create unique index concurrently origin_visit_status_pkey on origin_visit_status(origin, visit, date);
 alter table origin_visit_status add primary key using index origin_visit_status_pkey;
-
-\if :dbflavor_default
-  alter table origin_visit_status
-    add constraint origin_visit_status_origin_visit_fkey
-    foreign key (origin, visit)
-    references origin_visit(origin, visit) not valid;
-  alter table origin_visit_status validate constraint origin_visit_status_origin_visit_fkey;
-\endif
 
 -- release
 create unique index concurrently release_pkey on release(id);

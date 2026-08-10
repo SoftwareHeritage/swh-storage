@@ -1,18 +1,21 @@
-# Copyright (C) 2018-2020  The Software Heritage developers
+# Copyright (C) 2018-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import random
+
 from hypothesis import HealthCheck, given, settings
 import pytest
 
-from swh.model.hypothesis_strategies import branch_names, branch_targets, snapshots
+from swh.model.hypothesis_strategies import branch_names, snapshot_targets, snapshots
 from swh.model.model import (
+    SHA1_SIZE,
     OriginVisit,
     OriginVisitStatus,
     Snapshot,
     SnapshotBranch,
-    TargetType,
+    SnapshotTargetType,
 )
 from swh.storage.algos.snapshot import (
     snapshot_get_all_branches,
@@ -48,16 +51,95 @@ def test_snapshot_small(swh_storage, snapshot):  # noqa
 
 
 @settings(suppress_health_check=disabled_health_checks, deadline=None)
-@given(branch_name=branch_names(), branch_target=branch_targets(only_objects=True))
-def test_snapshot_large(swh_storage, branch_name, branch_target):  # noqa
+@given(branch_name=branch_names(), snapshot_target=snapshot_targets(only_objects=True))
+def test_snapshot_large(swh_storage, branch_name, snapshot_target):  # noqa
     snapshot = Snapshot(
-        branches={b"%s%05d" % (branch_name, i): branch_target for i in range(10000)},
+        branches={b"%s%05d" % (branch_name, i): snapshot_target for i in range(10000)},
     )
 
     swh_storage.snapshot_add([snapshot])
 
     returned_snapshot = snapshot_get_all_branches(swh_storage, snapshot.id)
     assert snapshot == returned_snapshot
+
+
+def random_sha1():
+    return bytes(random.randint(0, 255) for _ in range(SHA1_SIZE))
+
+
+@pytest.mark.parametrize("target_type", ["revision", "release"])
+def test_snapshot_get_all_branches_target_types_filter(swh_storage, target_type):
+    nb_branches = 10000
+    snapshot = Snapshot(
+        branches={
+            (b"branch_%05d" % i): SnapshotBranch(
+                target_type=(
+                    SnapshotTargetType.REVISION
+                    if i % 2 == 0
+                    else SnapshotTargetType.RELEASE
+                ),
+                target=random_sha1(),
+            )
+            for i in range(nb_branches)
+        },
+    )
+
+    swh_storage.snapshot_add([snapshot])
+
+    returned_snapshot = snapshot_get_all_branches(
+        swh_storage, snapshot.id, target_types=[target_type]
+    )
+    assert len(returned_snapshot.branches) == nb_branches / 2
+    assert all(
+        branch.target_type.value == target_type
+        for branch in returned_snapshot.branches.values()
+    )
+
+
+@pytest.mark.parametrize("branch_name_substring", [b"foo", b"bar"])
+def test_snapshot_get_all_branches_include_filter(swh_storage, branch_name_substring):
+    nb_branches = 10000
+    snapshot = Snapshot(
+        branches={
+            (b"branch_%s_%05d" % (b"foo" if i % 2 == 0 else b"bar", i)): SnapshotBranch(
+                target_type=SnapshotTargetType.RELEASE,
+                target=random_sha1(),
+            )
+            for i in range(nb_branches)
+        },
+    )
+
+    swh_storage.snapshot_add([snapshot])
+
+    returned_snapshot = snapshot_get_all_branches(
+        swh_storage, snapshot.id, branch_name_include_substring=branch_name_substring
+    )
+    assert len(returned_snapshot.branches) == nb_branches / 2
+    assert all(branch_name_substring in branch for branch in returned_snapshot.branches)
+
+
+@pytest.mark.parametrize("exclude_prefix", [b"foo", b"bar"])
+def test_snapshot_get_all_branches_exclude_prefix_filter(swh_storage, exclude_prefix):
+    nb_branches = 10000
+    snapshot = Snapshot(
+        branches={
+            (b"%s_%05d" % (b"foo" if i % 2 == 0 else b"bar", i)): SnapshotBranch(
+                target_type=SnapshotTargetType.RELEASE,
+                target=random_sha1(),
+            )
+            for i in range(nb_branches)
+        },
+    )
+
+    swh_storage.snapshot_add([snapshot])
+
+    returned_snapshot = snapshot_get_all_branches(
+        swh_storage, snapshot.id, branch_name_exclude_prefix=exclude_prefix
+    )
+    assert len(returned_snapshot.branches) == nb_branches / 2
+    assert all(
+        not branch.startswith(exclude_prefix) for branch in returned_snapshot.branches
+    )
 
 
 def test_snapshot_get_latest_none(swh_storage, sample_data):
@@ -176,6 +258,60 @@ def test_snapshot_get_latest(swh_storage, sample_data):
 
     with pytest.raises(ValueError, match="branches_count must be a positive integer"):
         snapshot_get_latest(swh_storage, origin.url, branches_count="something-wrong")
+
+
+def test_snapshot_get_latest_for_visit_type(swh_storage, sample_data):
+    origin = sample_data.origin
+    swh_storage.origin_add(sample_data.origins)
+
+    visit1, visit2 = sample_data.origin_visits[:2]
+    visit1 = visit1.evolve(type="git")
+    visit2 = visit2.evolve(type="git-checkout")
+    assert visit1.origin == visit2.origin == origin.url
+
+    ov1, ov2 = swh_storage.origin_visit_add([visit1, visit2])
+
+    simple_snapshot = sample_data.snapshots[0]
+    complete_snapshot = sample_data.snapshots[2]
+    swh_storage.snapshot_add([simple_snapshot, complete_snapshot])
+
+    swh_storage.origin_visit_status_add(
+        [
+            OriginVisitStatus(
+                origin=origin.url,
+                visit=ov1.visit,
+                date=visit1.date,
+                status="full",
+                snapshot=complete_snapshot.id,
+            )
+        ]
+    )
+
+    swh_storage.origin_visit_status_add(
+        [
+            OriginVisitStatus(
+                origin=origin.url,
+                visit=ov2.visit,
+                date=visit2.date,
+                status="full",
+                snapshot=simple_snapshot.id,
+            )
+        ]
+    )
+
+    git_snapshot = snapshot_get_latest(
+        swh_storage,
+        origin.url,
+        visit_type="git",
+    )
+    assert git_snapshot == complete_snapshot
+
+    git_checkout_snapshot = snapshot_get_latest(
+        swh_storage,
+        origin.url,
+        visit_type="git-checkout",
+    )
+    assert git_checkout_snapshot == simple_snapshot
 
 
 def test_snapshot_id_get_from_revision(swh_storage, sample_data):
@@ -318,24 +454,24 @@ def test_snapshot_resolve_alias(swh_storage, sample_data):
     rel_alias_name = b"rel_alias"
     rev_branch_info = SnapshotBranch(
         target=sample_data.revisions[0].id,
-        target_type=TargetType.REVISION,
+        target_type=SnapshotTargetType.REVISION,
     )
     rel_branch_info = SnapshotBranch(
         target=sample_data.releases[0].id,
-        target_type=TargetType.RELEASE,
+        target_type=SnapshotTargetType.RELEASE,
     )
     rev_alias1_branch_info = SnapshotBranch(
-        target=rev_branch_name, target_type=TargetType.ALIAS
+        target=rev_branch_name, target_type=SnapshotTargetType.ALIAS
     )
     rev_alias2_branch_info = SnapshotBranch(
-        target=rev_alias1_name, target_type=TargetType.ALIAS
+        target=rev_alias1_name, target_type=SnapshotTargetType.ALIAS
     )
 
     rev_alias3_branch_info = SnapshotBranch(
-        target=rev_alias2_name, target_type=TargetType.ALIAS
+        target=rev_alias2_name, target_type=SnapshotTargetType.ALIAS
     )
     rel_alias_branch_info = SnapshotBranch(
-        target=rel_branch_name, target_type=TargetType.ALIAS
+        target=rel_branch_name, target_type=SnapshotTargetType.ALIAS
     )
 
     snapshot = Snapshot(
@@ -373,7 +509,7 @@ def test_snapshot_resolve_alias_dangling_branch(swh_storage):
     alias_name = b"rev_alias"
 
     alias_branch = SnapshotBranch(
-        target=dangling_branch_name, target_type=TargetType.ALIAS
+        target=dangling_branch_name, target_type=SnapshotTargetType.ALIAS
     )
 
     snapshot = Snapshot(
@@ -392,7 +528,7 @@ def test_snapshot_resolve_alias_missing_branch(swh_storage):
     alias_name = b"rev_alias"
 
     alias_branch = SnapshotBranch(
-        target=missing_branch_name, target_type=TargetType.ALIAS
+        target=missing_branch_name, target_type=SnapshotTargetType.ALIAS
     )
 
     snapshot = Snapshot(
@@ -413,16 +549,16 @@ def test_snapshot_resolve_alias_cycle_found(swh_storage):
     alias4_name = b"alias_4"
 
     alias1_branch_info = SnapshotBranch(
-        target=alias2_name, target_type=TargetType.ALIAS
+        target=alias2_name, target_type=SnapshotTargetType.ALIAS
     )
     alias2_branch_info = SnapshotBranch(
-        target=alias3_name, target_type=TargetType.ALIAS
+        target=alias3_name, target_type=SnapshotTargetType.ALIAS
     )
     alias3_branch_info = SnapshotBranch(
-        target=alias4_name, target_type=TargetType.ALIAS
+        target=alias4_name, target_type=SnapshotTargetType.ALIAS
     )
     alias4_branch_info = SnapshotBranch(
-        target=alias2_name, target_type=TargetType.ALIAS
+        target=alias2_name, target_type=SnapshotTargetType.ALIAS
     )
 
     snapshot = Snapshot(
