@@ -77,7 +77,8 @@ class Table(Generic[TRow]):
         self.data: Dict[int, Dict[Tuple, TRow]] = defaultdict(dict)
 
     def __repr__(self):
-        return f"<__module__.Table[{self.row_class.__name__}] object>"
+        cls = self.__class__
+        return f"<{cls.__module__}.{cls.__name__}[{self.row_class.__name__}] object>"
 
     def partition_key(self, row: Union[TRow, Dict[str, Any]]) -> Tuple:
         """Returns the partition key of a row (ie. the cells which get hashed
@@ -167,29 +168,31 @@ class Table(Generic[TRow]):
 
 
 class InMemoryCqlRunner:
+    _Table: Type[Table] = Table
+
     def __init__(self):
-        self._contents = Table(ContentRow)
+        self._contents = self._Table(ContentRow)
         self._content_indexes = defaultdict(lambda: defaultdict(set))
-        self._skipped_contents = Table(ContentRow)
+        self._skipped_contents = self._Table(ContentRow)
         self._skipped_content_indexes = defaultdict(lambda: defaultdict(set))
-        self._directories = Table(DirectoryRow)
-        self._directory_entries = Table(DirectoryEntryRow)
-        self._revisions = Table(RevisionRow)
-        self._revision_parents = Table(RevisionParentRow)
-        self._releases = Table(ReleaseRow)
-        self._snapshots = Table(SnapshotRow)
-        self._snapshot_branches = Table(SnapshotBranchRow)
-        self._origins = Table(OriginRow)
-        self._origin_visits = Table(OriginVisitRow)
-        self._origin_visit_statuses = Table(OriginVisitStatusRow)
-        self._metadata_authorities = Table(MetadataAuthorityRow)
-        self._metadata_fetchers = Table(MetadataFetcherRow)
-        self._raw_extrinsic_metadata = Table(RawExtrinsicMetadataRow)
-        self._raw_extrinsic_metadata_by_id = Table(RawExtrinsicMetadataByIdRow)
-        self._extid = Table(ExtIDRow)
+        self._directories = self._Table(DirectoryRow)
+        self._directory_entries = self._Table(DirectoryEntryRow)
+        self._revisions = self._Table(RevisionRow)
+        self._revision_parents = self._Table(RevisionParentRow)
+        self._releases = self._Table(ReleaseRow)
+        self._snapshots = self._Table(SnapshotRow)
+        self._snapshot_branches = self._Table(SnapshotBranchRow)
+        self._origins = self._Table(OriginRow)
+        self._origin_visits = self._Table(OriginVisitRow)
+        self._origin_visit_statuses = self._Table(OriginVisitStatusRow)
+        self._metadata_authorities = self._Table(MetadataAuthorityRow)
+        self._metadata_fetchers = self._Table(MetadataFetcherRow)
+        self._raw_extrinsic_metadata = self._Table(RawExtrinsicMetadataRow)
+        self._raw_extrinsic_metadata_by_id = self._Table(RawExtrinsicMetadataByIdRow)
+        self._extid = self._Table(ExtIDRow)
         self._object_references = {}
         self._object_references_tables_lock = threading.Lock()
-        self._object_references_tables = Table(ObjectReferencesTableRow)
+        self._object_references_tables = self._Table(ObjectReferencesTableRow)
         self._stat_counters = defaultdict(int)
 
     def __getstate__(self):
