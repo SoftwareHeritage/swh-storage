@@ -34,8 +34,7 @@ class NoopCqlRunner(InMemoryCqlRunner):
     ) -> Iterable[int]:
         # parent implementation accesses a defaultdict, which inserts a key
         # with empty list as value
-        if False:
-            yield 0
+        yield from ()
 
     def skipped_content_index_add_one(
         self, algo: str, content: SkippedContent, token: int
@@ -47,8 +46,7 @@ class NoopCqlRunner(InMemoryCqlRunner):
     ) -> Iterable[int]:
         # parent implementation accesses a defaultdict, which inserts a key
         # with empty list as value
-        if False:
-            yield 0
+        yield from ()
 
 
 class NoopStorage(InMemoryStorage):
@@ -58,8 +56,7 @@ class NoopStorage(InMemoryStorage):
 
     def origin_visit_add(self, visits: List[OriginVisit]) -> Iterable[OriginVisit]:
         # parent implementation checks visits[].origin is known
-        if False:
-            yield 0
+        yield from ()
 
     def raw_extrinsic_metadata_add(
         self, metadata: List[RawExtrinsicMetadata]
