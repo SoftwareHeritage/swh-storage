@@ -1045,7 +1045,7 @@ class InMemoryCqlRunner:
             end=Date(next_monday),  # ditto
         )
 
-        self._object_references[name] = Table(ObjectReferenceRow)
+        self._object_references[name] = self._Table(ObjectReferenceRow)
         self._object_references_tables.insert(row)
 
         return (monday, next_monday)
