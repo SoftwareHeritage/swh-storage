@@ -230,7 +230,7 @@ class InMemoryCqlRunner:
     def content_add_finalize(self, contents: List[ContentRow]) -> None:
         for content in contents:
             self._contents.insert(content)
-        self.increment_counter("content", 1)
+        self.increment_counter("content", len(contents))
 
     def content_add_prepare(self, content: ContentRow):
         finalizer = content

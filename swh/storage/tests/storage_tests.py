@@ -410,6 +410,12 @@ class TestStorage:
             "content:add:bytes": cont.length + cont2.length,
         }
 
+        if isinstance(swh_storage, InMemoryStorage) or not isinstance(
+            swh_storage, CassandraStorage
+        ):
+            swh_storage.refresh_stat_counters()
+            assert swh_storage.stat_counters()["content"] == 2
+
     def test_content_add_twice(self, swh_storage, sample_data):
         cont, cont2 = sample_data.contents[:2]
 
