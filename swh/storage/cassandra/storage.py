@@ -466,7 +466,7 @@ class CassandraStorage:
                     # remove ctime from all colliding contents
                     colliding_objects.append(contents[i].evolve(ctime=None))
 
-                    self.journal_writer.hash_colliding_content_add(colliding_objects)
+                self.journal_writer.hash_colliding_content_add(colliding_objects)
 
                 end_time = time.monotonic()
                 timings["add_collision_to_journal"] = end_time - start_time
