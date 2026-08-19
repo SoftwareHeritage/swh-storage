@@ -18,21 +18,21 @@ dynamic = ["version", "dependencies", "optional-dependencies"]
 
 
 [project.entry-points."swh.storage.classes"]
-"remote" = "swh.storage.api.client:RemoteStorage"
-"memory" = "swh.storage.in_memory:InMemoryStorage"
 "cassandra" = "swh.storage.cassandra:CassandraStorage"
+"memory" = "swh.storage.in_memory:InMemoryStorage"
 "postgresql" = "swh.storage.postgresql.storage:Storage"
+"remote" = "swh.storage.api.client:RemoteStorage"
 # deprecated
 "local" = "swh.storage.postgresql.storage:Storage"
 # proxy storages
+"blocking" = "swh.storage.proxies.blocking.cls:BlockingProxyStorage"
 "buffer" = "swh.storage.proxies.buffer:BufferingProxyStorage"
 "filter" = "swh.storage.proxies.filter:FilteringProxyStorage"
+"masking" = "swh.storage.proxies.masking.cls:MaskingProxyStorage"
+"record_references" = "swh.storage.proxies.record_references:RecordReferencesProxyStorage"
 "retry" = "swh.storage.proxies.retry:RetryingProxyStorage"
 "tenacious" = "swh.storage.proxies.tenacious:TenaciousProxyStorage"
 "validate" = "swh.storage.proxies.validate:ValidatingProxyStorage"
-"record_references" = "swh.storage.proxies.record_references:RecordReferencesProxyStorage"
-"masking" = "swh.storage.proxies.masking.cls:MaskingProxyStorage"
-"blocking" = "swh.storage.proxies.blocking.cls:BlockingProxyStorage"
 
 [project.entry-points."swh.cli.subcommands"]
 "swh.storage" = "swh.storage.cli"
