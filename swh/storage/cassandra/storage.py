@@ -359,7 +359,9 @@ class CassandraStorage:
         rows_by_algo = [
             (
                 algo,
-                self._content_get_from_hashes(algo, list(content_ids_by_hash[algo])),
+                list(
+                    self._content_get_from_hashes(algo, list(content_ids_by_hash[algo]))
+                ),
             )
             for algo in HASH_ALGORITHMS
         ]
