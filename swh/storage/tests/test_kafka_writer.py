@@ -1,4 +1,4 @@
-# Copyright (C) 2018-2025  The Software Heritage developers
+# Copyright (C) 2018-2026  The Software Heritage developers
 # See the AUTHORS file at the top-level directory of this distribution
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
@@ -128,13 +128,20 @@ def test_storage_direct_writer_content_hash_collision_sequential(
     expected_messages = 4
 
     consumed_messages = consume_messages(consumer, kafka_prefix, expected_messages)
-    colliding_no_ctime = [
+    expected = [
         content.evolve(ctime=None)
         for content in sample_data.colliding_contents[colliding_hash]
     ]
+    expected.sort()
 
-    for msg in consumed_messages["hash_colliding_contents"]:
-        assert Content.from_dict(msg[1]) in colliding_no_ctime
+    actual = list(
+        sorted(
+            Content.from_dict(msg[1])
+            for msg in consumed_messages["hash_colliding_content"]
+        )
+    )
+
+    assert actual == expected
 
 
 @pytest.mark.parametrize(
@@ -158,10 +165,17 @@ def test_storage_direct_writer_content_hash_collision_same_batch(
     expected_messages = 2 * len(all_colliding)
 
     consumed_messages = consume_messages(consumer, kafka_prefix, expected_messages)
-    colliding_no_ctime = [content.evolve(ctime=None) for content in all_colliding]
+    expected = [content.evolve(ctime=None) for content in all_colliding]
+    expected.sort()
 
-    for msg in consumed_messages["hash_colliding_contents"]:
-        assert Content.from_dict(msg[1]) in colliding_no_ctime
+    actual = list(
+        sorted(
+            Content.from_dict(msg[1])
+            for msg in consumed_messages["hash_colliding_content"]
+        )
+    )
+
+    assert actual == expected
 
 
 def test_storage_direct_writer_anonymized(
