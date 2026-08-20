@@ -3,9 +3,18 @@
 # License: GNU General Public License version 3, or any later version
 # See top-level LICENSE file for more information
 
+import random
 from typing import Callable, Dict, Generic, Iterable, List, Tuple, TypeVar
 
-from swh.model.model import Content, OriginVisit, RawExtrinsicMetadata, SkippedContent
+import attr
+
+from swh.model.model import (
+    Content,
+    OriginVisit,
+    OriginVisitStatus,
+    RawExtrinsicMetadata,
+    SkippedContent,
+)
 
 from .in_memory import BaseRow, InMemoryCqlRunner, InMemoryStorage, Table
 from .objstorage import ObjStorage
@@ -56,7 +65,16 @@ class NoopStorage(InMemoryStorage):
 
     def origin_visit_add(self, visits: List[OriginVisit]) -> Iterable[OriginVisit]:
         # parent implementation checks visits[].origin is known
-        yield from ()
+        # loaders read the unique visit id from the result
+        yield from (
+            attr.evolve(visit, visit=random.randrange(2**128)) for visit in visits
+        )
+
+    def origin_visit_status_add(
+        self, visit_statuses: List[OriginVisitStatus]
+    ) -> Dict[str, int]:
+        # parent implementation checks visit_statuses[].origin
+        return {}
 
     def raw_extrinsic_metadata_add(
         self, metadata: List[RawExtrinsicMetadata]
