@@ -30,6 +30,7 @@ dynamic = ["version", "dependencies", "optional-dependencies"]
 "buffer" = "swh.storage.proxies.buffer:BufferingProxyStorage"
 "filter" = "swh.storage.proxies.filter:FilteringProxyStorage"
 "masking" = "swh.storage.proxies.masking.cls:MaskingProxyStorage"
+"statsd" = "swh.storage.proxies.statsd:StatsdProxyStorage"
 "record_references" = "swh.storage.proxies.record_references:RecordReferencesProxyStorage"
 "retry" = "swh.storage.proxies.retry:RetryingProxyStorage"
 "tenacious" = "swh.storage.proxies.tenacious:TenaciousProxyStorage"
