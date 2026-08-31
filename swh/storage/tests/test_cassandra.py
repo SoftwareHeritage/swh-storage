@@ -542,6 +542,7 @@ class TestCassandraStorage(_TestStorage):
     def test_directory_add_algos(
         self,
         swh_storage,
+        swh_storage_backend,
         sample_data,
         mocker,
         insert_algo,
@@ -553,7 +554,7 @@ class TestCassandraStorage(_TestStorage):
             content = sample_data.content
             directory = self._directory_with_entries(sample_data, nb_entries)
 
-        self.test_directory_add(swh_storage, new_sample_data)
+        self.test_directory_add(swh_storage, swh_storage_backend, new_sample_data)
 
     @pytest.mark.parametrize("insert_algo", DIRECTORY_ENTRIES_INSERT_ALGOS)
     def test_directory_add_atomic(self, swh_storage, sample_data, mocker, insert_algo):
