@@ -20,6 +20,7 @@ dynamic = ["version", "dependencies", "optional-dependencies"]
 [project.entry-points."swh.storage.classes"]
 "cassandra" = "swh.storage.cassandra:CassandraStorage"
 "memory" = "swh.storage.in_memory:InMemoryStorage"
+"noop" = "swh.storage.noop:NoopStorage"
 "postgresql" = "swh.storage.postgresql.storage:Storage"
 "remote" = "swh.storage.api.client:RemoteStorage"
 # deprecated
