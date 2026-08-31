@@ -18,6 +18,7 @@ CONTENT_ADD_DURATION_METRIC = "swh_storage_content_add_suboperations_total"
 OPERATIONS_METRIC = "swh_storage_operations_total"
 OPERATIONS_UNIT_METRIC = "swh_storage_operations_{unit}_total"
 DURATION_METRIC = "swh_storage_request_duration_seconds"
+COUNTED_ARG_METRIC = "swh_storage_request_args_total"
 
 
 def timed(f):
