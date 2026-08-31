@@ -413,7 +413,6 @@ class InMemoryCqlRunner:
         return missing
 
     def revision_add_one(self, revision: RevisionRow) -> None:
-        assert revision.id != bytes.fromhex("b915b638b4414bd566e73ef3f1c88090a362e9bf")
         self._revisions.insert(revision)
         self.increment_counter("revision", 1)
 
