@@ -188,7 +188,7 @@ class TestStorage:
         assert swh_storage.check_config(check_write=True)
         assert swh_storage.check_config(check_write=False)
 
-    def test_content_add(self, swh_storage, sample_data):
+    def test_content_add(self, swh_storage, swh_storage_backend, sample_data):
         # first insert only one item
         first_content = sample_data.content
 
@@ -209,7 +209,7 @@ class TestStorage:
 
         contents = [
             obj
-            for (obj_type, obj) in swh_storage.journal_writer.journal.objects
+            for (obj_type, obj) in swh_storage_backend.journal_writer.journal.objects
             if obj_type == "content"
         ]
         assert len(contents) == 1
@@ -242,7 +242,7 @@ class TestStorage:
         )
         journal_contents = [
             obj
-            for (obj_type, obj) in swh_storage.journal_writer.journal.objects
+            for (obj_type, obj) in swh_storage_backend.journal_writer.journal.objects
             if obj_type == "content"
         ]
 
@@ -262,7 +262,7 @@ class TestStorage:
         for obj, cont in zip(journal_contents, expected_contents):
             assert obj.evolve(ctime=None) == cont
 
-    def test_content_add__legacy(self, swh_storage, sample_data):
+    def test_content_add__legacy(self, swh_storage, swh_storage_backend, sample_data):
         """content_add() with a single sha1 as param instead of a dict"""
         cont = sample_data.content
 
@@ -282,7 +282,7 @@ class TestStorage:
 
         contents = [
             obj
-            for (obj_type, obj) in swh_storage.journal_writer.journal.objects
+            for (obj_type, obj) in swh_storage_backend.journal_writer.journal.objects
             if obj_type == "content"
         ]
         assert len(contents) == 1
@@ -297,7 +297,9 @@ class TestStorage:
             swh_storage.refresh_stat_counters()
             assert swh_storage.stat_counters()["content"] == 1
 
-    def test_content_add_from_lazy_content(self, swh_storage, sample_data):
+    def test_content_add_from_lazy_content(
+        self, swh_storage, swh_storage_backend, sample_data
+    ):
         cont = sample_data.content
         lazy_content = cont.evolve(data=None, get_data=lambda: cont.data)
 
@@ -319,7 +321,7 @@ class TestStorage:
         expected_cont = cont.evolve(data=None, ctime=None, get_data=None)
         contents = [
             obj
-            for (obj_type, obj) in swh_storage.journal_writer.journal.objects
+            for (obj_type, obj) in swh_storage_backend.journal_writer.journal.objects
             if obj_type == "content"
         ]
         assert len(contents) == 1
@@ -416,7 +418,7 @@ class TestStorage:
             swh_storage.refresh_stat_counters()
             assert swh_storage.stat_counters()["content"] == 2
 
-    def test_content_add_twice(self, swh_storage, sample_data):
+    def test_content_add_twice(self, swh_storage, swh_storage_backend, sample_data):
         cont, cont2 = sample_data.contents[:2]
 
         actual_result = swh_storage.content_add([cont])
@@ -424,14 +426,14 @@ class TestStorage:
             "content:add": 1,
             "content:add:bytes": cont.length,
         }
-        assert len(swh_storage.journal_writer.journal.objects) == 1
+        assert len(swh_storage_backend.journal_writer.journal.objects) == 1
 
         actual_result = swh_storage.content_add([cont, cont2])
         assert actual_result == {
             "content:add": 1,
             "content:add:bytes": cont2.length,
         }
-        assert 2 <= len(swh_storage.journal_writer.journal.objects) <= 3
+        assert 2 <= len(swh_storage_backend.journal_writer.journal.objects) <= 3
 
         assert len(swh_storage.content_find(cont.to_dict())) == 1
         assert len(swh_storage.content_find(cont2.to_dict())) == 1
@@ -477,11 +479,11 @@ class TestStorage:
 
         assert swh_storage.content_get_data({"sha1": cont.sha1}) == cont.data
 
-    def test_content_update(self, swh_storage, sample_data):
+    def test_content_update(self, swh_storage, swh_storage_backend, sample_data):
         cont1 = sample_data.content
 
-        if hasattr(swh_storage, "journal_writer"):
-            swh_storage.journal_writer.journal = None  # TODO, not supported
+        if hasattr(swh_storage_backend, "journal_writer"):
+            swh_storage_backend.journal_writer.journal = None  # TODO, not supported
 
         swh_storage.content_add([cont1])
 
@@ -496,7 +498,7 @@ class TestStorage:
         expected_content = attr.evolve(cont1b, data=None)
         assert actual_contents == [expected_content]
 
-    def test_content_add_metadata(self, swh_storage, sample_data):
+    def test_content_add_metadata(self, swh_storage, swh_storage_backend, sample_data):
         # first insert only one item
         first_content = attr.evolve(sample_data.content, data=None, ctime=now())
 
@@ -521,7 +523,7 @@ class TestStorage:
         )
         journal_contents = [
             obj
-            for (obj_type, obj) in swh_storage.journal_writer.journal.objects
+            for (obj_type, obj) in swh_storage_backend.journal_writer.journal.objects
             if obj_type == "content"
         ]
         # PostgreSQL storage lets duplicate entries through to the journal. In
@@ -582,7 +584,7 @@ class TestStorage:
         assert swh_storage.content_get_data({"sha1": cont.sha1}) is None
 
         # The journal too
-        assert list(swh_storage.journal_writer.journal.objects) == []
+        assert list(swh_storage_backend.journal_writer.journal.objects) == []
 
     def test_skipped_content_add(self, swh_storage, sample_data):
         contents = sample_data.skipped_contents[:2]
@@ -991,7 +993,7 @@ class TestStorage:
             cont3.sha1_git,
         }
 
-    def test_directory_add(self, swh_storage, sample_data):
+    def test_directory_add(self, swh_storage, swh_storage_backend, sample_data):
         content = sample_data.content
         directory = sample_data.directory
         assert directory.entries[0].target == content.sha1_git
@@ -1004,7 +1006,7 @@ class TestStorage:
         assert actual_result == {"directory:add": 1}
 
         assert ("directory", directory) in list(
-            swh_storage.journal_writer.journal.objects
+            swh_storage_backend.journal_writer.journal.objects
         )
 
         actual_data = list(swh_storage.directory_ls(directory.id))
@@ -1022,7 +1024,7 @@ class TestStorage:
             swh_storage.refresh_stat_counters()
             assert swh_storage.stat_counters()["directory"] == 1
 
-    def test_directory_add_all(self, swh_storage, sample_data):
+    def test_directory_add_all(self, swh_storage, swh_storage_backend, sample_data):
         init_missing = set(
             swh_storage.directory_missing([d.id for d in sample_data.directories])
         )
@@ -1033,10 +1035,12 @@ class TestStorage:
 
         for directory in sample_data.directories:
             assert ("directory", directory) in list(
-                swh_storage.journal_writer.journal.objects
+                swh_storage_backend.journal_writer.journal.objects
             )
 
-    def test_directory_add_with_raw_manifest(self, swh_storage, sample_data):
+    def test_directory_add_with_raw_manifest(
+        self, swh_storage, swh_storage_backend, sample_data
+    ):
         content = sample_data.content
         directory = sample_data.directory
         directory = attr.evolve(directory, raw_manifest=b"foo")
@@ -1053,7 +1057,7 @@ class TestStorage:
         assert actual_result == {"directory:add": 1}
 
         assert ("directory", directory) in list(
-            swh_storage.journal_writer.journal.objects
+            swh_storage_backend.journal_writer.journal.objects
         )
 
         actual_data = list(swh_storage.directory_ls(directory.id))
@@ -1109,20 +1113,20 @@ class TestStorage:
                 # we can't compare the other fields, because they become non-intrinsic,
                 # so they may clash between hypothesis runs
 
-    def test_directory_add_twice(self, swh_storage, sample_data):
+    def test_directory_add_twice(self, swh_storage, swh_storage_backend, sample_data):
         directory = sample_data.directories[1]
 
         actual_result = swh_storage.directory_add([directory])
         assert actual_result == {"directory:add": 1}
 
-        assert list(swh_storage.journal_writer.journal.objects) == [
+        assert list(swh_storage_backend.journal_writer.journal.objects) == [
             ("directory", directory)
         ]
 
         actual_result = swh_storage.directory_add([directory])
         assert actual_result == {"directory:add": 0}
 
-        assert list(swh_storage.journal_writer.journal.objects) == [
+        assert list(swh_storage_backend.journal_writer.journal.objects) == [
             ("directory", directory)
         ]
 
@@ -1474,7 +1478,7 @@ class TestStorage:
             dir3.id,
         }
 
-    def test_revision_add(self, swh_storage, sample_data):
+    def test_revision_add(self, swh_storage, swh_storage_backend, sample_data):
         revision = sample_data.revision
         init_missing = swh_storage.revision_missing([revision.id])
         assert list(init_missing) == [revision.id]
@@ -1485,7 +1489,7 @@ class TestStorage:
         end_missing = swh_storage.revision_missing([revision.id])
         assert list(end_missing) == []
 
-        assert list(swh_storage.journal_writer.journal.objects) == [
+        assert list(swh_storage_backend.journal_writer.journal.objects) == [
             ("revision", revision)
         ]
 
@@ -1499,25 +1503,27 @@ class TestStorage:
             swh_storage.refresh_stat_counters()
             assert swh_storage.stat_counters()["revision"] == 1
 
-    def test_revision_add_twice(self, swh_storage, sample_data):
+    def test_revision_add_twice(self, swh_storage, swh_storage_backend, sample_data):
         revision, revision2 = sample_data.revisions[:2]
 
         actual_result = swh_storage.revision_add([revision])
         assert actual_result == {"revision:add": 1}
 
-        assert list(swh_storage.journal_writer.journal.objects) == [
+        assert list(swh_storage_backend.journal_writer.journal.objects) == [
             ("revision", revision)
         ]
 
         actual_result = swh_storage.revision_add([revision, revision2])
         assert actual_result == {"revision:add": 1}
 
-        assert list(swh_storage.journal_writer.journal.objects) == [
+        assert list(swh_storage_backend.journal_writer.journal.objects) == [
             ("revision", revision),
             ("revision", revision2),
         ]
 
-    def test_revision_add_fractional_timezone(self, swh_storage, sample_data):
+    def test_revision_add_fractional_timezone(
+        self, swh_storage, swh_storage_backend, sample_data
+    ):
         # When reading a date from this time period on systems configured with
         # timezone Europe/Paris, postgresql returns them with UTC+00:09:21 as timezone,
         # but psycopg2 < 2.9.0 had to truncate them.
@@ -1547,13 +1553,15 @@ class TestStorage:
         end_missing = swh_storage.revision_missing([revision.id])
         assert list(end_missing) == []
 
-        assert list(swh_storage.journal_writer.journal.objects) == [
+        assert list(swh_storage_backend.journal_writer.journal.objects) == [
             ("revision", revision)
         ]
 
         assert swh_storage.revision_get([revision.id])[0] == revision
 
-    def test_revision_add_with_raw_manifest(self, swh_storage, sample_data):
+    def test_revision_add_with_raw_manifest(
+        self, swh_storage, swh_storage_backend, sample_data
+    ):
         revision = sample_data.revision
         revision = attr.evolve(revision, raw_manifest=b"foo")
         revision = attr.evolve(revision, id=revision.compute_hash())
@@ -1566,7 +1574,7 @@ class TestStorage:
         end_missing = swh_storage.revision_missing([revision.id])
         assert list(end_missing) == []
 
-        assert list(swh_storage.journal_writer.journal.objects) == [
+        assert list(swh_storage_backend.journal_writer.journal.objects) == [
             ("revision", revision)
         ]
 
@@ -1594,7 +1602,9 @@ class TestStorage:
         else:
             assert False, "Missing warning about metadata being ignored"
 
-    def test_revision_add_no_seconds_rounding(self, swh_storage, sample_data):
+    def test_revision_add_no_seconds_rounding(
+        self, swh_storage, swh_storage_backend, sample_data
+    ):
         revision = sample_data.revision
 
         # this edge case makes Python produce a timestamp which is offset
@@ -1617,7 +1627,7 @@ class TestStorage:
         end_missing = swh_storage.revision_missing([revision.id])
         assert list(end_missing) == []
 
-        assert list(swh_storage.journal_writer.journal.objects) == [
+        assert list(swh_storage_backend.journal_writer.journal.objects) == [
             ("revision", revision)
         ]
 
@@ -1847,7 +1857,9 @@ class TestStorage:
         end_missing = swh_storage.revision_missing(ids)
         assert set(end_missing) == set(ids) - {revision.id}
 
-    def test_revision_add_no_author_or_date(self, swh_storage, sample_data):
+    def test_revision_add_no_author_or_date(
+        self, swh_storage, swh_storage_backend, sample_data
+    ):
         full_revision = sample_data.revision
 
         revision = attr.evolve(full_revision, author=None, date=None)
@@ -1858,13 +1870,15 @@ class TestStorage:
         end_missing = swh_storage.revision_missing([revision.id])
         assert list(end_missing) == []
 
-        assert list(swh_storage.journal_writer.journal.objects) == [
+        assert list(swh_storage_backend.journal_writer.journal.objects) == [
             ("revision", revision)
         ]
 
         assert swh_storage.revision_get([revision.id]) == [revision]
 
-    def test_revision_add_no_committer_or_date(self, swh_storage, sample_data):
+    def test_revision_add_no_committer_or_date(
+        self, swh_storage, swh_storage_backend, sample_data
+    ):
         full_revision = sample_data.revision
 
         revision = attr.evolve(full_revision, committer=None, committer_date=None)
@@ -1875,13 +1889,13 @@ class TestStorage:
         end_missing = swh_storage.revision_missing([revision.id])
         assert list(end_missing) == []
 
-        assert list(swh_storage.journal_writer.journal.objects) == [
+        assert list(swh_storage_backend.journal_writer.journal.objects) == [
             ("revision", revision)
         ]
 
         assert swh_storage.revision_get([revision.id]) == [revision]
 
-    def test_extid_add_git(self, swh_storage, sample_data):
+    def test_extid_add_git(self, swh_storage, swh_storage_backend, sample_data):
         gitids = [
             revision.id
             for revision in sample_data.revisions
@@ -1914,12 +1928,12 @@ class TestStorage:
         # check ExtIDs have been added to the journal
         extids_in_journal = [
             obj
-            for (obj_type, obj) in swh_storage.journal_writer.journal.objects
+            for (obj_type, obj) in swh_storage_backend.journal_writer.journal.objects
             if obj_type == "extid"
         ]
         assert extids == extids_in_journal
 
-    def test_extid_add_hg(self, swh_storage, sample_data):
+    def test_extid_add_hg(self, swh_storage, swh_storage_backend, sample_data):
         def get_node(revision):
             node = None
             if revision.extra_headers:
@@ -1966,7 +1980,7 @@ class TestStorage:
         # check ExtIDs have been added to the journal
         extids_in_journal = [
             obj
-            for (obj_type, obj) in swh_storage.journal_writer.journal.objects
+            for (obj_type, obj) in swh_storage_backend.journal_writer.journal.objects
             if obj_type == "extid"
         ]
         assert extid_objs == extids_in_journal
@@ -2162,7 +2176,7 @@ class TestStorage:
                 ObjectType.REVISION, [ids[0]], extid_type="git"
             )
 
-    def test_release_add(self, swh_storage, sample_data):
+    def test_release_add(self, swh_storage, swh_storage_backend, sample_data):
         release, release2 = sample_data.releases[:2]
 
         init_missing = swh_storage.release_missing([release.id, release2.id])
@@ -2174,7 +2188,7 @@ class TestStorage:
         end_missing = swh_storage.release_missing([release.id, release2.id])
         assert list(end_missing) == []
 
-        assert list(swh_storage.journal_writer.journal.objects) == [
+        assert list(swh_storage_backend.journal_writer.journal.objects) == [
             ("release", release),
             ("release", release2),
         ]
@@ -2189,7 +2203,9 @@ class TestStorage:
             swh_storage.refresh_stat_counters()
             assert swh_storage.stat_counters()["release"] == 2
 
-    def test_release_add_with_raw_manifest(self, swh_storage, sample_data):
+    def test_release_add_with_raw_manifest(
+        self, swh_storage, swh_storage_backend, sample_data
+    ):
         release = sample_data.releases[0]
         release = attr.evolve(release, raw_manifest=b"foo")
         release = attr.evolve(release, id=release.compute_hash())
@@ -2203,7 +2219,7 @@ class TestStorage:
         end_missing = swh_storage.release_missing([release.id])
         assert list(end_missing) == []
 
-        assert list(swh_storage.journal_writer.journal.objects) == [
+        assert list(swh_storage_backend.journal_writer.journal.objects) == [
             ("release", release),
         ]
 
@@ -2247,7 +2263,9 @@ class TestStorage:
                 # we can't compare the other fields, because they become non-intrinsic,
                 # so they may clash between hypothesis runs
 
-    def test_release_add_no_author_date(self, swh_storage, sample_data):
+    def test_release_add_no_author_date(
+        self, swh_storage, swh_storage_backend, sample_data
+    ):
         full_release = sample_data.release
 
         release = attr.evolve(full_release, author=None, date=None)
@@ -2257,31 +2275,33 @@ class TestStorage:
         end_missing = swh_storage.release_missing([release.id])
         assert list(end_missing) == []
 
-        assert list(swh_storage.journal_writer.journal.objects) == [
+        assert list(swh_storage_backend.journal_writer.journal.objects) == [
             ("release", release)
         ]
 
-    def test_release_add_twice(self, swh_storage, sample_data):
+    def test_release_add_twice(self, swh_storage, swh_storage_backend, sample_data):
         release, release2 = sample_data.releases[:2]
 
         actual_result = swh_storage.release_add([release])
         assert actual_result == {"release:add": 1}
 
-        assert list(swh_storage.journal_writer.journal.objects) == [
+        assert list(swh_storage_backend.journal_writer.journal.objects) == [
             ("release", release)
         ]
 
         actual_result = swh_storage.release_add([release, release2, release, release2])
         assert actual_result == {"release:add": 1}
 
-        assert set(swh_storage.journal_writer.journal.objects) == set(
+        assert set(swh_storage_backend.journal_writer.journal.objects) == set(
             [
                 ("release", release),
                 ("release", release2),
             ]
         )
 
-    def test_release_add_name_clash(self, swh_storage, sample_data):
+    def test_release_add_name_clash(
+        self, swh_storage, swh_storage_backend, sample_data
+    ):
         release, release2 = [
             attr.evolve(
                 c,
@@ -2371,7 +2391,7 @@ class TestStorage:
             release3.id,
         }
 
-    def test_origin_add(self, swh_storage, sample_data):
+    def test_origin_add(self, swh_storage, swh_storage_backend, sample_data):
         origins = list(sample_data.origins)
         origin_urls = [o.url for o in origins]
 
@@ -2383,7 +2403,7 @@ class TestStorage:
         actual_origins = swh_storage.origin_get(origin_urls)
         assert actual_origins == origins
 
-        assert set(swh_storage.journal_writer.journal.objects) == set(
+        assert set(swh_storage_backend.journal_writer.journal.objects) == set(
             [("origin", origin) for origin in origins]
         )
 
@@ -2393,11 +2413,11 @@ class TestStorage:
             swh_storage.refresh_stat_counters()
             assert swh_storage.stat_counters()["origin"] == len(origins)
 
-    def test_origin_add_twice(self, swh_storage, sample_data):
+    def test_origin_add_twice(self, swh_storage, swh_storage_backend, sample_data):
         origin, origin2 = sample_data.origins[:2]
 
         add1 = swh_storage.origin_add([origin, origin2])
-        assert set(swh_storage.journal_writer.journal.objects) == set(
+        assert set(swh_storage_backend.journal_writer.journal.objects) == set(
             [
                 ("origin", origin),
                 ("origin", origin2),
@@ -2406,7 +2426,7 @@ class TestStorage:
         assert add1 == {"origin:add": 2}
 
         add2 = swh_storage.origin_add([origin, origin2])
-        assert set(swh_storage.journal_writer.journal.objects) == set(
+        assert set(swh_storage_backend.journal_writer.journal.objects) == set(
             [
                 ("origin", origin),
                 ("origin", origin2),
@@ -2414,11 +2434,13 @@ class TestStorage:
         )
         assert add2 == {"origin:add": 0}
 
-    def test_origin_add_twice_at_once(self, swh_storage, sample_data):
+    def test_origin_add_twice_at_once(
+        self, swh_storage, swh_storage_backend, sample_data
+    ):
         origin, origin2 = sample_data.origins[:2]
 
         add1 = swh_storage.origin_add([origin, origin2, origin, origin2])
-        assert set(swh_storage.journal_writer.journal.objects) == set(
+        assert set(swh_storage_backend.journal_writer.journal.objects) == set(
             [
                 ("origin", origin),
                 ("origin", origin2),
@@ -2427,7 +2449,7 @@ class TestStorage:
         assert add1 == {"origin:add": 2}
 
         add2 = swh_storage.origin_add([origin, origin2, origin, origin2])
-        assert set(swh_storage.journal_writer.journal.objects) == set(
+        assert set(swh_storage_backend.journal_writer.journal.objects) == set(
             [
                 ("origin", origin),
                 ("origin", origin2),
@@ -3427,7 +3449,7 @@ class TestStorage:
         _check_visit_types(["hg"])
         _check_visit_types(["git", "hg"])
 
-    def test_origin_visit_add(self, swh_storage, sample_data):
+    def test_origin_visit_add(self, swh_storage, swh_storage_backend, sample_data):
         origin1 = sample_data.origins[1]
         swh_storage.origin_add([origin1])
 
@@ -3481,7 +3503,7 @@ class TestStorage:
         for visit in expected_visits:
             assert visit in actual_visits
 
-        actual_objects = list(swh_storage.journal_writer.journal.objects)
+        actual_objects = list(swh_storage_backend.journal_writer.journal.objects)
         expected_objects = list(
             [("origin", origin1)]
             + [("origin_visit", visit) for visit in expected_visits] * 2
@@ -3548,16 +3570,18 @@ class TestStorage:
         assert ov3.visit == 12
         assert ov4.visit == 44
 
-    def test_origin_visit_add_validation(self, swh_storage, sample_data):
+    def test_origin_visit_add_validation(
+        self, swh_storage, swh_storage_backend, sample_data
+    ):
         """Unknown origin when adding visits should raise"""
         visit = attr.evolve(sample_data.origin_visit, origin="something-unknonw")
         with pytest.raises(StorageArgumentException, match="Unknown origin"):
             swh_storage.origin_visit_add([visit])
 
-        objects = list(swh_storage.journal_writer.journal.objects)
+        objects = list(swh_storage_backend.journal_writer.journal.objects)
         assert not objects
 
-    def test_origin_visit_status_add_validation(self, swh_storage):
+    def test_origin_visit_status_add_validation(self, swh_storage, swh_storage_backend):
         """Wrong origin_visit_status input should raise storage argument error"""
         date_visit = now()
         visit_status1 = OriginVisitStatus(
@@ -3570,10 +3594,12 @@ class TestStorage:
         with pytest.raises(StorageArgumentException, match="Unknown origin"):
             swh_storage.origin_visit_status_add([visit_status1])
 
-        objects = list(swh_storage.journal_writer.journal.objects)
+        objects = list(swh_storage_backend.journal_writer.journal.objects)
         assert not objects
 
-    def test_origin_visit_status_add(self, swh_storage, sample_data):
+    def test_origin_visit_status_add(
+        self, swh_storage, swh_storage_backend, sample_data
+    ):
         """Correct origin visit statuses should add a new visit status"""
         snapshot = sample_data.snapshot
         origin1 = sample_data.origins[1]
@@ -3647,7 +3673,7 @@ class TestStorage:
         assert origin2.url != origin1.url
         assert visit_status == visit_status2
 
-        actual_objects = list(swh_storage.journal_writer.journal.objects)
+        actual_objects = list(swh_storage_backend.journal_writer.journal.objects)
 
         expected_origins = [origin1, origin2]
         expected_visits = [ov1, ov2]
@@ -3662,7 +3688,9 @@ class TestStorage:
         for obj in expected_objects:
             assert obj in actual_objects
 
-    def test_origin_visit_status_add_twice(self, swh_storage, sample_data):
+    def test_origin_visit_status_add_twice(
+        self, swh_storage, swh_storage_backend, sample_data
+    ):
         """Correct origin visit statuses should add a new visit status"""
         snapshot = sample_data.snapshot
         origin1 = sample_data.origins[1]
@@ -3705,7 +3733,7 @@ class TestStorage:
         visit_status = swh_storage.origin_visit_status_get_latest(ov1.origin, ov1.visit)
         assert visit_status == visit_status1
 
-        actual_objects = list(swh_storage.journal_writer.journal.objects)
+        actual_objects = list(swh_storage_backend.journal_writer.journal.objects)
 
         expected_origins = [origin1]
         expected_visits = [ov1]
@@ -4482,7 +4510,9 @@ class TestStorage:
         # then check committers are the same
         assert revisions[0].committer == revisions[1].committer
 
-    def test_snapshot_add_get_empty(self, swh_storage, sample_data):
+    def test_snapshot_add_get_empty(
+        self, swh_storage, swh_storage_backend, sample_data
+    ):
         empty_snapshot = sample_data.snapshots[1]
         empty_snapshot_dict = empty_snapshot.to_dict()
 
@@ -4539,7 +4569,7 @@ class TestStorage:
                 "snapshot": empty_snapshot.id,
             }
         )
-        actual_objects = list(swh_storage.journal_writer.journal.objects)
+        actual_objects = list(swh_storage_backend.journal_writer.journal.objects)
 
         expected_objects = [
             ("origin", origin),
@@ -4649,20 +4679,20 @@ class TestStorage:
             "next_branch": None,
         }
 
-    def test_snapshot_add_twice(self, swh_storage, sample_data):
+    def test_snapshot_add_twice(self, swh_storage, swh_storage_backend, sample_data):
         snapshot, empty_snapshot = sample_data.snapshots[:2]
 
         actual_result = swh_storage.snapshot_add([empty_snapshot])
         assert actual_result == {"snapshot:add": 1}
 
-        assert list(swh_storage.journal_writer.journal.objects) == [
+        assert list(swh_storage_backend.journal_writer.journal.objects) == [
             ("snapshot", empty_snapshot)
         ]
 
         actual_result = swh_storage.snapshot_add([snapshot])
         assert actual_result == {"snapshot:add": 1}
 
-        assert list(swh_storage.journal_writer.journal.objects) == [
+        assert list(swh_storage_backend.journal_writer.journal.objects) == [
             ("snapshot", empty_snapshot),
             ("snapshot", snapshot),
         ]
@@ -5709,7 +5739,9 @@ class TestStorage:
 
         assert expected == ret
 
-    def test_metadata_fetcher_add_get(self, swh_storage, sample_data):
+    def test_metadata_fetcher_add_get(
+        self, swh_storage, swh_storage_backend, sample_data
+    ):
         fetcher = sample_data.metadata_fetcher
         actual_fetcher = swh_storage.metadata_fetcher_get(fetcher.name, fetcher.version)
         assert actual_fetcher is None  # does not exist
@@ -5719,7 +5751,7 @@ class TestStorage:
         res = swh_storage.metadata_fetcher_get(fetcher.name, fetcher.version)
         assert res == fetcher
 
-        actual_objects = list(swh_storage.journal_writer.journal.objects)
+        actual_objects = list(swh_storage_backend.journal_writer.journal.objects)
         expected_objects = [
             ("metadata_fetcher", fetcher),
         ]
@@ -5734,7 +5766,9 @@ class TestStorage:
 
         swh_storage.metadata_fetcher_add([])
 
-    def test_metadata_authority_add_get(self, swh_storage, sample_data):
+    def test_metadata_authority_add_get(
+        self, swh_storage, swh_storage_backend, sample_data
+    ):
         authority = sample_data.metadata_authority
 
         actual_authority = swh_storage.metadata_authority_get(
@@ -5747,7 +5781,7 @@ class TestStorage:
         res = swh_storage.metadata_authority_get(authority.type, authority.url)
         assert res == authority
 
-        actual_objects = list(swh_storage.journal_writer.journal.objects)
+        actual_objects = list(swh_storage_backend.journal_writer.journal.objects)
         expected_objects = [
             ("metadata_authority", authority),
         ]
@@ -5765,7 +5799,7 @@ class TestStorage:
 
         swh_storage.metadata_authority_add([])
 
-    def test_content_metadata_add(self, swh_storage, sample_data):
+    def test_content_metadata_add(self, swh_storage, swh_storage_backend, sample_data):
         content = sample_data.content
         fetcher = sample_data.metadata_fetcher
         authority = sample_data.metadata_authority
@@ -5787,7 +5821,7 @@ class TestStorage:
             )
         ) == list(content_metadata)
 
-        actual_objects = list(swh_storage.journal_writer.journal.objects)
+        actual_objects = list(swh_storage_backend.journal_writer.journal.objects)
         expected_objects = [
             ("metadata_authority", authority),
             ("metadata_fetcher", fetcher),
@@ -6077,7 +6111,7 @@ class TestStorage:
             == []
         )
 
-    def test_origin_metadata_add(self, swh_storage, sample_data):
+    def test_origin_metadata_add(self, swh_storage, swh_storage_backend, sample_data):
         origin = sample_data.origin
         fetcher = sample_data.metadata_fetcher
         authority = sample_data.metadata_authority
@@ -6099,7 +6133,7 @@ class TestStorage:
             origin_metadata2,
         ]
 
-        actual_objects = list(swh_storage.journal_writer.journal.objects)
+        actual_objects = list(swh_storage_backend.journal_writer.journal.objects)
         expected_objects = [
             ("metadata_authority", authority),
             ("metadata_fetcher", fetcher),
