@@ -8,7 +8,7 @@ from functools import wraps
 import logging
 from time import monotonic
 from types import TracebackType
-from typing import Dict, Optional, Type
+from typing import Callable, Dict, Optional, Type, TypeVar
 
 from swh.core.statsd import statsd
 
@@ -19,16 +19,20 @@ OPERATIONS_METRIC = "swh_storage_operations_total"
 OPERATIONS_UNIT_METRIC = "swh_storage_operations_{unit}_total"
 DURATION_METRIC = "swh_storage_request_duration_seconds"
 
+T = TypeVar("T", bound=Callable)
 
-def timed(f):
+
+def timed(f: T) -> T:
     """Time that function!"""
+
+    tags = {"endpoint": f.__name__}
 
     @wraps(f)
     def d(*a, **kw):
-        with statsd.timed(DURATION_METRIC, tags={"endpoint": f.__name__}):
+        with statsd.timed(DURATION_METRIC, tags=tags):
             return f(*a, **kw)
 
-    return d
+    return d  # type: ignore[return-value]
 
 
 class DifferentialTimer:
