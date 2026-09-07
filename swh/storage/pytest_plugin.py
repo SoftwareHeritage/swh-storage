@@ -345,8 +345,11 @@ def swh_storage_cassandra_backend_config(
     yield storage_config
 
 
+_xdist_testrunuid = os.environ.get("PYTEST_XDIST_TESTRUNUID", "")
+_xdist_worker = os.environ.get("PYTEST_XDIST_WORKER", "")
+
 swh_storage_postgresql_proc = factories.postgresql_proc(
-    dbname="tests" + os.environ.get("PYTEST_XDIST_WORKER", ""),
+    dbname=f"tests{_xdist_testrunuid}{_xdist_worker}",
     load=[
         partial(
             initialize_database_for_module,
