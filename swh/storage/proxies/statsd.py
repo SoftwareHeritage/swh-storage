@@ -28,7 +28,12 @@ When absent, this defaults to the first parameter of sequence type (eg. list).""
 T = TypeVar("T", bound=Callable)
 
 
-def _count_parameter(f: T, signature, counted_parameter: str) -> T:
+def _count_parameter(f: T, signature, counted_parameter: str, increment: Callable) -> T:
+    """Calls ``increment`` with the length of the ``counted_parameter`` of ``f`` every time
+    ``f`` is called.
+
+    ``increment`` should have the same signature as :meth:`statsd.increment`.
+    """
     tags = {"endpoint": f.__name__}
 
     @functools.wraps(f)
@@ -42,7 +47,7 @@ def _count_parameter(f: T, signature, counted_parameter: str) -> T:
                 count = 1
             else:
                 count = len(value)
-        statsd.increment(COUNTED_ARG_METRIC, count, tags=tags)
+        increment(COUNTED_ARG_METRIC, count, tags=tags)
 
         # don't use the binding in case the underlying implementation supports more parameter
         # than StorageInterface
@@ -149,10 +154,21 @@ class StatsdProxyStorage:
                             attribute_name, signature
                         )
 
-                    attribute = timed(attribute)
+                    attribute = self._timed(attribute)
                     if counted_parameter is not None:
                         attribute = _count_parameter(
-                            attribute, signature, counted_parameter
+                            attribute,
+                            signature,
+                            counted_parameter,
+                            increment=self._increment,
                         )
 
                     setattr(self, attribute_name, attribute)
+
+    # overridden by the CountingProxyStorage to count in-memory instead of sending to statsd:
+
+    def _timed(self, f: T) -> T:
+        return timed(f)
+
+    def _increment(self, metric: str, value: int, tags: dict[str, str]) -> None:
+        statsd.increment(metric, value, tags=tags)

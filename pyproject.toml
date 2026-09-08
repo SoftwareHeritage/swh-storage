@@ -28,6 +28,7 @@ dynamic = ["version", "dependencies", "optional-dependencies"]
 # proxy storages
 "blocking" = "swh.storage.proxies.blocking.cls:BlockingProxyStorage"
 "buffer" = "swh.storage.proxies.buffer:BufferingProxyStorage"
+"counting" = "swh.storage.proxies.counting:CountingProxyStorage"
 "filter" = "swh.storage.proxies.filter:FilteringProxyStorage"
 "masking" = "swh.storage.proxies.masking.cls:MaskingProxyStorage"
 "statsd" = "swh.storage.proxies.statsd:StatsdProxyStorage"
