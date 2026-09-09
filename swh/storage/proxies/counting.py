@@ -7,6 +7,7 @@ import collections
 import dataclasses
 import functools
 import logging
+import pprint
 import time
 from typing import Callable, TypeVar
 
@@ -51,7 +52,13 @@ class CountingProxyStorage(StatsdProxyStorage):
         self.stats = Stats()
 
     def __del__(self):
-        logger.info("Stats: %s", self.stats)
+        logger.info("Total calls:\n%s", pprint.pformat(dict(self.stats.calls)))
+        logger.info(
+            "Total time (seconds):\n%s", pprint.pformat(dict(self.stats.total_time))
+        )
+        logger.info(
+            "Summed argument length:\n%s", pprint.pformat(dict(self.stats.arg_lengths))
+        )
 
     def _timed(self, f: T) -> T:
         @functools.wraps(f)
