@@ -18,7 +18,6 @@ from swh.storage.metrics import COUNTED_ARG_METRIC, timed
 
 _COUNTED_PARAMETER: Dict[str, Optional[str]] = {
     "content_get_data": None,
-    "content_update": "contents",
 }
 """Maps each method to the name of one of its parameters, whose length should be measured
 
@@ -84,6 +83,11 @@ def _get_counted_parameter(
     """  # noqa
     counted_parameters = []
     for parameter_name, parameter in signature.parameters.items():
+        if parameter.default is not inspect.Signature.empty:
+            # if the argument has a default value, then it's not the "main" argument
+            # of the function.
+            break
+
         type_ = parameter.annotation
 
         while hasattr(type_, "__origin__"):

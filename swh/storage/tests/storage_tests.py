@@ -6737,6 +6737,27 @@ class TestStorageDeletion:
         assert snapshot1 == snapshot_get_all_branches(swh_storage, snapshot1.id)
         assert snapshot_get_all_branches(swh_storage, snapshot2.id) is None
 
+    def test_flush_empty(self, swh_storage):
+        # smoke test, but it is useful for the CountingProxyStorage and StatsdProxyStorage,
+        # which inherit this test
+        swh_storage.flush()
+
+    def test_flush(self, swh_storage, sample_data):
+        # smoke test, but it is useful for the CountingProxyStorage and StatsdProxyStorage,
+        # which inherit this test
+
+        swh_storage.content_add(sample_data.contents)
+        swh_storage.directory_add(sample_data.directories)
+        swh_storage.revision_add(sample_data.revisions)
+        swh_storage.release_add(sample_data.releases)
+        swh_storage.snapshot_add(sample_data.snapshots)
+        swh_storage.origin_add(sample_data.origins)
+        swh_storage.origin_visit_add(sample_data.origin_visits)
+        swh_storage.origin_visit_status_add(sample_data.origin_visit_statuses)
+        swh_storage.extid_add(sample_data.extids)
+
+        swh_storage.flush()
+
 
 class TestStorageGeneratedData:
     def test_generate_content_get_data(self, swh_storage, swh_contents):
