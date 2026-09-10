@@ -40,7 +40,7 @@ class CountingProxyStorage(StatsdProxyStorage):
     """Storage implementation which times and counts calls to each endpoint,
     as well as the number of items in its list arguments (eg. the number of revision ids
     as parameter to ``revision_get`` or the number of revisions as parameter to
-    ``revision_add`) and prints them when deleted
+    ``revision_add``) and prints them when deleted
 
     Configuration: see :class:`swh.storage.proxies.statsd.StatsdProxyStorage`.
 
