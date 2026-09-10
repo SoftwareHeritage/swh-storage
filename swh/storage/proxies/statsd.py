@@ -131,7 +131,7 @@ class StatsdProxyStorage:
     """Storage implementation which times and counts calls to each endpoint,
     as well as the number of items in its list arguments (eg. the number of revision ids
     as parameter to ``revision_get`` or the number of revisions as parameter to
-    ``revision_add`) and sends them to statsd
+    ``revision_add``) and sends them to statsd
 
     Configuration:
 
