@@ -4,6 +4,7 @@ deprecated
 flask
 iso8601
 mypy_extensions
+packaging
 psycopg
 psycopg_pool >= 3.1
 redis != 8.0.0  # https://github.com/redis/redis-py/issues/4086
