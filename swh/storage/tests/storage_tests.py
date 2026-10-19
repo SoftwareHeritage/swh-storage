@@ -75,6 +75,8 @@ if hasattr(HealthCheck, "function_scoped_fixture"):
     disabled_health_checks.append(HealthCheck.function_scoped_fixture)
 if hasattr(HealthCheck, "differing_executors"):
     disabled_health_checks.append(HealthCheck.differing_executors)
+if hasattr(HealthCheck, "large_base_example"):
+    disabled_health_checks.append(HealthCheck.large_base_example)
 # TODO: would probably require better fixes than just disabling this later health
 #       check...
 
