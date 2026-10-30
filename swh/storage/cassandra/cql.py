@@ -104,16 +104,6 @@ from .model import (
 )
 from .schema import CREATE_TABLES_QUERIES, HASH_ALGORITHMS, OBJECT_REFERENCES_TEMPLATE
 
-PARTITION_KEY_RESTRICTION_MAX_SIZE = 100
-"""Maximum number of restrictions in a single query.
-Usually this is a very low number (eg. SELECT ... FROM ... WHERE x=?),
-but some queries can request arbitrarily many (eg. SELECT ... FROM ... WHERE x IN ?).
-
-This can cause performance issues, as the node getting the query need to
-coordinate with other nodes to get the complete results.
-See <https://github.com/scylladb/scylla/pull/4797> for details and rationale.
-"""
-
 BATCH_INSERT_MAX_SIZE = 1000
 
 
@@ -619,30 +609,27 @@ class CqlRunner:
     def content_missing_from_all_hashes(
         self, contents_hashes: List[TotalHashDict]
     ) -> Iterator[TotalHashDict]:
-        for group in grouper(contents_hashes, PARTITION_KEY_RESTRICTION_MAX_SIZE):
-            group = list(group)
-
-            # Get all contents that share a sha256 with one of the contents in the group
-            present = set(
-                self._content_get_hashes_from_sha256(
-                    [content["sha256"] for content in group]
-                )
+        # Get all contents that share a sha256 with one of the contents in the group
+        present = set(
+            self._content_get_hashes_from_sha256(
+                [content["sha256"] for content in contents_hashes]
             )
+        )
 
-            for content in group:
-                for algo in HASH_ALGORITHMS:
-                    assert content.get(algo) is not None, (
-                        "content_missing_from_all_hashes must not be called with "
-                        "partial hashes."
-                    )
-                if tuple(content.get(algo) for algo in HASH_ALGORITHMS) not in present:
-                    yield content
+        for content in contents_hashes:
+            for algo in HASH_ALGORITHMS:
+                assert content.get(algo) is not None, (
+                    "content_missing_from_all_hashes must not be called with "
+                    "partial hashes."
+                )
+            if tuple(content.get(algo) for algo in HASH_ALGORITHMS) not in present:
+                yield content
 
-    @_prepared_select_statement(ContentRow, "WHERE sha256 IN ?", HASH_ALGORITHMS)
+    @_prepared_select_statement(ContentRow, "WHERE sha256 = ?", HASH_ALGORITHMS)
     def _content_get_hashes_from_sha256(
         self, ids: List[bytes], *, statement
     ) -> Iterator[Tuple[bytes, bytes, bytes, bytes]]:
-        for row in self.execute_with_retries(statement, [ids]):
+        for row in self.execute_many_with_retries(statement, [(id,) for id in ids]):
             yield tuple(row[algo] for algo in HASH_ALGORITHMS)
 
     @_prepared_select_statement(
