@@ -703,7 +703,7 @@ class CqlRunner:
             pass
 
     def content_get_tokens_from_single_algo(
-        self, algo: str, hashes: List[bytes]
+        self, algo: str, hashes: Iterable[bytes]
     ) -> Iterable[int]:
         assert algo in HASH_ALGORITHMS
         table = content_index_table_name(algo, skipped_content=False)

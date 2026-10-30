@@ -303,7 +303,7 @@ class CassandraStorage:
     # Content
     ##########################
 
-    def _content_get_from_hashes(self, algo, hashes: List[bytes]) -> Iterable:
+    def _content_get_from_hashes(self, algo, hashes: Set[bytes]) -> Iterable:
         """From the name of a hash algorithm and a value of that hash,
         looks up the "hash -> token" secondary table (content_by_{algo})
         to get tokens.
@@ -360,7 +360,7 @@ class CassandraStorage:
             (
                 algo,
                 list(
-                    self._content_get_from_hashes(algo, list(content_ids_by_hash[algo]))
+                    self._content_get_from_hashes(algo, set(content_ids_by_hash[algo]))
                 ),
             )
             for algo in HASH_ALGORITHMS
@@ -570,7 +570,7 @@ class CassandraStorage:
 
         key = operator.attrgetter(algo)
         contents_by_hash: Dict[Sha1, Optional[Content]] = {}
-        for row in self._content_get_from_hashes(algo, contents):
+        for row in self._content_get_from_hashes(algo, set(contents)):
             # Get all (sha1, sha1_git, sha256, blake2s256) whose sha1/sha1_git
             # matches the argument, from the index table ('content_by_*')
             row_d = row.to_dict()
@@ -599,7 +599,7 @@ class CassandraStorage:
         results = []
         rows = self._content_get_from_hashes(
             common_algo,
-            [content[common_algo] for content in cast(List[dict], contents)],
+            {content[common_algo] for content in cast(List[dict], contents)},
         )
         for row in rows:
             # Re-check all the hashes, in case of collisions (either of the
@@ -2321,7 +2321,7 @@ class CassandraStorage:
         # perform two SELECTs (in `_content_get_from_hashes()``) to get enough
         # data to perform our DELETE.
         content_hashes = []
-        for row in self._content_get_from_hashes("sha1_git", list(object_ids)):
+        for row in self._content_get_from_hashes("sha1_git", set(object_ids)):
             content_hashes.append(
                 TotalHashDict(
                     sha1=row.sha1,
